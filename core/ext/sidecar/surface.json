@@ -1,0 +1,13 @@
+{
+ "generatedFrom": "compat/pi.json — do not edit; run `task compat:sync`",
+ "undefinedProps": [
+  "ctx.model",
+  "ctx.modelRegistry",
+  "ctx.scopedModels",
+  "ctx.signal",
+  "ctx.thinkingLevel"
+ ],
+ "identityProps": [
+  "ctx.ui.theme"
+ ]
+}

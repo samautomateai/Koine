@@ -1,0 +1,18 @@
+{
+  "api": {
+    "@opencode-ai/plugin": "opencode-plugin.mjs",
+    "@opencode-ai/sdk": "opencode-sdk.mjs",
+    "@mariozechner/pi-coding-agent": "pi-coding-agent.mjs",
+    "@mariozechner/pi-ai": "pi-ai.mjs",
+    "@mariozechner/pi-tui": "pi-tui.mjs",
+    "@earendil-works/pi-coding-agent": "pi-coding-agent.mjs",
+    "@earendil-works/pi-ai": "pi-ai.mjs",
+    "@earendil-works/pi-tui": "pi-tui.mjs"
+  },
+  "fallback": {
+    "typebox": "typebox.mjs",
+    "@sinclair/typebox": "typebox.mjs",
+    "zod": "zod.mjs",
+    "zod/v4": "zod.mjs"
+  }
+}

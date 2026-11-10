@@ -1,0 +1,167 @@
+# https://taskfile.dev — `task` lists everything, `task check` is what CI runs.
+version: '3'
+
+vars:
+  BIN: bin/koine
+  COVER_MIN: '{{default "85" .COVER_MIN}}'
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # ---- build & run -------------------------------------------------------
+  build:
+    desc: Build the koine CLI (bin/koine), stamping the pinned Pi baseline from compat/pi.json
+    sources: ['**/*.go', 'core/ext/sidecar/**/*', 'compat/pi.json', go.mod]
+    generates: ['{{.BIN}}']
+    vars:
+      VERSION:
+        sh: git describe --tags --always 2>/dev/null || echo dev
+      PI_BASELINE:
+        sh: node -p "require('./compat/pi.json').upstream.baseline"
+    cmds:
+      - go build -trimpath -ldflags "-X main.version={{.VERSION}} -X main.piBaseline={{.PI_BASELINE}}" -o {{.BIN}} ./cmd/koine
+
+  run:
+    desc: Run the line-mode TUI in the current project (pass args after --)
+    cmds:
+      - go run ./cmd/koine {{.CLI_ARGS}}
+
+  serve:
+    desc: Serve the HTTP/SSE API for Electron/browser frontends (ADDR=127.0.0.1:7777)
+    vars:
+      ADDR: '{{default "127.0.0.1:7777" .ADDR}}'
+    cmds:
+      - go run ./cmd/koine -serve {{.ADDR}}
+
+  tui:
+    desc: Run the Bubble Tea TUI (needs network once for `go mod tidy`)
+    dir: tui-bubbletea
+    cmds:
+      - go mod tidy
+      - go run .
+
+  desktop:dev:
+    desc: Run the Wails v2 desktop app in dev mode (needs the wails CLI)
+    dir: desktop
+    preconditions:
+      - sh: command -v wails
+        msg: 'install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest'
+    cmds:
+      - go mod tidy
+      - wails dev
+
+  desktop:build:
+    desc: Build the Wails v2 desktop app
+    dir: desktop
+    preconditions:
+      - sh: command -v wails
+        msg: 'install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest'
+    cmds:
+      - go mod tidy
+      - wails build
+
+  # ---- quality -----------------------------------------------------------
+  fmt:
+    desc: Format all Go code
+    cmds:
+      - gofmt -w -s .
+
+  fmt:check:
+    desc: Fail if any Go file is not gofmt-clean
+    cmds:
+      - |
+        out=$(gofmt -l -s .)
+        if [ -n "$out" ]; then echo "not formatted:"; echo "$out"; exit 1; fi
+
+  vet:
+    desc: go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: staticcheck (skipped with a notice if not installed)
+    cmds:
+      - |
+        if command -v staticcheck >/dev/null; then staticcheck ./...
+        else echo "staticcheck not installed (go install honnef.co/go/tools/cmd/staticcheck@latest) — skipping"; fi
+
+  # ---- tests -------------------------------------------------------------
+  test:
+    desc: Go unit + end-to-end tests
+    cmds:
+      - go test -count=1 ./...
+
+  test:race:
+    desc: Go tests with the race detector
+    cmds:
+      - go test -count=1 -race ./...
+
+  test:js:
+    desc: JS sidecar tests (Node and Bun if present)
+    cmds:
+      - node --test "core/ext/jstest/*.test.mjs" "compat/test/*.test.mjs"
+
+  test:all:
+    desc: Go + JS tests
+    cmds:
+      - task: test
+      - task: test:js
+
+  cover:
+    desc: Coverage profile and HTML report (coverage.html)
+    cmds:
+      - go test -count=1 -coverprofile=coverage.out ./...
+      - go tool cover -func=coverage.out | tail -1
+      - go tool cover -html=coverage.out -o coverage.html
+
+  cover:gate:
+    desc: Fail if any package is under COVER_MIN% (default 85)
+    cmds:
+      - scripts/covergate.sh {{.COVER_MIN}}
+
+  # ---- upstream Pi tracking (see docs/UPSTREAM.md) ----------------------
+  compat:status:
+    desc: Show what Pi surface is verified / inert / unsupported / todo
+    cmds:
+      - go run ./cmd/koine -compat
+
+  compat:sync:
+    desc: Regenerate core/ext/sidecar/surface.json from compat/pi.json
+    cmds:
+      - node scripts/upstream-check.mjs --sync-surface
+
+  upstream:check:
+    desc: Diff the latest published Pi against compat/pi.json (needs network; exit 1 = drift). Pass SRC=<dir> to use a checkout
+    cmds:
+      - node scripts/upstream-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} {{.CLI_ARGS}}
+
+  upstream:rebase:
+    desc: Move the baseline to the latest Pi; new surface is recorded as `unsupported` for triage
+    cmds:
+      - node scripts/upstream-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} --rebase || true
+      - task: compat:status
+
+  # ---- aggregate ---------------------------------------------------------
+  check:
+    desc: Everything CI runs — format, vet, lint, all tests, coverage gate
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: lint
+      - task: test:js
+      - task: cover:gate
+
+  ci:
+    desc: Alias for check, with the race detector
+    cmds:
+      - task: check
+      - task: test:race
+
+  clean:
+    desc: Remove build and coverage artifacts
+    cmds:
+      - rm -rf bin coverage.out coverage.html

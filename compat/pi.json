@@ -1,0 +1,1340 @@
+{
+ "schema": 1,
+ "upstream": {
+  "package": "@earendil-works/pi-coding-agent",
+  "legacyPackage": "@mariozechner/pi-coding-agent",
+  "repo": "https://github.com/earendil-works/pi",
+  "baseline": "1.5.2",
+  "baselineSource": "Extracted by scripts/upstream-check.mjs from the upstream source tree (packages/coding-agent: types.ts, slash-commands.ts), release 1.5.2 dated 2026-11-10 per its CHANGELOG. Scanner output cross-checked against the TypeScript compiler API: exact match on all categories.",
+  "observed": [
+   "upstream source checkout supplied by the user: all @earendil-works/* packages at 1.5.2",
+   "web snapshots (socket.dev 0.77.0 / 1.3.0, PiG pin 0.87.1) were stale or unrelated; do not use them as version evidence"
+  ]
+ },
+ "extract": {
+  "api": [
+   "ExtensionAPI"
+  ],
+  "ctx": [
+   "ExtensionContext",
+   "ExtensionCommandContext"
+  ],
+  "ui": [
+   "ExtensionUIContext"
+  ],
+  "eventOverload": "on"
+ },
+ "items": [
+  {
+   "kind": "event",
+   "name": "tool_call",
+   "status": "verified",
+   "test": "conformance",
+   "note": "block + argument rewrite"
+  },
+  {
+   "kind": "event",
+   "name": "tool_result",
+   "status": "verified",
+   "test": "conformance",
+   "note": "output rewrite (text content only)"
+  },
+  {
+   "kind": "event",
+   "name": "input",
+   "status": "verified",
+   "test": "conformance",
+   "note": "handled / transform"
+  },
+  {
+   "kind": "event",
+   "name": "before_agent_start",
+   "status": "verified",
+   "host": "system_prompt",
+   "test": "conformance",
+   "note": "systemPrompt diff -> systemAppend; systemPromptOptions not provided"
+  },
+  {
+   "kind": "event",
+   "name": "session_start",
+   "status": "verified",
+   "host": "session_start",
+   "test": "conformance",
+   "note": "reason is startup|reload only"
+  },
+  {
+   "kind": "event",
+   "name": "turn_start",
+   "status": "verified",
+   "host": "turn_start",
+   "test": "conformance"
+  },
+  {
+   "kind": "event",
+   "name": "turn_end",
+   "status": "verified",
+   "host": "turn_end",
+   "test": "conformance"
+  },
+  {
+   "kind": "event",
+   "name": "agent_end",
+   "status": "verified",
+   "host": "agent_end",
+   "test": "conformance"
+  },
+  {
+   "kind": "event",
+   "name": "session_shutdown",
+   "status": "todo",
+   "note": "not emitted yet; needs shutdown hook + reason/targetSessionFile (Pi 0.68)"
+  },
+  {
+   "kind": "event",
+   "name": "message_end",
+   "status": "todo",
+   "note": "handler results can replace finalized messages (Pi 0.71)",
+   "since": "0.71.0"
+  },
+  {
+   "kind": "event",
+   "name": "session_before_compact",
+   "status": "unsupported",
+   "note": "no context compaction yet"
+  },
+  {
+   "kind": "event",
+   "name": "session_compact",
+   "status": "unsupported",
+   "note": "no context compaction yet"
+  },
+  {
+   "kind": "event",
+   "name": "session_before_tree",
+   "status": "unsupported",
+   "note": "no session tree yet"
+  },
+  {
+   "kind": "event",
+   "name": "thinking_level_select",
+   "status": "unsupported",
+   "note": "no thinking-level control yet",
+   "since": "0.71.0"
+  },
+  {
+   "kind": "api",
+   "name": "pi.on",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerTool",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerCommand",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.sendUserMessage",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.exec",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getActiveTools",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getAllTools",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.events",
+   "status": "verified",
+   "shape": "prop",
+   "test": "conformance",
+   "note": "inter-extension event bus (in-process EventEmitter)"
+  },
+  {
+   "kind": "api",
+   "name": "pi.sendMessage",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance",
+   "note": "text is logged, not added to the conversation"
+  },
+  {
+   "kind": "api",
+   "name": "pi.appendEntry",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.setSessionName",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.setLabel",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.setActiveTools",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerShortcut",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerFlag",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getFlag",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerMessageRenderer",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerProvider",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance",
+   "note": "use the providers config instead"
+  },
+  {
+   "kind": "api",
+   "name": "pi.unregisterProvider",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.cwd",
+   "status": "verified",
+   "shape": "prop",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.hasUI",
+   "status": "verified",
+   "shape": "prop",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.mode",
+   "status": "verified",
+   "shape": "prop",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.isProjectTrusted",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.isIdle",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.hasPendingMessages",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.abort",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.shutdown",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.getContextUsage",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.compact",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.getSystemPrompt",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.waitForIdle",
+   "status": "unsupported",
+   "shape": "method",
+   "test": "conformance",
+   "note": "command-context method; needs a session store"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.newSession",
+   "status": "unsupported",
+   "shape": "method",
+   "test": "conformance",
+   "note": "command-context method; needs a session store"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.fork",
+   "status": "unsupported",
+   "shape": "method",
+   "test": "conformance",
+   "note": "command-context method; needs a session store"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.switchSession",
+   "status": "unsupported",
+   "shape": "method",
+   "test": "conformance",
+   "note": "command-context method; needs a session store"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.reload",
+   "status": "unsupported",
+   "shape": "method",
+   "test": "conformance",
+   "note": "command-context method; needs a session store"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.getSystemPromptOptions",
+   "status": "unsupported",
+   "shape": "method",
+   "test": "conformance",
+   "note": "command-context method; needs a session store"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.notify",
+   "status": "verified",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.confirm",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance",
+   "note": "confirm() resolves false; others resolve undefined"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.select",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.input",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.editor",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setStatus",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setWidget",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setTitle",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setFooter",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setHeader",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setWorkingMessage",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setWorkingIndicator",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setWorkingVisible",
+   "status": "inert",
+   "shape": "method",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.getEditorComponent",
+   "status": "unsupported",
+   "shape": "method",
+   "since": "0.71.0"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.addAutocompleteProvider",
+   "status": "unsupported",
+   "shape": "method",
+   "since": "0.69.0"
+  },
+  {
+   "kind": "import",
+   "name": "@mariozechner/pi-coding-agent",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim"
+  },
+  {
+   "kind": "import",
+   "name": "@earendil-works/pi-coding-agent",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim"
+  },
+  {
+   "kind": "import",
+   "name": "@mariozechner/pi-ai",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim"
+  },
+  {
+   "kind": "import",
+   "name": "@earendil-works/pi-ai",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim"
+  },
+  {
+   "kind": "import",
+   "name": "@mariozechner/pi-tui",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim"
+  },
+  {
+   "kind": "import",
+   "name": "@earendil-works/pi-tui",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim"
+  },
+  {
+   "kind": "import",
+   "name": "typebox",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim; real typebox/zod win if installed in the project"
+  },
+  {
+   "kind": "import",
+   "name": "@sinclair/typebox",
+   "status": "verified",
+   "test": "conformance",
+   "note": "bundled shim; real typebox/zod win if installed in the project"
+  },
+  {
+   "kind": "import",
+   "name": "@earendil-works/chord",
+   "status": "todo",
+   "note": "new upstream package: 'typed host runtime for plugins and RPC' \u2014 read its API before deciding"
+  },
+  {
+   "kind": "tool",
+   "name": "name",
+   "status": "verified",
+   "test": "conformance"
+  },
+  {
+   "kind": "tool",
+   "name": "description",
+   "status": "verified",
+   "test": "conformance"
+  },
+  {
+   "kind": "tool",
+   "name": "parameters",
+   "status": "verified",
+   "test": "conformance"
+  },
+  {
+   "kind": "tool",
+   "name": "execute",
+   "status": "verified",
+   "test": "conformance"
+  },
+  {
+   "kind": "tool",
+   "name": "label",
+   "status": "verified",
+   "test": "conformance",
+   "note": "used as description fallback"
+  },
+  {
+   "kind": "tool",
+   "name": "promptSnippet",
+   "status": "todo",
+   "note": "accepted and ignored today"
+  },
+  {
+   "kind": "tool",
+   "name": "promptGuidelines",
+   "status": "todo",
+   "note": "accepted and ignored today"
+  },
+  {
+   "kind": "tool",
+   "name": "prepareArguments",
+   "status": "todo",
+   "note": "accepted and ignored today"
+  },
+  {
+   "kind": "tool",
+   "name": "result.terminate",
+   "status": "todo",
+   "note": "end a tool batch without a follow-up LLM call (Pi 0.69)",
+   "since": "0.69.0"
+  },
+  {
+   "kind": "tool",
+   "name": "result.details",
+   "status": "unsupported",
+   "note": "persisted in Pi sessions; no session store yet"
+  },
+  {
+   "kind": "path",
+   "name": "~/.pi/agent/extensions",
+   "status": "verified",
+   "test": "app.TestDiscoverExtensions"
+  },
+  {
+   "kind": "path",
+   "name": ".pi/extensions",
+   "status": "verified",
+   "test": "app.TestDiscoverExtensions"
+  },
+  {
+   "kind": "path",
+   "name": "~/.pi/agent/settings.json:extensions",
+   "status": "verified",
+   "test": "app.TestDiscoverExtensions"
+  },
+  {
+   "kind": "path",
+   "name": ".pi/settings.json:extensions",
+   "status": "verified",
+   "test": "app.TestDiscoverExtensionsUntrustedSkipsProjectCode"
+  },
+  {
+   "kind": "path",
+   "name": "~/.pi/agent/skills",
+   "status": "verified",
+   "test": "skills.TestDiscoverAcrossEcosystems"
+  },
+  {
+   "kind": "path",
+   "name": ".pi/skills",
+   "status": "verified",
+   "test": "skills.TestDiscoverAcrossEcosystems"
+  },
+  {
+   "kind": "path",
+   "name": "~/.agents/skills",
+   "status": "verified",
+   "test": "skills.TestAgentsSkillsWalkUpToHome"
+  },
+  {
+   "kind": "path",
+   "name": ".agents/skills (cwd and parents)",
+   "status": "verified",
+   "test": "skills.TestAgentsSkillsWalkUpToHome"
+  },
+  {
+   "kind": "path",
+   "name": "~/.pi/agent/prompts",
+   "status": "verified",
+   "test": "prompts.TestDiscoverAndExpand"
+  },
+  {
+   "kind": "path",
+   "name": ".pi/prompts",
+   "status": "verified",
+   "test": "prompts.TestDiscoverAndExpand"
+  },
+  {
+   "kind": "path",
+   "name": "package.json:pi manifest",
+   "status": "todo",
+   "note": "{extensions,skills,prompts,themes} dirs + 'pi-package' keyword discovery"
+  },
+  {
+   "kind": "path",
+   "name": "themes",
+   "status": "unsupported",
+   "note": "no theming in the line TUI"
+  },
+  {
+   "kind": "path",
+   "name": ".pi/SYSTEM.md",
+   "status": "todo",
+   "note": "reported by third-party docs for older Pi; verify against current docs"
+  },
+  {
+   "kind": "path",
+   "name": "prompt placeholders {{var}}",
+   "status": "todo",
+   "note": "docs show {{focus}}; koine implements $ARGUMENTS/$1.. \u2014 verify upstream semantics"
+  },
+  {
+   "kind": "command",
+   "name": "/skill:name",
+   "status": "verified",
+   "test": "agent.TestExpandInput"
+  },
+  {
+   "kind": "command",
+   "name": "/reload",
+   "status": "verified",
+   "test": "app.TestReloadModelAndCompat"
+  },
+  {
+   "kind": "command",
+   "name": "/model",
+   "status": "verified",
+   "test": "app.TestReloadModelAndCompat",
+   "note": "no interactive picker"
+  },
+  {
+   "kind": "command",
+   "name": "/quit",
+   "status": "verified",
+   "test": "app.TestHandleInputCommands"
+  },
+  {
+   "kind": "command",
+   "name": "/compact",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/new",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/resume",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/fork",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/clone",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/tree",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/name",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/session",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/export",
+   "status": "todo",
+   "note": "needs a session store (JSONL) \u2014 see docs/ROADMAP.md"
+  },
+  {
+   "kind": "command",
+   "name": "/share",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/copy",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/settings",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/scoped-models",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/login",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/logout",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/hotkeys",
+   "status": "unsupported"
+  },
+  {
+   "kind": "command",
+   "name": "/changelog",
+   "status": "unsupported"
+  },
+  {
+   "kind": "event",
+   "name": "after_provider_response",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "agent_before_settle",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "agent_settled",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "agent_start",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "before_provider_headers",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "before_provider_request",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "cache_warming_decision",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "context",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "context_with_system",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "mcp_servers_change",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "message_start",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "message_update",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "model_select",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "project_trust",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "provider_stream_event",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "resources_discover",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "session_before_fork",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "session_before_switch",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "session_compact_failed",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "session_info_changed",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "session_tree",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "tool_execution_end",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "tool_execution_start",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "tool_execution_update",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "ui_prompt_end",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "ui_prompt_start",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "event",
+   "name": "user_bash",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getCommands",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getMcpServers",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getSessionName",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getSettings",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.getThinkingLevel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerEntryRenderer",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerMarkdownTransformer",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerMcpServer",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerToolRenderer",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.registerVirtualModel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.setModel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.setThinkingLevel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.unregisterMcpServer",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "api",
+   "name": "pi.unregisterVirtualModel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.model",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop",
+   "behavior": "undefined"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.modelRegistry",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop",
+   "behavior": "undefined"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.navigateTree",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.scopedModels",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop",
+   "behavior": "undefined"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.sessionManager",
+   "status": "inert",
+   "note": "an empty read-only stub: getEntries()/getBranch() return []",
+   "shape": "prop"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.signal",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop",
+   "behavior": "undefined"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.thinkingLevel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop",
+   "behavior": "undefined"
+  },
+  {
+   "kind": "ctx",
+   "name": "ctx.ui",
+   "status": "verified",
+   "shape": "prop",
+   "test": "conformance"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.custom",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.getAllThemes",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.getEditorText",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.getTheme",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.getToolsExpanded",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.onTerminalInput",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.pasteToEditor",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setEditorComponent",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setEditorText",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setHiddenThinkingLabel",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setTheme",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.setToolsExpanded",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "ui",
+   "name": "ctx.ui.theme",
+   "status": "inert",
+   "note": "styling helpers return the text unstyled",
+   "shape": "prop",
+   "behavior": "identity"
+  },
+  {
+   "kind": "tool",
+   "name": "annotations",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "constrainedSampling",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "defaultActive",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "executionMode",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "exposure",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "namespace",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "outputSchema",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "tool",
+   "name": "prepareLoadout",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "tool",
+   "name": "reachesTools",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "tool",
+   "name": "renderCall",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "tool",
+   "name": "renderResult",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "method"
+  },
+  {
+   "kind": "tool",
+   "name": "renderShell",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me",
+   "shape": "prop"
+  },
+  {
+   "kind": "command",
+   "name": "/bug",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "command",
+   "name": "/import",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "command",
+   "name": "/thinking",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  },
+  {
+   "kind": "command",
+   "name": "/trust",
+   "status": "unsupported",
+   "note": "new upstream surface since 0.73.1; triage me"
+  }
+ ]
+}

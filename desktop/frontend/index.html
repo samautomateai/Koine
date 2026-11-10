@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>koine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#121214; --panel:#1a1a1e; --line:#2a2a30; --fg:#e6e6ea; --dim:#8b8b95; --accent:#7aa2f7; --bad:#f7768e; --tool:#73daca; }
+  @media (prefers-color-scheme: light) { :root { --bg:#fafafa; --panel:#f0f0f3; --line:#dcdce2; --fg:#1b1b1f; --dim:#6b6b75; --accent:#2f5bd0; --bad:#c4284a; --tool:#0f7d6b; } }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; display:grid; grid-template-columns: 240px 1fr; background:var(--bg); color:var(--fg); font:14px/1.5 ui-sans-serif, system-ui, sans-serif; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:16px; overflow:auto; }
+  aside h1 { font-size:15px; margin:0 0 4px; } aside small { color:var(--dim); word-break:break-all; }
+  aside h2 { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin:18px 0 6px; }
+  aside li { list-style:none; padding:2px 0; font-family:ui-monospace, monospace; font-size:12.5px; cursor:default; }
+  aside ul { margin:0; padding:0; } aside li.cmd { cursor:pointer; color:var(--accent); }
+  main { display:grid; grid-template-rows: 1fr auto; min-width:0; }
+  #log { overflow:auto; padding:20px 24px; display:flex; flex-direction:column; gap:10px; }
+  .msg { white-space:pre-wrap; max-width:80ch; } .user { color:var(--accent); font-weight:600; }
+  .tool { font-family:ui-monospace, monospace; font-size:12.5px; color:var(--tool); }
+  .res { font-family:ui-monospace, monospace; font-size:12px; color:var(--dim); margin-left:14px; max-height:6.5em; overflow:hidden; white-space:pre-wrap; }
+  .res.err, .err { color:var(--bad); } .notice { color:var(--dim); font-style:italic; }
+  form { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); background:var(--panel); }
+  textarea { flex:1; resize:none; height:56px; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
+  textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:0 18px; font:inherit; cursor:pointer; }
+  button.stop { background:var(--bad); } button:disabled { opacity:.5; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>koine</h1><small id="cwd"></small>
+  <h2>Tools</h2><ul id="tools"></ul>
+  <h2>Skills</h2><ul id="skills"></ul>
+  <h2>Agents</h2><ul id="agents"></ul>
+  <h2>Commands</h2><ul id="commands"></ul>
+</aside>
+<main>
+  <div id="log" aria-live="polite"></div>
+  <form id="f">
+    <textarea id="t" placeholder="Message koine — Enter to send, Shift+Enter for newline" autofocus></textarea>
+    <button id="go" type="submit">Send</button>
+  </form>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const log = $("log"), t = $("t"), go = $("go");
+let busy = false, pending = {};
+
+function add(cls, text) {
+  const d = document.createElement("div"); d.className = cls; d.textContent = text;
+  log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+}
+function setBusy(b) { busy = b; go.textContent = b ? "Stop" : "Send"; go.className = b ? "stop" : ""; }
+
+function fill(id, items, click) {
+  const ul = $(id); ul.replaceChildren();
+  (items || []).forEach((x) => {
+    const li = document.createElement("li"); li.textContent = click ? "/" + x : x;
+    if (click) { li.className = "cmd"; li.onclick = () => { t.value = "/" + x + " "; t.focus(); }; }
+    ul.appendChild(li);
+  });
+}
+async function refresh() {
+  const i = await window.go.main.Backend.Info();
+  $("cwd").textContent = i.model ? i.model + " · " + i.cwd : "";
+  fill("tools", i.tools); fill("skills", i.skills); fill("agents", i.agents); fill("commands", i.commands, true);
+  (i.warnings || []).forEach((w) => add("msg err", "warning: " + w));
+}
+
+function onEvent(e) {
+  switch (e.type) {
+    case "text": add("msg", e.text); break;
+    case "tool_start": pending[e.callId] = add("tool", "⏺ " + e.tool + " " + JSON.stringify(e.args ?? {})); break;
+    case "tool_end": add("res" + (e.isError ? " err" : ""), e.text); break;
+    case "notice": add("msg notice", e.text); break;
+    case "error": add("msg err", "error: " + e.text); break;
+  }
+}
+
+function send() {
+  const v = t.value.trim(); if (!v) return;
+  t.value = ""; add("msg user", "› " + v); setBusy(true); window.go.main.Backend.Send(v);
+}
+$("f").addEventListener("submit", (ev) => { ev.preventDefault(); busy ? window.go.main.Backend.Cancel() : send(); });
+t.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); if (!busy) send(); } });
+
+window.addEventListener("load", () => {
+  window.runtime.EventsOn("koine:event", onEvent);
+  window.runtime.EventsOn("koine:done", () => { setBusy(false); refresh(); });
+  setTimeout(refresh, 300); // Go side finishes startup (extension handshake) asynchronously
+});
+</script>
+</body>
+</html>
