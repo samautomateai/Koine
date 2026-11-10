@@ -7,6 +7,7 @@
 | [adr/](adr/)                       | Why we chose X over Y                                                   | `task docs:check` (status, date, links) |
 | [SPEC.md](SPEC.md)                 | User-visible behaviour and the extension wire protocol                  | tests named in requirements; review     |
 | [ENGINEERING.md](ENGINEERING.md)   | Rules for code, tests, security and changes                             | CI gates                                |
+| [gap-assessment.md](gap-assessment.md) | Where Koine falls short of Pi, prioritised, with detail in [gap/](gap/) | review; counts updated as gaps close |
 | [UPSTREAM.md](UPSTREAM.md)         | How we track upstream Pi                                                | `compat/` tests                         |
 | [REFERENCES.md](REFERENCES.md)     | Other projects we read for ideas (not tracked)                          | review                                  |
 | [../CHANGELOG.md](../CHANGELOG.md) | What changed                                                            | review                                  |
