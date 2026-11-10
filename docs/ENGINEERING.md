@@ -37,7 +37,7 @@ These rules apply to people and to coding agents. Each one is either enforced by
 3. Vulnerability scan: `govulncheck` and Trivy (high/critical, fixable).
 4. Static security scan: `gosec` (through golangci-lint) and CodeQL for Go and JavaScript.
 5. Secret scan: gitleaks on full history. Never commit keys; fixtures use obviously fake values.
-6. Subprocess and file access in tools is the product (gosec G204/G301/G304/G306 are excluded for that reason); everything else in gosec stays on.
+6. Subprocess and file access in tools is the product (gosec G204/G301/G304/G306/G703 are excluded for that reason); everything else in gosec stays on.
 
 ## 5. Upstream Pi
 

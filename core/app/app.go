@@ -139,7 +139,7 @@ func (a *App) load(ctx context.Context) {
 	targets, skippedDirs := discoverExtensions(a.Cwd, a.Home, cfg, a.Trusted)
 	skippedCode += skippedDirs
 	for _, t := range targets {
-		spec := ext.Spec{}
+		var spec ext.Spec
 		if t.spec != nil {
 			spec = *t.spec
 		} else {
