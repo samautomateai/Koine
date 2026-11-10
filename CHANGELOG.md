@@ -13,3 +13,4 @@ All notable changes. Format follows [Keep a Changelog](https://keepachangelog.co
 - Requirements, design and ADR documents with automated consistency checks; agent configuration for Claude Code, opencode, Pi and Koine.
 - Biome replaces Prettier and ESLint for JS; CI pins Go 1.27.4 and current action versions (ADR 0006).
 - Desktop module: Wails v2.13.0 (fixes CVE-2026-34157, found by the Trivy gate).
+- Parity gap assessment against Pi 1.5.2 (222 behaviours) with prioritised phases and eight planned requirements.
