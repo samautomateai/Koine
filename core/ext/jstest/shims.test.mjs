@@ -54,13 +54,13 @@ function rpc(target, steps, { runtime }) {
   let buf = "";
   child.stdout.on("data", (d) => {
     buf += d;
-    let i;
-    while ((i = buf.indexOf("\n")) >= 0) {
+    for (let i = buf.indexOf("\n"); i >= 0; i = buf.indexOf("\n")) {
       out.push(JSON.parse(buf.slice(0, i)));
       buf = buf.slice(i + 1);
     }
   });
-  return new Promise(async (resolve) => {
+  const closed = new Promise((resolve) => child.on("close", resolve));
+  return (async () => {
     let id = 0;
     const results = [];
     for (const [method, params] of steps) {
@@ -70,8 +70,9 @@ function rpc(target, steps, { runtime }) {
       results.push(out.find((m) => m.id === my));
     }
     child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "shutdown" }) + "\n");
-    child.on("close", () => resolve({ results, notes: out.filter((m) => !m.id) }));
-  });
+    await closed;
+    return { results, notes: out.filter((m) => !m.id) };
+  })();
 }
 
 const tmp = (name, src) => {

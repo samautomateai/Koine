@@ -1,4 +1,5 @@
 ---
+
 name: spec-driven-change
 description: Use for any behaviour change, new feature or bug fix in Koine. Walks requirement → design → test → code → docs and keeps docs/requirements.md, docs/design.md and tests linked.
 ---

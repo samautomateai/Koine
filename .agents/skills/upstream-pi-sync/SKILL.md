@@ -1,4 +1,5 @@
 ---
+
 name: upstream-pi-sync
 description: Use when asked to check, update or triage Koine's compatibility with upstream Pi (earendil-works/pi). Covers drift detection, rebasing the manifest and triage.
 ---

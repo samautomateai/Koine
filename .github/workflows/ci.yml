@@ -9,26 +9,27 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GOLANGCI_LINT_VERSION: v2.5.0
-  GOVULNCHECK_VERSION: v1.1.4
+  GOLANGCI_LINT_VERSION: v2.15.0
+  GOVULNCHECK_VERSION: v1.9.0
   TASK_VERSION: 3.x
+  GO_VERSION: "1.27.4" # latest stable at the time of writing; Dependabot-style bumps are manual (docs/ENGINEERING.md §2)
 
 jobs:
   go:
     name: Go · format, lint, size, tests, coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version-file: go.mod }
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: false }
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - uses: arduino/setup-task@v2
         with: { version: "${{ env.TASK_VERSION }}", repo-token: "${{ secrets.GITHUB_TOKEN }}" }
       - name: Format (gofmt -s)
         run: task fmt:check
       - name: Lint (golangci-lint incl. gosec)
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with: { version: "${{ env.GOLANGCI_LINT_VERSION }}" }
       - name: Line and file length
         run: task size
@@ -43,17 +44,15 @@ jobs:
     name: JS · format, lint, size, tests, coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - uses: oven-sh/setup-bun@v2
       - name: Install dev tooling
-        run: npm install --no-audit --no-fund --package-lock=false
-      - name: Format (prettier)
-        run: npm run format:check
-      - name: Lint (eslint)
-        run: npm run lint
+        run: npm install --no-audit --no-fund --package-lock=false --ignore-scripts
+      - name: Format and lint (Biome)
+        run: npx --no-install biome ci .
       - name: Line and file length
         run: node scripts/sizecheck.mjs
       - name: Tests and coverage gate (Node)
@@ -75,10 +74,10 @@ jobs:
     name: Dependency audit (Go + npm)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version-file: go.mod }
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: false }
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - name: Go modules verify and tidy
         run: |
@@ -88,22 +87,23 @@ jobs:
         run: |
           npm install --package-lock-only --ignore-scripts --no-fund
           npm audit --audit-level=high
+      # Needs "Dependency graph" enabled in Settings → Security. Set the repository variable DEPENDENCY_REVIEW=true once it is.
       - name: Review new dependencies in PRs (licenses and known advisories)
-        if: github.event_name == 'pull_request'
-        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW == 'true'
+        uses: actions/dependency-review-action@v3
         with: { fail-on-severity: high }
 
   vulnerability-scan:
     name: Vulnerability scan (govulncheck + Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version-file: go.mod }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "${{ env.GO_VERSION }}", cache: false }
       - name: govulncheck (reachable vulnerabilities in code and stdlib)
         run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
       - name: Trivy filesystem scan (all ecosystems)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln,misconfig
@@ -115,9 +115,9 @@ jobs:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 
   # One required check for branch protection.

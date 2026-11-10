@@ -66,7 +66,7 @@ const inert =
     return typeof ret === "function" ? ret(...a) : ret;
   };
 function standIn(api) {
-  const f = function () {};
+  const f = () => {};
   return new Proxy(f, {
     get: (t, k) => {
       if (k === "call" || k === "apply" || k === "bind") return Reflect.get(t, k); // stand-ins stay callable the normal ways
@@ -193,6 +193,8 @@ class ShellPromise {
     });
     return this._p;
   }
+  // Intentionally thenable: `await $\`cmd\`` must work like Bun's shell.
+  // biome-ignore lint/suspicious/noThenProperty: Bun $ compatibility
   then(a, b) {
     return this.run().then(a, b);
   }
@@ -227,7 +229,7 @@ $.throws = () => $;
 
 // opencode `client`: calls resolve to empty data; app.log is forwarded.
 function makeClient(p = []) {
-  return new Proxy(function () {}, {
+  return new Proxy(() => {}, {
     get: (_t, k) => (k === "then" || typeof k === "symbol" ? undefined : makeClient([...p, k])),
     apply: (_t, _this, a) => {
       if (p.join(".") === "app.log") log(a[0]?.body?.message ?? JSON.stringify(a[0]?.body ?? ""));
@@ -387,7 +389,7 @@ function subscribed() {
   };
   for (const h of state.oc) {
     for (const [k, v] of Object.entries(ocToHost)) if (typeof h[k] === "function") set.add(v);
-    if (typeof h.event === "function") ["session_start", "agent_end"].forEach((e) => set.add(e));
+    if (typeof h.event === "function") for (const e of ["session_start", "agent_end"]) set.add(e);
   }
   return [...set];
 }

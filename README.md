@@ -22,13 +22,13 @@ bin/koine -serve 127.0.0.1:7777   # HTTP/SSE API (Electron / browser)
 
 Drop things where you already keep them and they are picked up — nothing to convert:
 
-| You have | Put it in |
-|---|---|
-| Pi extension (`.ts`) | `.pi/extensions/` or `~/.pi/agent/extensions/` |
-| opencode plugin | `.opencode/plugin/` or `"plugin": [...]` in `opencode.json` |
-| Skill (`SKILL.md`) | `.pi/skills`, `.agents/skills`, `.opencode/skill`, `.claude/skills` |
-| Claude hooks | `.claude/settings.json` |
-| Slash commands / sub-agents | `.claude/commands`, `.opencode/command`, `.claude/agents`, `.opencode/agent` |
+| You have                      | Put it in                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| Pi extension (`.ts`)          | `.pi/extensions/` or `~/.pi/agent/extensions/`                                    |
+| opencode plugin               | `.opencode/plugin/` or `"plugin": [...]` in `opencode.json`                       |
+| Skill (`SKILL.md`)            | `.pi/skills`, `.agents/skills`, `.opencode/skill`, `.claude/skills`               |
+| Claude hooks                  | `.claude/settings.json`                                                           |
+| Slash commands / sub-agents   | `.claude/commands`, `.opencode/command`, `.claude/agents`, `.opencode/agent`      |
 | Extension in **any language** | `.koine/extensions/<name>/extension.json` → `{"command": ["python3","./ext.py"]}` |
 
 A complete Python extension is ~25 lines — see
@@ -38,30 +38,30 @@ A complete Python extension is ~25 lines — see
 
 [Task](https://taskfile.dev) orchestrates everything (`task` lists all targets):
 
-| Task | What it does |
-|---|---|
-| `task check` | format check, vet, staticcheck, JS tests, Go tests **with the coverage gate** — what CI runs |
-| `task ci` | `check` + race detector |
-| `task test` / `test:js` / `test:all` / `test:race` | Go tests · sidecar tests (Node and Bun) · both · with `-race` |
-| `task cover` | coverage profile + `coverage.html` |
-| `task cover:gate` | fail if any package is under `COVER_MIN` (default 85%; `cmd/koine` 75%) |
-| `task build` / `run` / `serve` | CLI · run in place · HTTP/SSE server |
-| `task tui` | Bubble Tea TUI |
-| `task desktop:dev` / `desktop:build` | Wails v2 app (needs the `wails` CLI) |
-| `task fmt` / `fmt:check` / `vet` / `lint` / `clean` | housekeeping |
+| Task                                                | What it does                                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `task check`                                        | format check, vet, staticcheck, JS tests, Go tests **with the coverage gate** — what CI runs |
+| `task ci`                                           | `check` + race detector                                                                      |
+| `task test` / `test:js` / `test:all` / `test:race`  | Go tests · sidecar tests (Node and Bun) · both · with `-race`                                |
+| `task cover`                                        | coverage profile + `coverage.html`                                                           |
+| `task cover:gate`                                   | fail if any package is under `COVER_MIN` (default 85%; `cmd/koine` 75%)                      |
+| `task build` / `run` / `serve`                      | CLI · run in place · HTTP/SSE server                                                         |
+| `task tui`                                          | Bubble Tea TUI                                                                               |
+| `task desktop:dev` / `desktop:build`                | Wails v2 app (needs the `wails` CLI)                                                         |
+| `task fmt` / `fmt:check` / `vet` / `lint` / `clean` | housekeeping                                                                                 |
 
 Without Task installed, `scripts/covergate.sh`, `go test ./...` and
 `node --test "core/ext/jstest/*.test.mjs"` are the underlying commands.
 
 ### Status
 
-| Area | State |
-|---|---|
-| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean |
-| `tui-bubbletea/`, `desktop/` (Wails v2) | **written, not compiled** — they need `go mod tidy` with network access (`task tui`, `task desktop:dev`) |
-| Providers | Anthropic, OpenAI-compatible and custom providers via prefix routing (`core/llm`) |
-| Pi tracking | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md` |
-| Not yet | streaming, context compaction, session persistence, permission prompts, Pi/opencode UI APIs (inert shims) |
+| Area                                                     | State                                                                                                     |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean        |
+| `tui-bubbletea/`, `desktop/` (Wails v2)                  | **written, not compiled** — they need `go mod tidy` with network access (`task tui`, `task desktop:dev`)  |
+| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing (`core/llm`)                         |
+| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                       |
+| Not yet                                                  | streaming, context compaction, session persistence, permission prompts, Pi/opencode UI APIs (inert shims) |
 
 ## Layout
 
@@ -92,4 +92,3 @@ Requirements, design and decisions are documented and machine-checked: start at 
 
 [AGENTS.md](AGENTS.md) is the entry point for Claude Code (through `CLAUDE.md`), opencode, Pi, Codex and Koine. Shared skills are in `.agents/skills/`,
 sub-agents in `.claude/agents/`, commands in `.claude/commands/`.
-

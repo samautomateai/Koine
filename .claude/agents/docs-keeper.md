@@ -1,4 +1,5 @@
 ---
+
 name: docs-keeper
 description: Keeps requirements, design, ADRs, SPEC, README and CHANGELOG consistent with code. Use after implementing a feature or when `task docs:check` fails.
 ---

@@ -66,7 +66,7 @@ export function objectSchema(shape) {
   const required = [];
   for (const [k, v] of Object.entries(shape)) {
     properties[k] = jsonOf(v);
-    if (!(v && v.isOptional)) required.push(k);
+    if (!v?.isOptional) required.push(k);
   }
   const out = { type: "object", properties };
   if (required.length) out.required = required;

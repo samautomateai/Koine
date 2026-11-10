@@ -24,14 +24,14 @@ in any language are all adapters onto those two things.
 All roots are optional. Earlier entries win on name clashes; project-level
 roots beat user-level roots.
 
-| Kind | Project roots (`<cwd>/…`) | User roots (`~/…`) |
-|---|---|---|
-| Skills (`SKILL.md`) | `.koine/skills`, `.pi/skills`, `.agents/skills`, `.opencode/skill(s)`, `.claude/skills` | `.koine/skills`, `.pi/agent/skills`, `.agents/skills`, `.config/opencode/skill(s)`, `.claude/skills` |
-| Prompt templates / commands (`*.md`) | `.koine/prompts`, `.pi/prompts`, `.opencode/command(s)`, `.claude/commands` | `.koine/prompts`, `.pi/agent/prompts`, `.config/opencode/command(s)`, `.claude/commands` |
-| Sub-agents (`*.md`) | `.koine/agents`, `.pi/agents`, `.opencode/agent(s)`, `.claude/agents` | `.koine/agents`, `.pi/agent/agents`, `.config/opencode/agent(s)`, `.claude/agents` |
-| Extensions | `.koine/extensions`, `.pi/extensions`, `.opencode/plugin(s)` | `.koine/extensions`, `.pi/agent/extensions`, `.config/opencode/plugin(s)` |
-| Context files | `AGENTS.md`, `CLAUDE.md`, `.koine/AGENTS.md` | `.koine/AGENTS.md`, `.pi/agent/AGENTS.md`, `.config/opencode/AGENTS.md`, `.claude/CLAUDE.md` |
-| Config | `.koine/config.json`, `opencode.json`, `.claude/settings.json` (hooks only) | `.koine/config.json`, `.config/opencode/opencode.json`, `.claude/settings.json` (hooks only) |
+| Kind                                 | Project roots (`<cwd>/…`)                                                               | User roots (`~/…`)                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Skills (`SKILL.md`)                  | `.koine/skills`, `.pi/skills`, `.agents/skills`, `.opencode/skill(s)`, `.claude/skills` | `.koine/skills`, `.pi/agent/skills`, `.agents/skills`, `.config/opencode/skill(s)`, `.claude/skills` |
+| Prompt templates / commands (`*.md`) | `.koine/prompts`, `.pi/prompts`, `.opencode/command(s)`, `.claude/commands`             | `.koine/prompts`, `.pi/agent/prompts`, `.config/opencode/command(s)`, `.claude/commands`             |
+| Sub-agents (`*.md`)                  | `.koine/agents`, `.pi/agents`, `.opencode/agent(s)`, `.claude/agents`                   | `.koine/agents`, `.pi/agent/agents`, `.config/opencode/agent(s)`, `.claude/agents`                   |
+| Extensions                           | `.koine/extensions`, `.pi/extensions`, `.opencode/plugin(s)`                            | `.koine/extensions`, `.pi/agent/extensions`, `.config/opencode/plugin(s)`                            |
+| Context files                        | `AGENTS.md`, `CLAUDE.md`, `.koine/AGENTS.md`                                            | `.koine/AGENTS.md`, `.pi/agent/AGENTS.md`, `.config/opencode/AGENTS.md`, `.claude/CLAUDE.md`         |
+| Config                               | `.koine/config.json`, `opencode.json`, `.claude/settings.json` (hooks only)             | `.koine/config.json`, `.config/opencode/opencode.json`, `.claude/settings.json` (hooks only)         |
 
 **Skills.** A skill is `SKILL.md` with frontmatter `name` (defaults to the
 directory name) and a required `description`; skills without a description are
@@ -59,7 +59,7 @@ paths, or npm names resolved from `<cwd>/node_modules`, `@version` stripped);
 Pi `settings.json` `"extensions": [...]`; and `.koine/config.json`
 `"extensions": [Spec…]`.
 
-*Verified by:* `skills.TestDiscoverAcrossEcosystems`, `prompts.TestDiscoverAndExpand`,
+_Verified by:_ `skills.TestDiscoverAcrossEcosystems`, `prompts.TestDiscoverAndExpand`,
 `agents.TestDiscover`, `agents.TestParseTools`, `app.TestDiscoverExtensions`,
 `app.TestLoadConfigMergesAllSources`.
 
@@ -68,15 +68,15 @@ Pi `settings.json` `"extensions": [...]`; and `.koine/config.json`
 Eight canonical events. A handler may return a **Decision** (all fields optional;
 the zero value means "no opinion").
 
-| Event | Payload | Decision fields honoured |
-|---|---|---|
-| `session_start` | `{cwd}` | – |
-| `input` | `{text}` | `block` (swallow the prompt), `text` (rewrite it) |
-| `system_prompt` | `{system}` | `systemAppend` |
-| `turn_start` / `turn_end` | `{turn}` | – |
-| `tool_call` | `{toolName, callId, input}` | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `args` (replace input) |
-| `tool_result` | `{toolName, callId, input, output, isError}` | `output` (replace what the model sees) |
-| `agent_end` | `{}` | – |
+| Event                     | Payload                                      | Decision fields honoured                                                                               |
+| ------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `session_start`           | `{cwd}`                                      | –                                                                                                      |
+| `input`                   | `{text}`                                     | `block` (swallow the prompt), `text` (rewrite it)                                                      |
+| `system_prompt`           | `{system}`                                   | `systemAppend`                                                                                         |
+| `turn_start` / `turn_end` | `{turn}`                                     | –                                                                                                      |
+| `tool_call`               | `{toolName, callId, input}`                  | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `args` (replace input) |
+| `tool_result`             | `{toolName, callId, input, output, isError}` | `output` (replace what the model sees)                                                                 |
+| `agent_end`               | `{}`                                         | –                                                                                                      |
 
 ```jsonc
 // Decision
@@ -88,7 +88,7 @@ short-circuits; the last `args`/`output`/`text` wins; `systemAppend` values are
 newline-joined. A handler that errors or times out (30 s extensions, 60 s
 hooks) **fails open** (no decision) and is logged.
 
-*Verified by:* `events.TestMerge`, `events.TestMultiStopsAtBlock`,
+_Verified by:_ `events.TestMerge`, `events.TestMultiStopsAtBlock`,
 `agent.TestToolCallHooks`, `agent.TestInputHook`, `agent.TestSystemPromptContents`.
 
 ## 3. Extension wire protocol (language-agnostic)
@@ -102,7 +102,7 @@ Working directory is the extension's `dir` (default: project root); env gets
 ### 3.1 Manifest — `extension.json`
 
 ```json
-{ "name": "my-ext", "command": ["python3", "./ext.py"], "env": {"K": "V"}, "dir": "optional" }
+{ "name": "my-ext", "command": ["python3", "./ext.py"], "env": { "K": "V" }, "dir": "optional" }
 ```
 
 A `command[0]` beginning with `./` and the default `dir` resolve against the
@@ -110,30 +110,30 @@ extension's folder.
 
 ### 3.2 Host → extension (requests; reply required)
 
-| Method | Params | Result |
-|---|---|---|
-| `initialize` | `{protocol: 1, host: "koine", cwd}` | `{name?, events?: [string]}` — `events` is the subscription list; omit to receive all. |
-| `event` | `{name, payload}` | a Decision (§2) or `{}` |
-| `tool.execute` | `{name, args, callId}` | `{content: string, isError?: bool}` |
-| `command.execute` | `{name, args}` | `{output: string}` |
+| Method            | Params                              | Result                                                                                 |
+| ----------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `initialize`      | `{protocol: 1, host: "koine", cwd}` | `{name?, events?: [string]}` — `events` is the subscription list; omit to receive all. |
+| `event`           | `{name, payload}`                   | a Decision (§2) or `{}`                                                                |
+| `tool.execute`    | `{name, args, callId}`              | `{content: string, isError?: bool}`                                                    |
+| `command.execute` | `{name, args}`                      | `{output: string}`                                                                     |
 
 Host → extension **notification**: `shutdown` (exit promptly; killed after 2 s).
 Unknown methods must be answered with error `-32601`.
 
 ### 3.3 Extension → host (notifications; no reply)
 
-| Method | Params | Effect |
-|---|---|---|
-| `register_tool` | `{name, description, schema}` | adds a tool to the model's tool list (`schema` = JSON Schema, default empty object) |
-| `register_command` | `{name, description}` | adds `/name` |
-| `log` | `{level, message}` | shown with `KOINE_DEBUG=1` |
-| `send_user_message` | `{text}` | injects a user message |
+| Method              | Params                        | Effect                                                                              |
+| ------------------- | ----------------------------- | ----------------------------------------------------------------------------------- |
+| `register_tool`     | `{name, description, schema}` | adds a tool to the model's tool list (`schema` = JSON Schema, default empty object) |
+| `register_command`  | `{name, description}`         | adds `/name`                                                                        |
+| `log`               | `{level, message}`            | shown with `KOINE_DEBUG=1`                                                          |
+| `send_user_message` | `{text}`                      | injects a user message                                                              |
 
 `initialize` must complete within 30 s. If the process exits mid-call, pending
 calls fail with `extension exited` (no hangs). A 25-line Python reference
 implementation is in `core/app/testdata/proj/.koine/extensions/pyext/ext.py`.
 
-*Verified by:* `ext.TestProtocolRoundTrip`, `ext.TestExtensionCrashSurfacesAsError`,
+_Verified by:_ `ext.TestProtocolRoundTrip`, `ext.TestExtensionCrashSurfacesAsError`,
 `ext.TestContextCancelAbortsCall`, `ext.TestStartErrors`, `ext.TestSpecDirAndJSSpec`,
 `app.TestEverythingWorksTogether` (Python extension).
 
@@ -144,13 +144,13 @@ under `"hooks"` in `.koine/config.json` or `.claude/settings.json`; both the
 flat `{matcher, command}` and nested `{matcher, hooks:[{type:"command", command}]}`
 forms are accepted.
 
-| koine event | Hook event | Stdin JSON (besides `hook_event_name`, `session_id`, `cwd`) |
-|---|---|---|
-| `tool_call` | `PreToolUse` | `tool_name` (Claude names: `Bash`, `Read`, `Write`, `Edit`, `Grep`, `Glob`, `LS`), `tool_input` |
-| `tool_result` | `PostToolUse` | `tool_name`, `tool_input`, `tool_response` |
-| `input` | `UserPromptSubmit` | `prompt` |
-| `session_start` | `SessionStart` | – |
-| `agent_end` | `Stop` | – |
+| koine event     | Hook event         | Stdin JSON (besides `hook_event_name`, `session_id`, `cwd`)                                     |
+| --------------- | ------------------ | ----------------------------------------------------------------------------------------------- |
+| `tool_call`     | `PreToolUse`       | `tool_name` (Claude names: `Bash`, `Read`, `Write`, `Edit`, `Grep`, `Glob`, `LS`), `tool_input` |
+| `tool_result`   | `PostToolUse`      | `tool_name`, `tool_input`, `tool_response`                                                      |
+| `input`         | `UserPromptSubmit` | `prompt`                                                                                        |
+| `session_start` | `SessionStart`     | –                                                                                               |
+| `agent_end`     | `Stop`             | –                                                                                               |
 
 `matcher` is a case-insensitive regex, anchored, tested against both the koine
 and the Claude tool name (`""`/`*` = all). **Exit code 2 blocks** (stderr is the
@@ -159,7 +159,7 @@ reason). Exit 0 may print JSON: `{"decision":"block","reason":…}`,
 `{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":…,"updatedInput":{…}}}`.
 Any other failure or timeout fails open. Env: `CLAUDE_PROJECT_DIR`, `KOINE_PROJECT_DIR`.
 
-*Verified by:* the `hooks` package tests; `app.TestEverythingWorksTogether` (real `.claude/settings.json`).
+_Verified by:_ the `hooks` package tests; `app.TestEverythingWorksTogether` (real `.claude/settings.json`).
 
 ## 5. JS sidecar: Pi and opencode compatibility
 
@@ -176,38 +176,38 @@ treated as opencode hooks.
 
 ### Pi (`@mariozechner/pi-coding-agent`)
 
-| API | Status |
-|---|---|
-| `pi.registerTool({name, description, parameters, execute})` | ✅ `execute(callId, params, signal, onUpdate, ctx)`; result `{content:[{type:"text",text}]}` |
-| `pi.registerCommand(name, {description, handler})` | ✅ `ctx.ui.notify` output is returned to the user |
-| `pi.on("tool_call")` → `{block, reason}` | ✅ |
-| `pi.on("tool_result")` → `{content}` | ✅ (text content) |
-| `pi.on("input")` → `{action: "handled" \| "transform", text}` | ✅ |
-| `pi.on("before_agent_start")` → `{systemPrompt}` | ✅ (diffed into `systemAppend`) |
-| `pi.on("session_start" \| "turn_start" \| "turn_end" \| "agent_end")` | ✅ observe-only |
-| `pi.sendUserMessage`, `pi.exec`, `pi.getActiveTools` | ✅ |
-| `ctx.ui.*` (select/confirm/input/widgets/status) | ⚠️ accepted, inert; `confirm`→`false`, others→`undefined` |
-| `registerProvider`, `registerShortcut`, `registerFlag`, `registerMessageRenderer`, `@mariozechner/pi-tui` components | ⚠️ accepted, inert |
-| Pi events not in §2 (e.g. `session_before_compact`, `model_select`) | ❌ never fired |
-| `@mariozechner/pi-ai`: `Type`, `StringEnum` | ✅ |
+| API                                                                                                                  | Status                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `pi.registerTool({name, description, parameters, execute})`                                                          | ✅ `execute(callId, params, signal, onUpdate, ctx)`; result `{content:[{type:"text",text}]}` |
+| `pi.registerCommand(name, {description, handler})`                                                                   | ✅ `ctx.ui.notify` output is returned to the user                                            |
+| `pi.on("tool_call")` → `{block, reason}`                                                                             | ✅                                                                                           |
+| `pi.on("tool_result")` → `{content}`                                                                                 | ✅ (text content)                                                                            |
+| `pi.on("input")` → `{action: "handled" \| "transform", text}`                                                        | ✅                                                                                           |
+| `pi.on("before_agent_start")` → `{systemPrompt}`                                                                     | ✅ (diffed into `systemAppend`)                                                              |
+| `pi.on("session_start" \| "turn_start" \| "turn_end" \| "agent_end")`                                                | ✅ observe-only                                                                              |
+| `pi.sendUserMessage`, `pi.exec`, `pi.getActiveTools`                                                                 | ✅                                                                                           |
+| `ctx.ui.*` (select/confirm/input/widgets/status)                                                                     | ⚠️ accepted, inert; `confirm`→`false`, others→`undefined`                                    |
+| `registerProvider`, `registerShortcut`, `registerFlag`, `registerMessageRenderer`, `@mariozechner/pi-tui` components | ⚠️ accepted, inert                                                                           |
+| Pi events not in §2 (e.g. `session_before_compact`, `model_select`)                                                  | ❌ never fired                                                                               |
+| `@mariozechner/pi-ai`: `Type`, `StringEnum`                                                                          | ✅                                                                                           |
 
 ### opencode (`@opencode-ai/plugin`)
 
-| API | Status |
-|---|---|
-| `tool({description, args, execute})`, `tool.schema.*` | ✅ args → JSON Schema (zod-like builder, or real `zod` if installed) |
-| `"tool.execute.before"` (`throw` blocks; mutate `output.args`) | ✅ |
-| `"tool.execute.after"` (mutate `output.output`) | ✅ |
-| `"chat.message"` (mutate `output.parts[0].text`) | ✅ |
-| `"experimental.chat.system.transform"` (`output.system.push`) | ✅ |
-| `event` (`session.created`, `session.idle`) | ✅ mapped from `session_start`, `agent_end` |
-| Plugin input: `directory`, `worktree`, `project`, `$` (shell tag), `client` | ✅ `$` is real; `client` calls resolve to `{data:{}}` (`app.log` is forwarded) |
-| `auth`, `config`, `permission.ask`, `chat.params`, `chat.headers`, other events | ❌ ignored |
+| API                                                                             | Status                                                                         |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `tool({description, args, execute})`, `tool.schema.*`                           | ✅ args → JSON Schema (zod-like builder, or real `zod` if installed)           |
+| `"tool.execute.before"` (`throw` blocks; mutate `output.args`)                  | ✅                                                                             |
+| `"tool.execute.after"` (mutate `output.output`)                                 | ✅                                                                             |
+| `"chat.message"` (mutate `output.parts[0].text`)                                | ✅                                                                             |
+| `"experimental.chat.system.transform"` (`output.system.push`)                   | ✅                                                                             |
+| `event` (`session.created`, `session.idle`)                                     | ✅ mapped from `session_start`, `agent_end`                                    |
+| Plugin input: `directory`, `worktree`, `project`, `$` (shell tag), `client`     | ✅ `$` is real; `client` calls resolve to `{data:{}}` (`app.log` is forwarded) |
+| `auth`, `config`, `permission.ask`, `chat.params`, `chat.headers`, other events | ❌ ignored                                                                     |
 
 Tool-name mapping: koine built-ins are lower-case (`bash`, `read`, `write`, `edit`,
 `ls`, `glob`, `grep`) matching Pi/opencode; hooks see Claude names (§4).
 
-*Verified by:* `jstest/shims.test.mjs` (8 tests, run under Node **and** Bun),
+_Verified by:_ `jstest/shims.test.mjs` (8 tests, run under Node **and** Bun),
 `app.TestEverythingWorksTogether`, `cmd/koine.TestEndToEndPrompt`,
 `app.TestBrokenExtensionIsReportedNotFatal`.
 
@@ -236,25 +236,25 @@ and `Describe()`. `emit` receives `agent.Event`:
 { "type": "text|tool_start|tool_end|notice|error|done", "text": "", "tool": "", "callId": "", "args": {}, "isError": false }
 ```
 
-* **HTTP/SSE** (`koine -serve ADDR`): `GET /api/info` → `app.Info`;
+- **HTTP/SSE** (`koine -serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.
   This is the integration point for an Electron UI.
-* **Wails v2** (`desktop/`): `Backend.Info()`, `Backend.Send(text)`, `Backend.Cancel()`;
+- **Wails v2** (`desktop/`): `Backend.Info()`, `Backend.Send(text)`, `Backend.Cancel()`;
   events on `koine:event`, completion on `koine:done`.
-* **Bubble Tea** (`tui-bubbletea/`): same calls, in-process.
+- **Bubble Tea** (`tui-bubbletea/`): same calls, in-process.
 
-*Verified by:* `server` tests, `tui` tests, `cmd/koine.TestServeMode`.
+_Verified by:_ `server` tests, `tui` tests, `cmd/koine.TestServeMode`.
 
 ## 9. Configuration & environment
 
-| Name | Meaning |
-|---|---|
-| `ANTHROPIC_API_KEY` | required to chat; without it everything else still starts and the first prompt reports a clear error |
-| `ANTHROPIC_BASE_URL` | API endpoint override (also used by the e2e tests) |
-| `KOINE_MODEL` / config `model` | model id, default `claude-sonnet-5-5` |
-| `KOINE_JS_RUNTIME` | `node` or `bun` |
-| `KOINE_DEBUG` | print extension logs to stderr |
+| Name                           | Meaning                                                                                              |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`            | required to chat; without it everything else still starts and the first prompt reports a clear error |
+| `ANTHROPIC_BASE_URL`           | API endpoint override (also used by the e2e tests)                                                   |
+| `KOINE_MODEL` / config `model` | model id, default `claude-sonnet-5-5`                                                                |
+| `KOINE_JS_RUNTIME`             | `node` or `bun`                                                                                      |
+| `KOINE_DEBUG`                  | print extension logs to stderr                                                                       |
 
 Config merge order (later wins for scalars, hooks/plugins/extensions append):
 `~/.claude/settings.json` (hooks only) → `~/.config/opencode/opencode.json` →
@@ -263,10 +263,10 @@ Config merge order (later wins for scalars, hooks/plugins/extensions append):
 
 ## 10. Known limits (v1)
 
-* Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, up to 4 attempts on 429/5xx/network errors.
-* Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
-* No context compaction, session persistence, or permission prompts yet.
-* The `bubbletea` and `wails` frontends are written against the same API but are
+- Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, up to 4 attempts on 429/5xx/network errors.
+- Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
+- No context compaction, session persistence, or permission prompts yet.
+- The `bubbletea` and `wails` frontends are written against the same API but are
   separate Go modules that need network access for `go mod tidy`; they are not
   built or tested by `task check`.
-* Pi/opencode surface not listed as ✅ in §5 is not supported.
+- Pi/opencode surface not listed as ✅ in §5 is not supported.

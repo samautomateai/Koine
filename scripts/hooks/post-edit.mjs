@@ -11,7 +11,7 @@ process.stdin.on("end", () => {
     const file = JSON.parse(input)?.tool_input?.file_path;
     if (!file || !fs.existsSync(file)) return;
     if (file.endsWith(".go")) execFileSync("gofmt", ["-w", "-s", file], { stdio: "ignore" });
-    else if (/\.(mjs|js|json)$/.test(file)) execFileSync("npx", ["--no-install", "prettier", "--write", file], { stdio: "ignore" });
+    else if (/\.(mjs|js|json)$/.test(file)) execFileSync("npx", ["--no-install", "biome", "format", "--write", file], { stdio: "ignore" });
   } catch {
     // formatting is best effort; the CI gates are the authority
   }

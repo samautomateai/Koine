@@ -7,14 +7,14 @@
     "node": ">=22"
   },
   "scripts": {
-    "format": "prettier --write \"**/*.{mjs,js,json}\"",
-    "format:check": "prettier --check \"**/*.{mjs,js,json}\"",
-    "lint": "eslint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
     "test": "node --test \"core/ext/jstest/*.test.mjs\" \"compat/test/*.test.mjs\"",
-    "test:cover": "node --test --experimental-test-coverage --test-coverage-lines=85 --test-coverage-functions=65 --test-coverage-branches=70 --test-coverage-include=\"core/ext/sidecar/**\" --test-coverage-include=\"scripts/**\" \"core/ext/jstest/*.test.mjs\" \"compat/test/*.test.mjs\""
+    "test:cover": "node --test --experimental-test-coverage --test-coverage-lines=85 --test-coverage-functions=65 --test-coverage-branches=70 --test-coverage-include=\"core/ext/sidecar/**\" --test-coverage-include=\"scripts/**\" \"core/ext/jstest/*.test.mjs\" \"compat/test/*.test.mjs\"",
+    "check": "biome check ."
   },
   "devDependencies": {
-    "eslint": "^9.0.0",
-    "prettier": "^3.3.0"
+    "@biomejs/biome": "2.6.6"
   }
 }

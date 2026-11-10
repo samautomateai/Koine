@@ -1,9 +1,11 @@
 ## What and why
 
 ## Requirement
+
 <!-- REQ-… this change implements or alters (add one if none fits) -->
 
 ## Checklist
+
 - [ ] `task check` passes locally
 - [ ] Tests added or updated (a bug fix starts with a failing test)
 - [ ] `docs/requirements.md` / `docs/design.md` / ADR updated, `CHANGELOG.md` has a line

@@ -1,5 +1,5 @@
 # https://taskfile.dev — `task` lists everything, `task check` is what CI runs.
-version: '3'
+version: "3"
 
 vars:
   BIN: bin/koine
@@ -15,8 +15,8 @@ tasks:
   # ---- build & run -------------------------------------------------------
   build:
     desc: Build the koine CLI (bin/koine), stamping the pinned Pi baseline from compat/pi.json
-    sources: ['**/*.go', 'core/ext/sidecar/**/*', 'compat/pi.json', go.mod]
-    generates: ['{{.BIN}}']
+    sources: ["**/*.go", "core/ext/sidecar/**/*", "compat/pi.json", go.mod]
+    generates: ["{{.BIN}}"]
     vars:
       VERSION:
         sh: git describe --tags --always 2>/dev/null || echo dev
@@ -49,7 +49,7 @@ tasks:
     dir: desktop
     preconditions:
       - sh: command -v wails
-        msg: 'install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest'
+        msg: "install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
     cmds:
       - go mod tidy
       - wails dev
@@ -59,7 +59,7 @@ tasks:
     dir: desktop
     preconditions:
       - sh: command -v wails
-        msg: 'install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest'
+        msg: "install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
     cmds:
       - go mod tidy
       - wails build
@@ -83,7 +83,7 @@ tasks:
       - go vet ./...
 
   lint:
-    desc: golangci-lint (errcheck, govet, staticcheck, gosec, ...) and ESLint
+    desc: golangci-lint (errcheck, govet, staticcheck, gosec, ...) and Biome
     cmds:
       - task: lint:go
       - task: lint:js
@@ -92,15 +92,14 @@ tasks:
     desc: golangci-lint, config in .golangci.yml
     preconditions:
       - sh: command -v golangci-lint
-        msg: 'install golangci-lint v2: https://golangci-lint.run/welcome/install/'
+        msg: "install golangci-lint v2: https://golangci-lint.run/welcome/install/"
     cmds:
       - golangci-lint run ./...
 
   lint:js:
-    desc: ESLint and Prettier check for the JS sidecar and scripts
+    desc: Biome format + lint check for the JS sidecar and scripts (npm install once)
     cmds:
-      - npx --no-install eslint .
-      - npx --no-install prettier --check "**/*.{mjs,js,json}"
+      - npx --no-install biome check .
 
   size:
     desc: Line-length (160) and file-length (600) gate for Go and JS
