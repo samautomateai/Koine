@@ -1,0 +1,6 @@
+title = "koine"
+[extend]
+useDefault = true
+[allowlist]
+description = "test fixtures use obviously fake keys"
+paths = ['''core/.*_test\.go''', '''core/ext/jstest/''', '''core/app/testdata/''']

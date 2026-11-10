@@ -1,6 +1,8 @@
 import { z } from "./schema.mjs";
 
-export function tool(def) { return def; }
+export function tool(def) {
+  return def;
+}
 tool.schema = z;
 
 // Type-only names: exported so `import { Plugin }` survives type stripping.

@@ -80,7 +80,8 @@ func TestLoopRunsToolsAndStops(t *testing.T) {
 	}
 	// tool results go back to the model as one user message
 	res := s.reqs[1].Messages[2].Content
-	if len(res) != 3 || res[0].Content != `echo:{"a":1}` || res[0].IsError || !res[1].IsError || res[1].Content != "kaboom" || !strings.Contains(res[2].Content, "unknown tool") {
+	bad := res[1].Content != "kaboom" || !strings.Contains(res[2].Content, "unknown tool")
+	if len(res) != 3 || res[0].Content != `echo:{"a":1}` || res[0].IsError || !res[1].IsError || bad {
 		t.Fatalf("%+v", res)
 	}
 	if len(s.reqs[0].Tools) != 2 {

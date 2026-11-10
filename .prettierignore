@@ -1,0 +1,9 @@
+# generated or fixture data
+compat/pi.json
+core/ext/sidecar/surface.json
+core/app/testdata/
+compat/test/fixture/
+bin/
+node_modules/
+tui-bubbletea/
+desktop/

@@ -66,7 +66,8 @@ func (r *Router) Resolve(model string) (Provider, string, error) {
 		case isOpenAIName(model):
 			prefix, rest = "openai", model
 		default:
-			return nil, "", fmt.Errorf("cannot infer a provider for model %q: use a prefix (e.g. openrouter/%s, ollama/%s) or declare a provider in config; known: %s", model, model, model, r.known())
+			return nil, "", fmt.Errorf("cannot infer a provider for model %q: use a prefix (e.g. openrouter/%s, ollama/%s) "+
+				"or declare a provider in config; known: %s", model, model, model, r.known())
 		}
 	}
 	if prefix == "anthropic" {

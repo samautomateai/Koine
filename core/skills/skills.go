@@ -157,9 +157,11 @@ func PromptSection(ss []Skill) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("The following skills provide specialised instructions. When a task matches a skill's description, load it with the `skill` tool (or read its file) before proceeding.\n<available_skills>\n")
+	b.WriteString("The following skills provide specialised instructions. When a task matches a skill's description, " +
+		"load it with the `skill` tool (or read its file) before proceeding.\n<available_skills>\n")
 	for _, s := range ss {
-		fmt.Fprintf(&b, "  <skill>\n    <name>%s</name>\n    <description>%s</description>\n    <location>%s</location>\n  </skill>\n", s.Name, s.Description, s.Location)
+		fmt.Fprintf(&b, "  <skill>\n    <name>%s</name>\n    <description>%s</description>\n    <location>%s</location>\n  </skill>\n",
+			s.Name, s.Description, s.Location)
 	}
 	b.WriteString("</available_skills>")
 	return b.String()

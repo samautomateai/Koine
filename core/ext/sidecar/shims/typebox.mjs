@@ -14,7 +14,11 @@ export const Type = {
   Array: (items, o) => opts({ type: "array", items }, o),
   Union: (anyOf, o) => opts({ anyOf }, o),
   Record: (_k, v, o) => opts({ type: "object", additionalProperties: v }, o),
-  Optional: (s) => { const c = { ...s }; optionalSet.add(c); return c; },
+  Optional: (s) => {
+    const c = { ...s };
+    optionalSet.add(c);
+    return c;
+  },
   Object: (props = {}, o) => {
     const required = Object.keys(props).filter((k) => !optionalSet.has(props[k]));
     const s = { type: "object", properties: props };

@@ -79,3 +79,17 @@ tui-bubbletea/       Bubble Tea frontend (separate module)
 desktop/             Wails v2 frontend (separate module)
 docs/SPEC.md         normative specification
 ```
+
+## Quality gates and documentation
+
+CI (`.github/workflows/ci.yml`, `codeql.yml`) runs, for Go and JS: format, lint, line/file length, tests with coverage gates, dependency audit,
+vulnerability scan (govulncheck, Trivy), static security scan (gosec, CodeQL) and secret scan (gitleaks). `task check` runs the local equivalents.
+
+Requirements, design and decisions are documented and machine-checked: start at [docs/README.md](docs/README.md). Rules for people and agents:
+[docs/ENGINEERING.md](docs/ENGINEERING.md).
+
+## Working on Koine with a coding agent
+
+[AGENTS.md](AGENTS.md) is the entry point for Claude Code (through `CLAUDE.md`), opencode, Pi, Codex and Koine. Shared skills are in `.agents/skills/`,
+sub-agents in `.claude/agents/`, commands in `.claude/commands/`.
+

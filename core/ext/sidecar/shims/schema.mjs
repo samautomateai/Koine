@@ -16,11 +16,25 @@ class S {
     this.schema = schema;
     this.isOptional = optional;
   }
-  describe(d) { this.schema = { ...this.schema, description: d }; return this.self; }
-  optional() { this.isOptional = true; return this.self; }
-  nullable() { return this.self; }
-  default(v) { this.schema = { ...this.schema, default: v }; this.isOptional = true; return this.self; }
-  toJSON() { return this.schema; }
+  describe(d) {
+    this.schema = { ...this.schema, description: d };
+    return this.self;
+  }
+  optional() {
+    this.isOptional = true;
+    return this.self;
+  }
+  nullable() {
+    return this.self;
+  }
+  default(v) {
+    this.schema = { ...this.schema, default: v };
+    this.isOptional = true;
+    return this.self;
+  }
+  toJSON() {
+    return this.schema;
+  }
 }
 
 function mk(schema) {
@@ -29,7 +43,7 @@ function mk(schema) {
   return s.self;
 }
 
-const jsonOf = (v) => (v && typeof v.toJSON === "function" ? v.toJSON() : v ?? {});
+const jsonOf = (v) => (v && typeof v.toJSON === "function" ? v.toJSON() : (v ?? {}));
 
 export const z = {
   string: () => mk({ type: "string" }),

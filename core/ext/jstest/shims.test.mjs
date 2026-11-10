@@ -47,14 +47,18 @@ test("typebox shim", () => {
 
 // Drive the runner over JSON-RPC exactly like the Go host does.
 function rpc(target, steps, { runtime }) {
-  const args = runtime === "node" ? ["--experimental-strip-types", "--no-warnings", "--import", register, runner, target] : [runner, target];
+  const args =
+    runtime === "node" ? ["--experimental-strip-types", "--no-warnings", "--import", register, runner, target] : [runner, target];
   const child = spawn(runtime, args, { env: { ...process.env, KOINE_CWD: path.dirname(target) } });
   const out = [];
   let buf = "";
   child.stdout.on("data", (d) => {
     buf += d;
     let i;
-    while ((i = buf.indexOf("\n")) >= 0) { out.push(JSON.parse(buf.slice(0, i))); buf = buf.slice(i + 1); }
+    while ((i = buf.indexOf("\n")) >= 0) {
+      out.push(JSON.parse(buf.slice(0, i)));
+      buf = buf.slice(i + 1);
+    }
   });
   return new Promise(async (resolve) => {
     let id = 0;
@@ -83,7 +87,9 @@ const runtimes = ["node", "bun"].filter(has).map((runtime) => ({ runtime }));
 
 for (const rt of runtimes) {
   test(`runner: Pi extension (${rt.runtime})`, async () => {
-    const f = tmp("pi.mjs", `
+    const f = tmp(
+      "pi.mjs",
+      `
       export default function (pi) {
         pi.registerTool({ name: "t1", description: "d", parameters: { type: "object", properties: { x: { type: "string" } } },
           async execute(id, p) { return { content: [{ type: "text", text: "got " + p.x + " " + id }] }; } });
@@ -93,22 +99,27 @@ for (const rt of runtimes) {
         pi.on("input", async (e) => e.text === "swallow" ? { action: "handled" } : e.text === "x" ? { action: "transform", text: "y" } : undefined);
         pi.on("before_agent_start", async (e) => ({ systemPrompt: e.systemPrompt + "\\nPI-EXTRA" }));
         pi.on("throws", async () => { throw new Error("handler bug"); });
-      }`);
-    const { results: r, notes } = await rpc(f, [
-      ["initialize", { cwd: path.dirname(f) }],
-      ["tool.execute", { name: "t1", args: { x: "v" }, callId: "c9" }],
-      ["tool.execute", { name: "missing", args: {} }],
-      ["command.execute", { name: "cmd", args: "A" }],
-      ["command.execute", { name: "nocmd", args: "" }],
-      ["event", { name: "tool_call", payload: { toolName: "bash", input: {} } }],
-      ["event", { name: "tool_call", payload: { toolName: "read", input: {} } }],
-      ["event", { name: "tool_result", payload: { toolName: "read", output: "abc" } }],
-      ["event", { name: "input", payload: { text: "swallow" } }],
-      ["event", { name: "input", payload: { text: "x" } }],
-      ["event", { name: "system_prompt", payload: { system: "BASE" } }],
-      ["event", { name: "throws", payload: {} }],
-      ["bogus", {}],
-    ], rt);
+      }`,
+    );
+    const { results: r, notes } = await rpc(
+      f,
+      [
+        ["initialize", { cwd: path.dirname(f) }],
+        ["tool.execute", { name: "t1", args: { x: "v" }, callId: "c9" }],
+        ["tool.execute", { name: "missing", args: {} }],
+        ["command.execute", { name: "cmd", args: "A" }],
+        ["command.execute", { name: "nocmd", args: "" }],
+        ["event", { name: "tool_call", payload: { toolName: "bash", input: {} } }],
+        ["event", { name: "tool_call", payload: { toolName: "read", input: {} } }],
+        ["event", { name: "tool_result", payload: { toolName: "read", output: "abc" } }],
+        ["event", { name: "input", payload: { text: "swallow" } }],
+        ["event", { name: "input", payload: { text: "x" } }],
+        ["event", { name: "system_prompt", payload: { system: "BASE" } }],
+        ["event", { name: "throws", payload: {} }],
+        ["bogus", {}],
+      ],
+      rt,
+    );
     assert.deepEqual(r[0].result.events.sort(), ["input", "system_prompt", "throws", "tool_call", "tool_result"]);
     assert.equal(r[1].result.content, "got v c9");
     assert.match(r[2].error.message, /unknown tool/);
@@ -128,28 +139,38 @@ for (const rt of runtimes) {
   });
 
   test(`runner: opencode plugin (${rt.runtime})`, async () => {
-    const f = tmp("oc.mjs", `
+    const f = tmp(
+      "oc.mjs",
+      `
       import { tool } from "@opencode-ai/plugin";
       export const P = async ({ directory, $ }) => ({
         tool: { shout: tool({ description: "s", args: { t: tool.schema.string().describe("T"), n: tool.schema.number().optional() },
           async execute(a, ctx) { return a.t.toUpperCase() + ":" + ctx.sessionID + ":" + (await $\`echo \${"hi there"}\`.text()).trim(); } }) },
-        "tool.execute.before": async (i, o) => { if (o.args.command === "forbidden") throw new Error("plugin says no"); if (o.args.command === "rewrite") o.args.command = "echo rewritten"; },
+        "tool.execute.before": async (i, o) => {
+          if (o.args.command === "forbidden") throw new Error("plugin says no");
+          if (o.args.command === "rewrite") o.args.command = "echo rewritten";
+        },
         "tool.execute.after": async (i, o) => { o.output += "!"; },
         "chat.message": async (i, o) => { o.parts[0].text = o.parts[0].text + " (seen)"; },
         "experimental.chat.system.transform": async (i, o) => { o.system.push("OC-SYSTEM"); },
         event: async () => {},
-      });`);
-    const { results: r, notes } = await rpc(f, [
-      ["initialize", {}],
-      ["tool.execute", { name: "shout", args: { t: "abc" }, callId: "1" }],
-      ["event", { name: "tool_call", payload: { toolName: "bash", input: { command: "forbidden" } } }],
-      ["event", { name: "tool_call", payload: { toolName: "bash", input: { command: "rewrite" } } }],
-      ["event", { name: "tool_call", payload: { toolName: "bash", input: { command: "same" } } }],
-      ["event", { name: "tool_result", payload: { toolName: "bash", output: "o" } }],
-      ["event", { name: "input", payload: { text: "hello" } }],
-      ["event", { name: "system_prompt", payload: { system: "S" } }],
-      ["event", { name: "session_start", payload: {} }],
-    ], rt);
+      });`,
+    );
+    const { results: r, notes } = await rpc(
+      f,
+      [
+        ["initialize", {}],
+        ["tool.execute", { name: "shout", args: { t: "abc" }, callId: "1" }],
+        ["event", { name: "tool_call", payload: { toolName: "bash", input: { command: "forbidden" } } }],
+        ["event", { name: "tool_call", payload: { toolName: "bash", input: { command: "rewrite" } } }],
+        ["event", { name: "tool_call", payload: { toolName: "bash", input: { command: "same" } } }],
+        ["event", { name: "tool_result", payload: { toolName: "bash", output: "o" } }],
+        ["event", { name: "input", payload: { text: "hello" } }],
+        ["event", { name: "system_prompt", payload: { system: "S" } }],
+        ["event", { name: "session_start", payload: {} }],
+      ],
+      rt,
+    );
     assert.ok(r[0].result.events.includes("tool_call") && r[0].result.events.includes("session_start"));
     assert.equal(r[1].result.content, "ABC:koine-session:hi there");
     assert.deepEqual([r[2].result.block, r[2].result.reason], [true, "plugin says no"]);
@@ -159,7 +180,11 @@ for (const rt of runtimes) {
     assert.equal(r[6].result.text, "hello (seen)");
     assert.equal(r[7].result.systemAppend, "OC-SYSTEM");
     const reg = notes.find((n) => n.method === "register_tool");
-    assert.deepEqual(reg.params.schema, { type: "object", properties: { t: { type: "string", description: "T" }, n: { type: "number" } }, required: ["t"] });
+    assert.deepEqual(reg.params.schema, {
+      type: "object",
+      properties: { t: { type: "string", description: "T" }, n: { type: "number" } },
+      required: ["t"],
+    });
   });
 
   test(`runner: bad module reports error on initialize (${rt.runtime})`, async () => {

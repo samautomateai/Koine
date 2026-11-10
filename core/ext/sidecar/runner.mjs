@@ -10,7 +10,6 @@ import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { objectSchema } from "./shims/schema.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const shimMap = JSON.parse(fs.readFileSync(path.join(here, "shims", "map.json"), "utf8"));
@@ -25,7 +24,12 @@ console.log = console.info = console.debug = (...a) => process.stderr.write(a.ma
 if (globalThis.Bun) {
   const cwd = process.env.KOINE_CWD || process.cwd();
   const installed = (spec) => {
-    try { globalThis.Bun.resolveSync(spec, cwd); return true; } catch { return false; }
+    try {
+      globalThis.Bun.resolveSync(spec, cwd);
+      return true;
+    } catch {
+      return false;
+    }
   };
   globalThis.Bun.plugin({
     name: "koine-shims",
@@ -55,7 +59,12 @@ function report(kind, api) {
   reported.add(api);
   notify("compat", { kind, api });
 }
-const inert = (api, ret) => (...a) => { report("inert", api); return typeof ret === "function" ? ret(...a) : ret; };
+const inert =
+  (api, ret) =>
+  (...a) => {
+    report("inert", api);
+    return typeof ret === "function" ? ret(...a) : ret;
+  };
 function standIn(api) {
   const f = function () {};
   return new Proxy(f, {
@@ -63,14 +72,21 @@ function standIn(api) {
       if (k === "call" || k === "apply" || k === "bind") return Reflect.get(t, k); // stand-ins stay callable the normal ways
       return k === "then" || k === "toJSON" || typeof k === "symbol" ? undefined : standIn(`${api}.${String(k)}`);
     },
-    apply: () => { report("unsupported", api); return undefined; },
+    apply: () => {
+      report("unsupported", api);
+      return undefined;
+    },
   });
 }
 // Which unimplemented members are *properties* (not methods) comes from the compat
 // manifest via surface.json: those evaluate to undefined (or, for ui.theme, to an
 // object whose helpers return their text unstyled) instead of a callable stand-in.
 const surface = (() => {
-  try { return JSON.parse(fs.readFileSync(path.join(here, "surface.json"), "utf8")); } catch { return {}; }
+  try {
+    return JSON.parse(fs.readFileSync(path.join(here, "surface.json"), "utf8"));
+  } catch {
+    return {};
+  }
 })();
 const undefinedProps = new Set(surface.undefinedProps ?? []);
 const identityProps = new Set(surface.identityProps ?? []);
@@ -102,14 +118,22 @@ const state = {
 let zodMod;
 async function loadZod() {
   if (zodMod !== undefined) return zodMod;
-  try { zodMod = await import("zod"); } catch { zodMod = null; }
+  try {
+    zodMod = await import("zod");
+  } catch {
+    zodMod = null;
+  }
   return zodMod;
 }
 async function schemaOf(v) {
   if (v && typeof v.toJSON === "function") return v.toJSON();
   const z = await loadZod();
   if (v && z && typeof z.toJSONSchema === "function") {
-    try { const { $schema, ...rest } = z.toJSONSchema(v); return rest; } catch {}
+    try {
+      const rest = { ...z.toJSONSchema(v) };
+      delete rest.$schema;
+      return rest;
+    } catch {}
   }
   return {};
 }
@@ -130,26 +154,60 @@ async function argsToSchema(args) {
 // ---- host-facing shell helper ($ from opencode) -----------------------------
 const shq = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 class ShellPromise {
-  constructor(cmd) { this.cmd = cmd; this._nothrow = false; this._cwd = state.cwd; this._env = {}; this._p = null; }
-  quiet() { return this; }
-  nothrow() { this._nothrow = true; return this; }
-  cwd(d) { this._cwd = d; return this; }
-  env(e) { this._env = e; return this; }
+  constructor(cmd) {
+    this.cmd = cmd;
+    this._nothrow = false;
+    this._cwd = state.cwd;
+    this._env = {};
+    this._p = null;
+  }
+  quiet() {
+    return this;
+  }
+  nothrow() {
+    this._nothrow = true;
+    return this;
+  }
+  cwd(d) {
+    this._cwd = d;
+    return this;
+  }
+  env(e) {
+    this._env = e;
+    return this;
+  }
   run() {
     this._p ??= new Promise((resolve, reject) => {
       execFile("sh", ["-c", this.cmd], { cwd: this._cwd, env: { ...process.env, ...this._env }, maxBuffer: 64 << 20 }, (err, so, se) => {
-        const out = { exitCode: err ? (typeof err.code === "number" ? err.code : 1) : 0, stdout: Buffer.from(so), stderr: Buffer.from(se), text: () => so, json: () => JSON.parse(so), toString: () => so };
+        const out = {
+          exitCode: err ? (typeof err.code === "number" ? err.code : 1) : 0,
+          stdout: Buffer.from(so),
+          stderr: Buffer.from(se),
+          text: () => so,
+          json: () => JSON.parse(so),
+          toString: () => so,
+        };
         if (err && !this._nothrow) reject(Object.assign(new Error(`Command failed (${out.exitCode}): ${this.cmd}\n${se}`), out));
         else resolve(out);
       });
     });
     return this._p;
   }
-  then(a, b) { return this.run().then(a, b); }
-  catch(b) { return this.run().catch(b); }
-  text() { return this.run().then((r) => r.text()); }
-  json() { return this.run().then((r) => r.json()); }
-  lines() { return this.run().then((r) => r.text().split("\n").filter(Boolean)); }
+  then(a, b) {
+    return this.run().then(a, b);
+  }
+  catch(b) {
+    return this.run().catch(b);
+  }
+  text() {
+    return this.run().then((r) => r.text());
+  }
+  json() {
+    return this.run().then((r) => r.json());
+  }
+  lines() {
+    return this.run().then((r) => r.text().split("\n").filter(Boolean));
+  }
 }
 const $ = (strings, ...vals) => {
   let cmd = "";
@@ -162,7 +220,10 @@ const $ = (strings, ...vals) => {
   });
   return new ShellPromise(cmd);
 };
-$.cwd = () => $; $.env = () => $; $.nothrow = () => $; $.throws = () => $;
+$.cwd = () => $;
+$.env = () => $;
+$.nothrow = () => $;
+$.throws = () => $;
 
 // opencode `client`: calls resolve to empty data; app.log is forwarded.
 function makeClient(p = []) {
@@ -178,61 +239,103 @@ function makeClient(p = []) {
 // ---- Pi context / API -------------------------------------------------------
 function piCtx(sink) {
   const note = (m) => (sink ? sink.push(String(m)) : log(m));
-  const ui = degrade({
-    notify: note,
-    setStatus: inert("ctx.ui.setStatus"), setWidget: inert("ctx.ui.setWidget"), setTitle: inert("ctx.ui.setTitle"),
-    setFooter: inert("ctx.ui.setFooter"), setHeader: inert("ctx.ui.setHeader"),
-    setWorkingMessage: inert("ctx.ui.setWorkingMessage"), setWorkingIndicator: inert("ctx.ui.setWorkingIndicator"),
-    setWorkingVisible: inert("ctx.ui.setWorkingVisible"),
-    confirm: inert("ctx.ui.confirm", false), select: inert("ctx.ui.select"), input: inert("ctx.ui.input"), editor: inert("ctx.ui.editor"),
-  }, "ctx.ui");
-  return degrade({
-    cwd: state.cwd, hasUI: false, mode: "print", ui,
-    isProjectTrusted: () => state.trusted,
-    sessionManager: { getEntries: () => [], getBranch: () => [] },
-    isIdle: () => true, abort: inert("ctx.abort"), hasPendingMessages: () => false, shutdown: inert("ctx.shutdown"),
-    getContextUsage: inert("ctx.getContextUsage"), compact: inert("ctx.compact"),
-    getSystemPrompt: inert("ctx.getSystemPrompt", ""),
-  }, "ctx");
+  const ui = degrade(
+    {
+      notify: note,
+      setStatus: inert("ctx.ui.setStatus"),
+      setWidget: inert("ctx.ui.setWidget"),
+      setTitle: inert("ctx.ui.setTitle"),
+      setFooter: inert("ctx.ui.setFooter"),
+      setHeader: inert("ctx.ui.setHeader"),
+      setWorkingMessage: inert("ctx.ui.setWorkingMessage"),
+      setWorkingIndicator: inert("ctx.ui.setWorkingIndicator"),
+      setWorkingVisible: inert("ctx.ui.setWorkingVisible"),
+      confirm: inert("ctx.ui.confirm", false),
+      select: inert("ctx.ui.select"),
+      input: inert("ctx.ui.input"),
+      editor: inert("ctx.ui.editor"),
+    },
+    "ctx.ui",
+  );
+  return degrade(
+    {
+      cwd: state.cwd,
+      hasUI: false,
+      mode: "print",
+      ui,
+      isProjectTrusted: () => state.trusted,
+      sessionManager: { getEntries: () => [], getBranch: () => [] },
+      isIdle: () => true,
+      abort: inert("ctx.abort"),
+      hasPendingMessages: () => false,
+      shutdown: inert("ctx.shutdown"),
+      getContextUsage: inert("ctx.getContextUsage"),
+      compact: inert("ctx.compact"),
+      getSystemPrompt: inert("ctx.getSystemPrompt", ""),
+    },
+    "ctx",
+  );
 }
 
 function makeApi() {
   const events = new EventEmitter();
   const pi = {
-    on(ev, fn) { (state.handlers.get(ev) ?? state.handlers.set(ev, []).get(ev)).push(fn); },
+    on(ev, fn) {
+      (state.handlers.get(ev) ?? state.handlers.set(ev, []).get(ev)).push(fn);
+    },
     registerTool(def) {
       state.tools.set(def.name, { style: "pi", def });
-      notify("register_tool", { name: def.name, description: def.description ?? def.label ?? "", schema: def.parameters ?? { type: "object", properties: {} } });
+      notify("register_tool", {
+        name: def.name,
+        description: def.description ?? def.label ?? "",
+        schema: def.parameters ?? { type: "object", properties: {} },
+      });
     },
     registerCommand(name, opts = {}) {
       state.commands.set(name, opts);
       notify("register_command", { name, description: opts.description ?? "" });
     },
-    registerShortcut: inert("pi.registerShortcut"), registerFlag: inert("pi.registerFlag"),
-    registerMessageRenderer: inert("pi.registerMessageRenderer"), registerProvider: inert("pi.registerProvider"),
+    registerShortcut: inert("pi.registerShortcut"),
+    registerFlag: inert("pi.registerFlag"),
+    registerMessageRenderer: inert("pi.registerMessageRenderer"),
+    registerProvider: inert("pi.registerProvider"),
     unregisterProvider: inert("pi.unregisterProvider"),
     getFlag: inert("pi.getFlag"),
-    sendMessage: (m) => { report("inert", "pi.sendMessage"); log(typeof m === "string" ? m : (m?.content ?? JSON.stringify(m))); },
+    sendMessage: (m) => {
+      report("inert", "pi.sendMessage");
+      log(typeof m === "string" ? m : (m?.content ?? JSON.stringify(m)));
+    },
     sendUserMessage: (t) => notify("send_user_message", { text: typeof t === "string" ? t : String(t?.text ?? t) }),
-    appendEntry: inert("pi.appendEntry"), setSessionName: inert("pi.setSessionName"), setLabel: inert("pi.setLabel"),
+    appendEntry: inert("pi.appendEntry"),
+    setSessionName: inert("pi.setSessionName"),
+    setLabel: inert("pi.setLabel"),
     getActiveTools: () => [...state.tools.keys()],
     getAllTools: () => [...state.tools.keys()],
     setActiveTools: inert("pi.setActiveTools"),
     exec: (command, args = [], o = {}) =>
       new Promise((resolve) =>
-        execFile(command, args, { cwd: o.cwd ?? state.cwd, timeout: o.timeout, signal: o.signal, maxBuffer: 64 << 20 }, (err, stdout, stderr) =>
-          resolve({ stdout, stderr, code: err ? (typeof err.code === "number" ? err.code : 1) : 0, killed: !!err?.killed }))),
+        execFile(
+          command,
+          args,
+          { cwd: o.cwd ?? state.cwd, timeout: o.timeout, signal: o.signal, maxBuffer: 64 << 20 },
+          (err, stdout, stderr) =>
+            resolve({ stdout, stderr, code: err ? (typeof err.code === "number" ? err.code : 1) : 0, killed: !!err?.killed }),
+        ),
+      ),
     events,
   };
   // opencode PluginInput fields on the same object
-  return degrade(Object.assign(pi, {
-    project: { id: "global", worktree: state.cwd, path: state.cwd },
-    directory: state.cwd,
-    worktree: state.cwd,
-    client: makeClient(),
-    $,
-    serverUrl: new URL("http://localhost:0"),
-  }), "pi");
+  return degrade(
+    Object.assign(pi, {
+      project: { id: "global", worktree: state.cwd, path: state.cwd },
+      directory: state.cwd,
+      worktree: state.cwd,
+      client: makeClient(),
+      $,
+      serverUrl: new URL("http://localhost:0"),
+    }),
+    "pi",
+  );
 }
 
 // ---- loading ----------------------------------------------------------------
@@ -242,7 +345,7 @@ function resolvePkg(spec, cwd) {
   let entry = pj.module || pj.main || "index.js";
   const ex = pj.exports;
   if (ex) {
-    const root = typeof ex === "string" ? ex : ex["."] ?? ex;
+    const root = typeof ex === "string" ? ex : (ex["."] ?? ex);
     const pick = (v) => (typeof v === "string" ? v : v && (pick(v.import) || pick(v.default) || pick(v.node)));
     entry = pick(root) || entry;
   }
@@ -276,7 +379,12 @@ function subscribed() {
   const set = new Set();
   const piToHost = { before_agent_start: "system_prompt" };
   for (const k of state.handlers.keys()) set.add(piToHost[k] ?? k);
-  const ocToHost = { "tool.execute.before": "tool_call", "tool.execute.after": "tool_result", "chat.message": "input", "experimental.chat.system.transform": "system_prompt" };
+  const ocToHost = {
+    "tool.execute.before": "tool_call",
+    "tool.execute.after": "tool_result",
+    "chat.message": "input",
+    "experimental.chat.system.transform": "system_prompt",
+  };
   for (const h of state.oc) {
     for (const [k, v] of Object.entries(ocToHost)) if (typeof h[k] === "function") set.add(v);
     if (typeof h.event === "function") ["session_start", "agent_end"].forEach((e) => set.add(e));
@@ -293,20 +401,50 @@ async function piEvent(name, p, d) {
   if (!hs) return;
   let ev;
   switch (name) {
-    case "tool_call": ev = { type: "tool_call", toolName: p.toolName, toolCallId: p.callId, input: p.input }; break;
-    case "tool_result": ev = { type: "tool_result", toolName: p.toolName, toolCallId: p.callId, input: p.input, content: [{ type: "text", text: p.output }], isError: !!p.isError, details: {} }; break;
-    case "input": ev = { type: "input", text: p.text, source: "interactive" }; break;
-    case "system_prompt": ev = { type: "before_agent_start", prompt: "", systemPrompt: p.system }; break;
-    default: ev = { type: name, ...p };
+    case "tool_call":
+      ev = { type: "tool_call", toolName: p.toolName, toolCallId: p.callId, input: p.input };
+      break;
+    case "tool_result":
+      ev = {
+        type: "tool_result",
+        toolName: p.toolName,
+        toolCallId: p.callId,
+        input: p.input,
+        content: [{ type: "text", text: p.output }],
+        isError: !!p.isError,
+        details: {},
+      };
+      break;
+    case "input":
+      ev = { type: "input", text: p.text, source: "interactive" };
+      break;
+    case "system_prompt":
+      ev = { type: "before_agent_start", prompt: "", systemPrompt: p.system };
+      break;
+    default:
+      ev = { type: name, ...p };
   }
   for (const h of hs) {
     let r;
-    try { r = await h(ev, piCtx()); } catch (e) { log(`${name} handler: ${e?.message ?? e}`, "error"); continue; }
+    try {
+      r = await h(ev, piCtx());
+    } catch (e) {
+      log(`${name} handler: ${e?.message ?? e}`, "error");
+      continue;
+    }
     if (!r || typeof r !== "object") continue;
-    if (name === "tool_call" && r.block) { d.block = true; d.reason = r.reason ?? "blocked"; return; }
-    if (name === "tool_result" && (r.content !== undefined)) d.output = textOf(r.content);
+    if (name === "tool_call" && r.block) {
+      d.block = true;
+      d.reason = r.reason ?? "blocked";
+      return;
+    }
+    if (name === "tool_result" && r.content !== undefined) d.output = textOf(r.content);
     if (name === "input") {
-      if (r.action === "handled") { d.block = true; d.reason = "handled by extension"; return; }
+      if (r.action === "handled") {
+        d.block = true;
+        d.reason = "handled by extension";
+        return;
+      }
       if (r.action === "transform" && typeof r.text === "string") d.text = r.text;
     }
     if (name === "system_prompt" && typeof r.systemPrompt === "string") {
@@ -322,8 +460,13 @@ async function ocEvent(name, p, d) {
     try {
       if (name === "tool_call" && h["tool.execute.before"]) {
         const output = { args: structuredClone(p.input ?? {}) };
-        try { await h["tool.execute.before"]({ tool: p.toolName, sessionID: SESSION, callID: p.callId }, output); }
-        catch (e) { d.block = true; d.reason = String(e?.message ?? e); return; }
+        try {
+          await h["tool.execute.before"]({ tool: p.toolName, sessionID: SESSION, callID: p.callId }, output);
+        } catch (e) {
+          d.block = true;
+          d.reason = String(e?.message ?? e);
+          return;
+        }
         if (JSON.stringify(output.args) !== JSON.stringify(p.input)) d.args = output.args;
       } else if (name === "tool_result" && h["tool.execute.after"]) {
         const output = { title: p.toolName, output: p.output, metadata: {} };
@@ -360,8 +503,16 @@ async function onToolExecute({ name, args, callId }) {
     const r = await t.def.execute(callId, args, new AbortController().signal, undefined, piCtx());
     return { content: typeof r === "string" ? r : textOf(r?.content ?? r), isError: !!r?.isError };
   }
-  const r = await t.def.execute(args, { sessionID: SESSION, messageID: "", agent: "koine", directory: state.cwd, worktree: state.cwd, abort: new AbortController().signal, metadata() {} });
-  return { content: typeof r === "string" ? r : r?.output ?? JSON.stringify(r) };
+  const r = await t.def.execute(args, {
+    sessionID: SESSION,
+    messageID: "",
+    agent: "koine",
+    directory: state.cwd,
+    worktree: state.cwd,
+    abort: new AbortController().signal,
+    metadata() {},
+  });
+  return { content: typeof r === "string" ? r : (r?.output ?? JSON.stringify(r)) };
 }
 
 async function onCommand({ name, args }) {
@@ -390,7 +541,11 @@ const rl = readline.createInterface({ input: process.stdin });
 rl.on("line", async (line) => {
   if (!line.trim()) return;
   let m;
-  try { m = JSON.parse(line); } catch { return; }
+  try {
+    m = JSON.parse(line);
+  } catch {
+    return;
+  }
   if (m.method === "shutdown") process.exit(0);
   const fn = methods[m.method];
   if (m.id === undefined) return;

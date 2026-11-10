@@ -152,7 +152,8 @@ func TestStartErrors(t *testing.T) {
 		t.Fatal("bad binary")
 	}
 	// process that exits without answering initialize
-	if err := h.Start(context.Background(), Spec{Name: "x", Command: []string{"sh", "-c", "exit 0"}}); err == nil || !strings.Contains(err.Error(), "initialize") {
+	spec := Spec{Name: "x", Command: []string{"sh", "-c", "exit 0"}}
+	if err := h.Start(context.Background(), spec); err == nil || !strings.Contains(err.Error(), "initialize") {
 		t.Fatalf("%v", err)
 	}
 	if d := h.Emit(context.Background(), "tool_call", nil); d.Block {

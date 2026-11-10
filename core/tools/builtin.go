@@ -100,7 +100,10 @@ func RegisterBuiltins(r *Registry, cwd string) {
 		}})
 
 	r.Register(&Func{N: "edit", D: "Replace an exact string in a file. old must match exactly once unless replaceAll is true.",
-		S: schema(map[string]any{"path": str("File path"), "old": str("Exact text to replace"), "new": str("Replacement text"), "replaceAll": flag("Replace every occurrence")}, "path", "old", "new"),
+		S: schema(map[string]any{
+			"path": str("File path"), "old": str("Exact text to replace"), "new": str("Replacement text"),
+			"replaceAll": flag("Replace every occurrence"),
+		}, "path", "old", "new"),
 		F: func(ctx context.Context, a json.RawMessage) (string, error) {
 			var p struct {
 				Path, Old, New string
@@ -247,7 +250,7 @@ func RegisterBuiltins(r *Registry, cwd string) {
 				if err != nil {
 					return
 				}
-				defer f.Close()
+				defer func() { _ = f.Close() }()
 				sc := bufio.NewScanner(f)
 				sc.Buffer(make([]byte, 64*1024), 1<<20)
 				for i := 1; sc.Scan() && len(out) < 200; i++ {

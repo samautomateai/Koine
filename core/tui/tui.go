@@ -60,7 +60,8 @@ func Render(e agent.Event) {
 func Run(ctx context.Context, a *app.App) error {
 	info := a.Describe()
 	fmt.Printf("%skoine%s  %s · %s\n", bold, reset, info.Model, info.Cwd)
-	fmt.Printf("%s%d tools · %d skills · %d agents · %d commands — /help%s\n", dim, len(info.Tools), len(info.Skills), len(info.Agents), len(info.Commands), reset)
+	fmt.Printf("%s%d tools · %d skills · %d agents · %d commands — /help%s\n",
+		dim, len(info.Tools), len(info.Skills), len(info.Agents), len(info.Commands), reset)
 	for _, w := range a.Warnings {
 		fmt.Printf("%swarning: %s%s\n", red, w, reset)
 	}

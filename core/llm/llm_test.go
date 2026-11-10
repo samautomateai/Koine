@@ -18,7 +18,8 @@ func TestCompleteSuccessAndRequestShape(t *testing.T) {
 		key, ver = r.Header.Get("x-api-key"), r.Header.Get("anthropic-version")
 		b, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(b, &got)
-		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"hi"},{"type":"tool_use","id":"t1","name":"read","input":{"path":"a"}}],"stop_reason":"tool_use"}`))
+		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"hi"},` +
+			`{"type":"tool_use","id":"t1","name":"read","input":{"path":"a"}}],"stop_reason":"tool_use"}`))
 	}))
 	defer srv.Close()
 	a := &Anthropic{APIKey: "k", BaseURL: srv.URL}
@@ -125,8 +126,15 @@ func TestEnvAndMissing(t *testing.T) {
 func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func TestRouterResolve(t *testing.T) {
-	r := &Router{Getenv: env(map[string]string{"ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o", "OPENROUTER_API_KEY": "r", "MYKEY": "m", "OPENAI_BASE_URL": "http://proxy/v1"}),
-		Custom: map[string]ProviderConfig{"corp": {BaseURL: "http://corp/v1", APIKeyEnv: "MYKEY"}, "ant": {Type: "anthropic", BaseURL: "http://ant", APIKeyEnv: "ANTHROPIC_API_KEY"}}}
+	r := &Router{
+		Getenv: env(map[string]string{
+			"ANTHROPIC_API_KEY": "a", "OPENAI_API_KEY": "o", "OPENROUTER_API_KEY": "r", "MYKEY": "m", "OPENAI_BASE_URL": "http://proxy/v1",
+		}),
+		Custom: map[string]ProviderConfig{
+			"corp": {BaseURL: "http://corp/v1", APIKeyEnv: "MYKEY"},
+			"ant":  {Type: "anthropic", BaseURL: "http://ant", APIKeyEnv: "ANTHROPIC_API_KEY"},
+		},
+	}
 	cases := []struct {
 		in, model, kind string
 	}{
@@ -210,7 +218,9 @@ func TestOpenAIRoundTrip(t *testing.T) {
 		Messages: []Message{
 			{Role: "user", Content: []Block{{Type: "text", Text: "hi"}}},
 			{Role: "assistant", Content: []Block{{Type: "text", Text: "ok"}, {Type: "tool_use", ID: "c0", Name: "ls"}}},
-			{Role: "user", Content: []Block{{Type: "tool_result", ToolUseID: "c0", Content: "files"}, {Type: "tool_result", ToolUseID: "c9", Content: "boom", IsError: true}}},
+			{Role: "user", Content: []Block{
+				{Type: "tool_result", ToolUseID: "c0", Content: "files"},
+				{Type: "tool_result", ToolUseID: "c9", Content: "boom", IsError: true}}},
 		},
 	})
 	if err != nil {
@@ -258,7 +268,8 @@ func TestOpenAIErrors(t *testing.T) {
 	}
 	denied := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(401) }))
 	defer denied.Close()
-	if _, err := (&OpenAICompat{Name: "grok", BaseURL: denied.URL}).Complete(context.Background(), Request{}); err == nil || !strings.Contains(err.Error(), "grok: HTTP 401") {
+	_, err := (&OpenAICompat{Name: "grok", BaseURL: denied.URL}).Complete(context.Background(), Request{})
+	if err == nil || !strings.Contains(err.Error(), "grok: HTTP 401") {
 		t.Errorf("%v", err)
 	}
 	// plain text reply, no tool calls, nil content tolerated

@@ -45,7 +45,8 @@ type Agent struct {
 }
 
 const defaultBase = `You are koine, a coding agent working in the user's project through tools.
-Be concise. Inspect before you change; prefer small, verifiable edits; run the project's tests or build when relevant. Use absolute or project-relative paths. When a task is complete, say what changed.`
+Be concise. Inspect before you change; prefer small, verifiable edits; run the project's tests or build when relevant.
+Use absolute or project-relative paths. When a task is complete, say what changed.`
 
 func (a *Agent) dispatch(ctx context.Context, name string, payload any) events.Decision {
 	if a.Dispatch == nil {
@@ -215,7 +216,8 @@ func orDefault(s, d string) string {
 func (a *Agent) TaskTool() tools.Tool {
 	return &tools.Func{N: "task",
 		D: "Delegate a self-contained task to a named sub-agent. It runs in a fresh context and returns its final answer.",
-		S: json.RawMessage(`{"type":"object","properties":{"agent":{"type":"string","description":"Sub-agent name"},"prompt":{"type":"string","description":"Complete task description"}},"required":["agent","prompt"]}`),
+		S: json.RawMessage(`{"type":"object","properties":{"agent":{"type":"string","description":"Sub-agent name"},` +
+			`"prompt":{"type":"string","description":"Complete task description"}},"required":["agent","prompt"]}`),
 		F: func(ctx context.Context, raw json.RawMessage) (string, error) {
 			var p struct{ Agent, Prompt string }
 			if err := json.Unmarshal(raw, &p); err != nil {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"koine/compat"
 	"koine/core/app"
@@ -65,7 +66,8 @@ func run(args []string, stderr io.Writer) int {
 	case *serve != "":
 		fmt.Fprintf(stderr, "koine serving on http://%s\n", *serve)
 		s := &server.Server{App: a}
-		if err := http.ListenAndServe(*serve, s.Handler()); err != nil {
+		srv := &http.Server{Addr: *serve, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second} // no WriteTimeout: SSE streams
+		if err := srv.ListenAndServe(); err != nil {
 			fmt.Fprintln(stderr, "koine:", err)
 			return 1
 		}

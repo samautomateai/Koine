@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"regexp"
@@ -137,7 +138,8 @@ func (r *Runner) run(ctx context.Context, e Entry, stdin []byte) events.Decision
 	var so, se bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &so, &se
 	err := cmd.Run()
-	if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 2 {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() == 2 {
 		reason := strings.TrimSpace(se.String())
 		if reason == "" {
 			reason = "blocked by hook"

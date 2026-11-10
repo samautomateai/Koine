@@ -157,7 +157,9 @@ func (a *App) load(ctx context.Context) {
 		}
 	}
 	if skippedCode > 0 {
-		a.Warnings = append(a.Warnings, fmt.Sprintf("untrusted folder: %d project extension/hook/provider entr%s NOT loaded — run /trust to enable them (or start with -trust)", skippedCode, plural(skippedCode)))
+		a.Warnings = append(a.Warnings, fmt.Sprintf(
+			"untrusted folder: %d project extension/hook/provider entr%s NOT loaded — run /trust to enable them (or start with -trust)",
+			skippedCode, plural(skippedCode)))
 	}
 
 	a.Agent.Tools = a.Tools
