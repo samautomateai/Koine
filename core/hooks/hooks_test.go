@@ -36,7 +36,8 @@ func TestExit2DefaultReason(t *testing.T) {
 
 func TestNestedClaudeFormAndStdin(t *testing.T) {
 	// the hook reads stdin JSON and blocks only if tool_name is Bash with the right command
-	cmd := `python3 -c "import sys,json;d=json.load(sys.stdin);assert d['hook_event_name']=='PreToolUse';sys.exit(2 if d['tool_name']=='Bash' and d['tool_input']['command']=='ls' else 0)"`
+	cmd := `python3 -c "import sys,json;d=json.load(sys.stdin);assert d['hook_event_name']=='PreToolUse';` +
+		`sys.exit(2 if d['tool_name']=='Bash' and d['tool_input']['command']=='ls' else 0)"`
 	r := runner(map[string][]Entry{"PreToolUse": {{Matcher: "Bash|Write", Hooks: []Entry{{Type: "command", Command: cmd}}}}})
 	if d := emit(r, events.ToolCall, call); !d.Block {
 		t.Fatalf("expected block: %+v", d)

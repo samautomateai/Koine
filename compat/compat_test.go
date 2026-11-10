@@ -40,7 +40,9 @@ func TestValidateRules(t *testing.T) {
 			t.Errorf("%s: expected an error", name)
 		}
 	}
-	if err := base(Item{Kind: "api", Name: "x", Status: "verified", Test: "t"}, Item{Kind: "api", Name: "y", Status: "inert", Test: "t"}).Validate(); err != nil {
+	a := Item{Kind: "api", Name: "x", Status: "verified", Test: "t"}
+	b := Item{Kind: "api", Name: "y", Status: "inert", Test: "t"}
+	if err := base(a, b).Validate(); err != nil {
 		t.Error(err)
 	}
 }
@@ -81,7 +83,10 @@ func TestVerifiedItemsNameRealTests(t *testing.T) {
 func TestReport(t *testing.T) {
 	m, _ := Load()
 	r := m.Report()
-	for _, want := range []string{"pinned to @earendil-works/pi-coding-agent " + m.Upstream.Baseline, "verified", "todo (", "unsupported (", "observed:", "session_shutdown"} {
+	wants := []string{
+		"pinned to @earendil-works/pi-coding-agent " + m.Upstream.Baseline, "verified", "todo (", "unsupported (", "observed:", "session_shutdown",
+	}
+	for _, want := range wants {
 		if !strings.Contains(r, want) {
 			t.Errorf("report missing %q", want)
 		}

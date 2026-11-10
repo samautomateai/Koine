@@ -122,7 +122,11 @@ func TestBash(t *testing.T) {
 
 func TestLsGlobGrep(t *testing.T) {
 	r, dir := setup(t)
-	for p, c := range map[string]string{"a.go": "package a\nfunc Foo() {}\n", "pkg/b.go": "package b\nfunc Bar() {}\n", "pkg/c.txt": "Foo here\n", "node_modules/x.go": "func Foo() {}", "bin.dat": "Foo\x00bin"} {
+	files := map[string]string{
+		"a.go": "package a\nfunc Foo() {}\n", "pkg/b.go": "package b\nfunc Bar() {}\n", "pkg/c.txt": "Foo here\n",
+		"node_modules/x.go": "func Foo() {}", "bin.dat": "Foo\x00bin",
+	}
+	for p, c := range files {
 		_ = os.MkdirAll(filepath.Dir(filepath.Join(dir, p)), 0o755)
 		_ = os.WriteFile(filepath.Join(dir, p), []byte(c), 0o644)
 	}
@@ -146,7 +150,8 @@ func TestLsGlobGrep(t *testing.T) {
 		t.Fatalf("glob ?: %q", out)
 	}
 	out, _ = run(t, r, "grep", `{"pattern":"Foo"}`)
-	if !strings.Contains(out, "a.go:2:func Foo() {}") || !strings.Contains(out, "pkg/c.txt:1:Foo here") || strings.Contains(out, "node_modules") || strings.Contains(out, "bin.dat") {
+	if !strings.Contains(out, "a.go:2:func Foo() {}") || !strings.Contains(out, "pkg/c.txt:1:Foo here") ||
+		strings.Contains(out, "node_modules") || strings.Contains(out, "bin.dat") {
 		t.Fatalf("grep: %q", out)
 	}
 	out, _ = run(t, r, "grep", `{"pattern":"Foo","glob":"*.txt"}`)

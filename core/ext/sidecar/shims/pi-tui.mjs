@@ -1,5 +1,17 @@
 // Rendering primitives are accepted but inert: koine draws tool output itself.
-class Node { constructor(...a) { this.args = a; this.children = []; } addChild(c) { this.children.push(c); } render() { return []; } invalidate() {} }
+class Node {
+  constructor(...a) {
+    this.args = a;
+    this.children = [];
+  }
+  addChild(c) {
+    this.children.push(c);
+  }
+  render() {
+    return [];
+  }
+  invalidate() {}
+}
 export class Text extends Node {}
 export class Container extends Node {}
 export class Spacer extends Node {}

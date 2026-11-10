@@ -3,8 +3,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync, spawnSync } from "node:child_process";
-import { stripComments, interfaceBody, members, onEvents, slashCommands, extract, diff, rebase, surfaceFile, readSource, findVersion, report } from "../../scripts/upstream-check.mjs";
+import { spawnSync } from "node:child_process";
+import {
+  stripComments,
+  interfaceBody,
+  members,
+  onEvents,
+  slashCommands,
+  extract,
+  diff,
+  rebase,
+  surfaceFile,
+  readSource,
+  findVersion,
+  report,
+} from "../../scripts/upstream-check.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, "..", "..");
@@ -100,9 +113,14 @@ test("CLI: extraction failure exits 3", () => {
 
 test("CLI: --rebase on a copy rewrites manifest and surface.json", () => {
   const tmp = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || "/tmp"), "koine-rebase-"));
-  fs.mkdirSync(path.join(tmp, "compat")); fs.mkdirSync(path.join(tmp, "core/ext/sidecar"), { recursive: true });
+  fs.mkdirSync(path.join(tmp, "compat"));
+  fs.mkdirSync(path.join(tmp, "core/ext/sidecar"), { recursive: true });
   fs.copyFileSync(manifestPath, path.join(tmp, "compat", "pi.json"));
-  const r = spawnSync("node", [path.join(root, "scripts", "upstream-check.mjs"), "--src", fixture, "--rebase", "--manifest", path.join(tmp, "compat", "pi.json")], { encoding: "utf8" });
+  const r = spawnSync(
+    "node",
+    [path.join(root, "scripts", "upstream-check.mjs"), "--src", fixture, "--rebase", "--manifest", path.join(tmp, "compat", "pi.json")],
+    { encoding: "utf8" },
+  );
   assert.equal(r.status, 1, r.stderr);
   const m = JSON.parse(fs.readFileSync(path.join(tmp, "compat", "pi.json"), "utf8"));
   assert.equal(m.upstream.baseline, "9.9.9");

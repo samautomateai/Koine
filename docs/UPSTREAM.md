@@ -9,14 +9,14 @@ has changed since**. This document is the process; the data lives in
 
 ## The three layers
 
-| Layer | What it answers | Where |
-|---|---|---|
-| Manifest | Every upstream extension surface item (events, `pi.*`, `ctx.*`, `ctx.ui.*`, tool fields, slash commands) and our status for it: `verified` (names a passing test) · `inert` (accepted, no effect) · `unsupported` (stand-in, reported by `/compat`) · `todo` | `compat/pi.json`, validated by `compat/compat.go` |
-| Conformance | Does the runner actually behave as the manifest claims? The test reads the manifest and executes each item against the real sidecar (Node and Bun) | `core/ext/jstest/conformance.test.mjs` |
-| Drift check | What did upstream add or remove since the pinned baseline? Extracted from upstream's own `types.ts` / `slash-commands.ts` | `scripts/upstream-check.mjs`, tests in `compat/test/` |
+| Layer       | What it answers                                                                                                                                                                                                                                              | Where                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Manifest    | Every upstream extension surface item (events, `pi.*`, `ctx.*`, `ctx.ui.*`, tool fields, slash commands) and our status for it: `verified` (names a passing test) · `inert` (accepted, no effect) · `unsupported` (stand-in, reported by `/compat`) · `todo` | `compat/pi.json`, validated by `compat/compat.go`     |
+| Conformance | Does the runner actually behave as the manifest claims? The test reads the manifest and executes each item against the real sidecar (Node and Bun)                                                                                                           | `core/ext/jstest/conformance.test.mjs`                |
+| Drift check | What did upstream add or remove since the pinned baseline? Extracted from upstream's own `types.ts` / `slash-commands.ts`                                                                                                                                    | `scripts/upstream-check.mjs`, tests in `compat/test/` |
 
 `koine -version` prints `koine <ver>+pi<baseline>`; `koine -compat` prints the
-status report; `/compat` inside a session lists what the *loaded extensions*
+status report; `/compat` inside a session lists what the _loaded extensions_
 tried to use that we do not implement.
 
 ## Routine (weekly, or when Pi ships)
@@ -44,4 +44,4 @@ something, to `compat/DIVERGENCES.md`.
 
 ## Why not port Pi file-by-file?
 
-Koine's contract is narrower: the *extension surface* of Pi is tracked exactly, the rest of the agent is ours.
+Koine's contract is narrower: the _extension surface_ of Pi is tracked exactly, the rest of the agent is ours.

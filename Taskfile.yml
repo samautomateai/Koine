@@ -1,5 +1,5 @@
 # https://taskfile.dev — `task` lists everything, `task check` is what CI runs.
-version: '3'
+version: "3"
 
 vars:
   BIN: bin/koine
@@ -15,8 +15,8 @@ tasks:
   # ---- build & run -------------------------------------------------------
   build:
     desc: Build the koine CLI (bin/koine), stamping the pinned Pi baseline from compat/pi.json
-    sources: ['**/*.go', 'core/ext/sidecar/**/*', 'compat/pi.json', go.mod]
-    generates: ['{{.BIN}}']
+    sources: ["**/*.go", "core/ext/sidecar/**/*", "compat/pi.json", go.mod]
+    generates: ["{{.BIN}}"]
     vars:
       VERSION:
         sh: git describe --tags --always 2>/dev/null || echo dev
@@ -49,7 +49,7 @@ tasks:
     dir: desktop
     preconditions:
       - sh: command -v wails
-        msg: 'install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest'
+        msg: "install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
     cmds:
       - go mod tidy
       - wails dev
@@ -59,7 +59,7 @@ tasks:
     dir: desktop
     preconditions:
       - sh: command -v wails
-        msg: 'install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest'
+        msg: "install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
     cmds:
       - go mod tidy
       - wails build
@@ -83,11 +83,40 @@ tasks:
       - go vet ./...
 
   lint:
-    desc: staticcheck (skipped with a notice if not installed)
+    desc: golangci-lint (errcheck, govet, staticcheck, gosec, ...) and Biome
     cmds:
-      - |
-        if command -v staticcheck >/dev/null; then staticcheck ./...
-        else echo "staticcheck not installed (go install honnef.co/go/tools/cmd/staticcheck@latest) — skipping"; fi
+      - task: lint:go
+      - task: lint:js
+
+  lint:go:
+    desc: golangci-lint, config in .golangci.yml
+    preconditions:
+      - sh: command -v golangci-lint
+        msg: "install golangci-lint v2: https://golangci-lint.run/welcome/install/"
+    cmds:
+      - golangci-lint run ./...
+
+  lint:js:
+    desc: Biome format + lint check for the JS sidecar and scripts (npm install once)
+    cmds:
+      - npx --no-install biome check .
+
+  size:
+    desc: Line-length (160) and file-length (600) gate for Go and JS
+    cmds:
+      - node scripts/sizecheck.mjs
+
+  docs:check:
+    desc: Requirements, design, ADRs and links are consistent with each other and the code
+    cmds:
+      - node scripts/docscheck.mjs {{.CLI_ARGS}}
+
+  audit:
+    desc: Dependency audit and vulnerability scan (govulncheck needs network)
+    cmds:
+      - go mod verify
+      - go mod tidy -diff
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
   # ---- tests -------------------------------------------------------------
   test:
@@ -103,7 +132,7 @@ tasks:
   test:js:
     desc: JS sidecar tests (Node and Bun if present)
     cmds:
-      - node --test "core/ext/jstest/*.test.mjs" "compat/test/*.test.mjs"
+      - npm run -s test:cover
 
   test:all:
     desc: Go + JS tests
@@ -147,13 +176,25 @@ tasks:
 
   # ---- aggregate ---------------------------------------------------------
   check:
-    desc: Everything CI runs — format, vet, lint, all tests, coverage gate
+    desc: Everything CI runs locally — format, vet, lint, size, docs, all tests, coverage gates
     cmds:
       - task: fmt:check
       - task: vet
       - task: lint
+      - task: size
+      - task: docs:check
       - task: test:js
       - task: cover:gate
+
+  check:fast:
+    desc: Quick loop while editing — format, vet, size, docs, tests (no coverage or lint)
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: size
+      - task: docs:check
+      - go test -count=1 ./...
+      - node --test "core/ext/jstest/*.test.mjs" "compat/test/*.test.mjs"
 
   ci:
     desc: Alias for check, with the race detector

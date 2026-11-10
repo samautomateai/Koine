@@ -130,6 +130,7 @@ func TestServeMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(b), `"tools"`) {
 		t.Fatalf("%s", b)

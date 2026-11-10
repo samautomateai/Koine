@@ -20,7 +20,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export function stripComments(src) {
   let out = "";
   for (let i = 0; i < src.length; i++) {
-    const c = src[i], n = src[i + 1];
+    const c = src[i],
+      n = src[i + 1];
     if (c === '"' || c === "'" || c === "`") {
       let j = i + 1;
       while (j < src.length && src[j] !== c) j += src[j] === "\\" ? 2 : 1;
@@ -42,7 +43,8 @@ export function stripComments(src) {
 export function interfaceBody(src, name) {
   const m = new RegExp(`\\binterface\\s+${name}\\b[^{]*\\{`).exec(src);
   if (!m) return null;
-  let depth = 1, i = m.index + m[0].length;
+  let depth = 1,
+    i = m.index + m[0].length;
   const start = i;
   for (; i < src.length && depth > 0; i++) {
     const c = src[i];
@@ -58,7 +60,8 @@ export function interfaceBody(src, name) {
 /** Top-level members of an interface body: [{name, shape: "method"|"prop"}], overloads merged. */
 export function members(body) {
   const chunks = [];
-  let depth = 0, cur = "";
+  let depth = 0,
+    cur = "";
   for (let i = 0; i < body.length; i++) {
     const c = body[i];
     if (c === '"' || c === "'" || c === "`") {
@@ -70,7 +73,10 @@ export function members(body) {
     }
     if (c === "{" || c === "(" || c === "[") depth++;
     else if (c === "}" || c === ")" || c === "]") depth--;
-    if (c === ";" && depth === 0) { chunks.push(cur); cur = ""; } else cur += c;
+    if (c === ";" && depth === 0) {
+      chunks.push(cur);
+      cur = "";
+    } else cur += c;
   }
   chunks.push(cur);
   const seen = new Map();
@@ -139,7 +145,8 @@ const CHECKED = ["event", "api", "ctx", "ui", "tool", "command"];
 
 /** Compare upstream surface with the manifest items. */
 export function diff(surface, manifest) {
-  const added = {}, removed = [];
+  const added = {},
+    removed = [];
   for (const kind of CHECKED) {
     const have = new Set(manifest.items.filter((i) => i.kind === kind).map((i) => i.name));
     added[kind] = [...surface[kind].keys()].filter((n) => !have.has(n)).sort();
@@ -180,8 +187,14 @@ export function surfaceFile(manifest) {
   const props = manifest.items.filter((i) => ["api", "ctx", "ui"].includes(i.kind) && i.shape === "prop");
   return {
     generatedFrom: "compat/pi.json — do not edit; run `task compat:sync`",
-    undefinedProps: props.filter((i) => i.status === "unsupported" && (i.behavior ?? "undefined") === "undefined").map((i) => i.name).sort(),
-    identityProps: props.filter((i) => i.behavior === "identity").map((i) => i.name).sort(),
+    undefinedProps: props
+      .filter((i) => i.status === "unsupported" && (i.behavior ?? "undefined") === "undefined")
+      .map((i) => i.name)
+      .sort(),
+    identityProps: props
+      .filter((i) => i.behavior === "identity")
+      .map((i) => i.name)
+      .sort(),
   };
 }
 
@@ -227,10 +240,17 @@ export function report({ version, name, baseline, d, missing }) {
   if (missing.length) lines.push(`**Extraction problems** (upstream may have renamed these): ${missing.join(", ")}`, "");
   let n = 0;
   for (const kind of CHECKED) {
-    if (d.added[kind].length) { lines.push(`## New upstream ${kind} (${d.added[kind].length})`, d.added[kind].map((x) => `- \`${x}\``).join("\n"), ""); n += d.added[kind].length; }
+    if (d.added[kind].length) {
+      lines.push(`## New upstream ${kind} (${d.added[kind].length})`, d.added[kind].map((x) => `- \`${x}\``).join("\n"), "");
+      n += d.added[kind].length;
+    }
   }
   if (d.removed.length) {
-    lines.push(`## In manifest but not upstream (${d.removed.length}) — renamed or removed?`, d.removed.map((r) => `- ${r.kind} \`${r.name}\` (koine status: ${r.status})`).join("\n"), "");
+    lines.push(
+      `## In manifest but not upstream (${d.removed.length}) — renamed or removed?`,
+      d.removed.map((r) => `- ${r.kind} \`${r.name}\` (koine status: ${r.status})`).join("\n"),
+      "",
+    );
     n += d.removed.length;
   }
   if (!n && baseline === version && !missing.length) lines.push("No drift.");
@@ -239,7 +259,10 @@ export function report({ version, name, baseline, d, missing }) {
 }
 
 async function main(argv) {
-  const arg = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
+  const arg = (k) => {
+    const i = argv.indexOf(k);
+    return i >= 0 ? argv[i + 1] : undefined;
+  };
   const here = path.dirname(fileURLToPath(import.meta.url));
   const manifestPath = arg("--manifest") ?? path.join(here, "..", "compat", "pi.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -254,25 +277,44 @@ async function main(argv) {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "koine-upstream-"));
     let tgz = arg("--tarball");
     if (!tgz) {
-      const out = execFileSync("npm", ["pack", `${manifest.upstream.package}@latest`, "--pack-destination", tmp, "--silent"], { encoding: "utf8" }).trim().split("\n").pop();
+      const out = execFileSync("npm", ["pack", `${manifest.upstream.package}@latest`, "--pack-destination", tmp, "--silent"], {
+        encoding: "utf8",
+      })
+        .trim()
+        .split("\n")
+        .pop();
       tgz = path.join(tmp, out);
     }
     execFileSync("tar", ["-xzf", tgz, "-C", tmp]);
     dir = tmp;
   }
   const v = findVersion(dir, manifest.upstream.package) ?? findVersion(dir, manifest.upstream.legacyPackage) ?? findVersion(dir);
-  const { surface, missing } = extract(readSource(dir), manifest.extract && Object.keys(manifest.extract).some((k) => ["api", "ctx", "ui"].includes(k)) ? { ...cfgDefault, ...manifest.extract } : cfgDefault);
-  if (missing.length && missing.includes("ExtensionAPI") ) {
+  const { surface, missing } = extract(
+    readSource(dir),
+    manifest.extract && Object.keys(manifest.extract).some((k) => ["api", "ctx", "ui"].includes(k))
+      ? { ...cfgDefault, ...manifest.extract }
+      : cfgDefault,
+  );
+  if (missing.length && missing.includes("ExtensionAPI")) {
     console.error(`extraction failed: could not find ${missing.join(", ")} in ${dir}`);
     return 3;
   }
   const d = diff(surface, manifest);
   const baseline = manifest.upstream.baseline;
-  if (argv.includes("--json")) console.log(JSON.stringify({ version: v?.version, baseline, added: d.added, removed: d.removed, missing }, null, 1));
+  if (argv.includes("--json"))
+    console.log(JSON.stringify({ version: v?.version, baseline, added: d.added, removed: d.removed, missing }, null, 1));
   else console.log(report({ version: v?.version, name: v?.name, baseline, d, missing }));
   if (argv.includes("--rebase")) {
-    if (!v) { console.error("cannot rebase: upstream version not found"); return 3; }
-    const next = rebase(manifest, surface, v.version, `extracted from ${v.name} ${v.version} (types.ts / slash-commands.ts) on ${new Date().toISOString().slice(0, 10)}`);
+    if (!v) {
+      console.error("cannot rebase: upstream version not found");
+      return 3;
+    }
+    const next = rebase(
+      manifest,
+      surface,
+      v.version,
+      `extracted from ${v.name} ${v.version} (types.ts / slash-commands.ts) on ${new Date().toISOString().slice(0, 10)}`,
+    );
     fs.writeFileSync(manifestPath, JSON.stringify(next, null, 1) + "\n");
     fs.writeFileSync(surfacePath(manifestPath), JSON.stringify(surfaceFile(next), null, 1) + "\n");
     console.error(`rebased ${manifestPath}: ${baseline} -> ${v.version}`);
@@ -283,5 +325,11 @@ async function main(argv) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv.slice(2)).then((c) => process.exit(c), (e) => { console.error(e.message); process.exit(3); });
+  main(process.argv.slice(2)).then(
+    (c) => process.exit(c),
+    (e) => {
+      console.error(e.message);
+      process.exit(3);
+    },
+  );
 }

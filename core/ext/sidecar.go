@@ -63,7 +63,8 @@ func JSSpec(name, target string) (Spec, error) {
 		return Spec{Name: name, Command: []string{p, runner, target}}, nil
 	}
 	if p, err := exec.LookPath("node"); err == nil {
-		return Spec{Name: name, Command: []string{p, "--experimental-strip-types", "--no-warnings", "--import", filepath.Join(dir, "register.mjs"), runner, target}}, nil
+		args := []string{p, "--experimental-strip-types", "--no-warnings", "--import", filepath.Join(dir, "register.mjs"), runner, target}
+		return Spec{Name: name, Command: args}, nil
 	}
 	return Spec{}, errors.New("JS extensions need bun or node (>=22.6) on PATH")
 }

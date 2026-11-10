@@ -1,0 +1,27 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+linters:
+  default: none
+  enable: [errcheck, govet, ineffassign, staticcheck, unused, misspell, bodyclose, errorlint, unconvert, wastedassign, gosec]
+  # nilerr is off on purpose: tool and walk errors are reported to the model/user as text, not returned.
+  settings:
+    gosec:
+      # A coding agent runs user-chosen commands (G204), reads and writes project files by path (G304) with the
+      # default permissions a user expects from an editor (G301, G306). These are the product, gated by trust
+      # and the tool registry, not accidents. G703 is the taint form of G304. Everything else stays on.
+      excludes: [G204, G304, G301, G306, G703]
+    errcheck:
+      exclude-functions: [fmt.Fprint, fmt.Fprintf, fmt.Fprintln]
+  exclusions:
+    paths: [tui-bubbletea, desktop]
+    rules:
+      # Tests copy fixtures and use fake keys; the hardening rules target production code.
+      - path: _test\.go
+        linters: [gosec]
+      # Environment variable names such as ANTHROPIC_API_KEY, not secrets.
+      - path: core/llm/router\.go
+        text: G101
+formatters:
+  enable: [gofmt, goimports]

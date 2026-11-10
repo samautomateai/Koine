@@ -151,7 +151,7 @@ func postJSON(ctx context.Context, client *http.Client, label, url string, heade
 			continue
 		}
 		data, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
 			lastErr = fmt.Errorf("%s: HTTP %d: %s", label, resp.StatusCode, truncate(string(data), 300))
 			continue
