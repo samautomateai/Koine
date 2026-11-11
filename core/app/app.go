@@ -53,7 +53,8 @@ type App struct {
 
 	// OnMessage, when set, is told of every message added to the conversation, in order, before it is saved (--mode json uses it).
 	OnMessage   func(llm.Message)
-	Scope       []string // models of --models / enabledModels, in order: the startup choice when nothing else names a model
+	emit        func(agent.Event) // the emit of the HandleInput call in progress (pievents.go)
+	Scope       []string          // models of --models / enabledModels, in order: the startup choice when nothing else names a model
 	opts        Options
 	thinking    string // the explicit thinking level (--thinking, a model suffix or /thinking); "" = from settings
 	router      *llm.Router
@@ -153,6 +154,7 @@ func (a *App) load(ctx context.Context) {
 
 	a.Host = ext.NewHost(a.Cwd, a.Tools)
 	a.Host.Trusted = a.Trusted
+	a.wireHost()
 	a.Host.Logf = func(f string, args ...any) {
 		if os.Getenv("KOINE_DEBUG") != "" {
 			fmt.Fprintf(os.Stderr, f+"\n", args...)
@@ -262,6 +264,9 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	if line == "" {
 		return false, nil
 	}
+	prev := a.emit
+	a.emit = emit
+	defer func() { a.emit = prev }()
 	notice := func(s string) { emit(agent.Event{Type: "notice", Text: s}) }
 	if !strings.HasPrefix(line, "/") || strings.HasPrefix(line, "/skill:") {
 		return false, a.Agent.Run(ctx, line, emit)
@@ -304,11 +309,12 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 		a.Agent.Model = id
 		if level != "" {
 			a.thinking, a.Agent.Thinking.Level = level, level
+			a.thinkingChanged(level)
 		}
 		notice("model: " + id)
 		return false, nil
 	case "compact":
-		r, cerr := a.Agent.Compact(ctx, args)
+		r, cerr := a.Agent.CompactFor(ctx, args, agent.ReasonManual, emit)
 		if cerr != nil {
 			notice(cerr.Error())
 		} else {

@@ -75,6 +75,9 @@ func run(args []string, st streams) int {
 		}
 		if c, err = parseArgsWith(args, types); err != nil {
 			fmt.Fprintln(st.Err, "koine:", err)
+			if !a.Trusted && len(c.Extensions) > 0 {
+				fmt.Fprintln(st.Err, "koine: extensions from -e do not load in an untrusted folder; start with --trust to use their options")
+			}
 			return 2
 		}
 		a.SetExtFlags(c.ExtFlags)
@@ -93,6 +96,7 @@ func run(args []string, st streams) int {
 		}
 	}
 	if c.Serve != "" {
+		warnAll(a, st)
 		fmt.Fprintf(st.Err, "koine serving on http://%s\n", c.Serve)
 		s := &server.Server{App: a}
 		srv := &http.Server{Addr: c.Serve, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second} // no WriteTimeout: SSE streams
@@ -118,5 +122,14 @@ func run(args []string, st streams) int {
 		fmt.Fprintln(st.Err, "koine: nothing to do: give a message, pipe text on stdin, or name an @file")
 		return 2
 	}
+	warnAll(a, st)
 	return runPrint(ctx, a, prompt, c.Mode, st)
+}
+
+// warnAll prints the startup warnings (untrusted code that was not loaded, unusable -e paths and the like) on stderr for the modes that
+// have no screen of their own.
+func warnAll(a *app.App, st streams) {
+	for _, w := range a.Warnings {
+		fmt.Fprintln(st.Err, "koine: warning:", w)
+	}
 }

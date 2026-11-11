@@ -200,8 +200,17 @@ func TestExtensionAndResourceFlags(t *testing.T) {
 	put("pt/review.md", "---\ndescription: R\n---\nreview $ARGUMENTS")
 
 	api.Reqs = nil
+	// -e runs code, so in an untrusted folder it is skipped with a warning (ADR 0002); skills and templates are data and still load
 	code, _, errs := cli("", "-C", dir, "-e", ext, "--skill", filepath.Join(dir, "sk"), "--prompt-template", filepath.Join(dir, "pt"), "hi")
-	if code != 0 {
+	if code != 0 || !strings.Contains(errs, "NOT loaded") || !strings.Contains(errs, "untrusted") {
+		t.Fatalf("untrusted -e should warn: %d %s", code, errs)
+	}
+	if has(api.toolNames(0), "from_flag_ext") || has(api.toolNames(0), "discovered_tool") {
+		t.Errorf("untrusted folder loaded extension code: %v", api.toolNames(0))
+	}
+	api.Reqs = nil
+	code, _, errs = cli("", "-C", dir, "--trust", "-e", ext, "--skill", filepath.Join(dir, "sk"), "--prompt-template", filepath.Join(dir, "pt"), "hi")
+	if code != 0 || strings.Contains(errs, "NOT loaded") {
 		t.Fatalf("%d %s", code, errs)
 	}
 	sys := systemText(api.Reqs[0]["system"])
@@ -256,8 +265,13 @@ func TestExtensionRegisteredFlags(t *testing.T) {
 	if err := os.WriteFile(ext, []byte(src), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// untrusted: the extension never loads, so its option is unknown, and the error says why
+	if code, _, errs := cli("", "-C", dir, "-e", ext, "--plan", "go"); code != 2 || !strings.Contains(errs, "unknown option") ||
+		!strings.Contains(errs, "untrusted folder") {
+		t.Errorf("untrusted extension option: %d %q", code, errs)
+	}
 	// a string flag takes the next word, a boolean flag does not, and the message is what remains
-	code, out, errs := cli("", "-C", dir, "-e", ext, "--plan", "--label", "my label", "go")
+	code, out, errs := cli("", "-C", dir, "--trust", "-e", ext, "--plan", "--label", "my label", "go")
 	if code != 0 || !strings.Contains(out, `RESULT: [true,"my label"]`) {
 		t.Fatalf("%d %q %s", code, out, errs)
 	}
@@ -265,25 +279,25 @@ func TestExtensionRegisteredFlags(t *testing.T) {
 		t.Errorf("prompt = %q", got)
 	}
 	api.Reqs = nil
-	if code, out, _ = cli("", "-C", dir, "-e", ext, "--label=x", "go"); code != 0 || !strings.Contains(out, `RESULT: [false,"x"]`) {
+	if code, out, _ = cli("", "-C", dir, "--trust", "-e", ext, "--label=x", "go"); code != 0 || !strings.Contains(out, `RESULT: [false,"x"]`) {
 		t.Errorf("%d %q", code, out)
 	}
 	api.Reqs = nil
-	if code, out, _ = cli("", "-C", dir, "-e", ext, "go"); code != 0 || !strings.Contains(out, `RESULT: [false,"none"]`) {
+	if code, out, _ = cli("", "-C", dir, "--trust", "-e", ext, "go"); code != 0 || !strings.Contains(out, `RESULT: [false,"none"]`) {
 		t.Errorf("defaults: %d %q", code, out)
 	}
 	// an option nobody registered is a usage error, with or without extensions
-	if code, _, errs = cli("", "-C", dir, "-e", ext, "--bogus", "go"); code != 2 || !strings.Contains(errs, "unknown option") {
+	if code, _, errs = cli("", "-C", dir, "--trust", "-e", ext, "--bogus", "go"); code != 2 || !strings.Contains(errs, "unknown option") {
 		t.Errorf("unknown long option: %d %q", code, errs)
 	}
 	if code, _, errs = cli("", "-C", dir, "--bogus", "go"); code != 2 || !strings.Contains(errs, "unknown option") {
 		t.Errorf("unknown long option without extensions: %d %q", code, errs)
 	}
-	if code, _, errs = cli("", "-C", dir, "-e", ext, "go", "--label"); code != 2 || !strings.Contains(errs, "needs a value") {
+	if code, _, errs = cli("", "-C", dir, "--trust", "-e", ext, "go", "--label"); code != 2 || !strings.Contains(errs, "needs a value") {
 		t.Errorf("string flag without a value: %d %q", code, errs)
 	}
 	// --help lists them
-	code, out, _ = cli("", "-C", dir, "-e", ext, "--help")
+	code, out, _ = cli("", "-C", dir, "--trust", "-e", ext, "--help")
 	if code != 0 || !strings.Contains(out, "Extension options:") || !strings.Contains(out, "--label VALUE") || !strings.Contains(out, "(default none)") ||
 		!strings.Contains(out, "--plan ") {
 		t.Errorf("help: %d %q", code, out)

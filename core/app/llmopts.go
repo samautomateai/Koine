@@ -187,6 +187,7 @@ func (a *App) thinkingCommand(name, args string, emit func(agent.Event)) bool {
 	case llm.ValidLevel(args):
 		a.thinking = args
 		a.Agent.Thinking.Level = args
+		a.thinkingChanged(args)
 	default:
 		emit(agent.Event{Type: "error", Text: fmt.Sprintf("thinking level must be one of %s", strings.Join(llm.ThinkingLevels, ", "))})
 		return true

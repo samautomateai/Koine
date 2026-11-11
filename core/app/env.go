@@ -13,7 +13,8 @@ import (
 //
 //	AI_AGENT=koine, KOINE_CODING_AGENT=true     set once by the command line for itself and every child
 //	KOINE_SESSION_ID, KOINE_SESSION_FILE,       given to the model's bash tool for each command (not to hooks or extensions)
-//	KOINE_SESSION_PROVIDER, KOINE_SESSION_MODEL
+//	KOINE_SESSION_PROVIDER, KOINE_SESSION_MODEL,
+//	KOINE_SESSION_REASONING_LEVEL (only when the model is asked to think)
 //
 // The session variables are not called KOINE_MODEL and KOINE_PROVIDER because KOINE_MODEL already means "start with this model".
 
@@ -40,6 +41,9 @@ func (a *App) shellEnv() []string {
 	env := []string{"KOINE_SESSION_ID=" + id, "KOINE_SESSION_PROVIDER=" + provider, "KOINE_SESSION_MODEL=" + model}
 	if file != "" {
 		env = append(env, "KOINE_SESSION_FILE="+file)
+	}
+	if lvl := a.Agent.ThinkingLevel(); lvl != "" {
+		env = append(env, "KOINE_SESSION_REASONING_LEVEL="+lvl)
 	}
 	return env
 }

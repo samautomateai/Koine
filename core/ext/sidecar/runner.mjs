@@ -318,8 +318,9 @@ function makeApi() {
       report("inert", "pi.sendMessage");
       log(typeof m === "string" ? m : (m?.content ?? JSON.stringify(m)));
     },
-    sendUserMessage: (t) => notify("send_user_message", { text: typeof t === "string" ? t : String(t?.text ?? t) }),
-    appendEntry: inert("pi.appendEntry"),
+    sendUserMessage: (t, o) =>
+      notify("send_user_message", { text: typeof t === "string" ? t : String(t?.text ?? t), deliverAs: o?.deliverAs }),
+    appendEntry: (customType, data) => notify("append_entry", { customType: String(customType ?? ""), data: data ?? null }),
     setSessionName: inert("pi.setSessionName"),
     setLabel: inert("pi.setLabel"),
     getActiveTools: () => [...state.tools.keys()],
@@ -513,7 +514,9 @@ async function onToolExecute({ name, args, callId }) {
   const t = state.tools.get(name);
   if (!t) throw new Error(`unknown tool ${name}`);
   if (t.style === "pi") {
-    const r = await t.def.execute(callId, args, new AbortController().signal, undefined, piCtx());
+    const onUpdate = (p) =>
+      notify("tool_update", { callId: `${name}/${callId}`, text: typeof p === "string" ? p : textOf(p?.content ?? p) });
+    const r = await t.def.execute(callId, args, new AbortController().signal, onUpdate, piCtx());
     return { content: typeof r === "string" ? r : textOf(r?.content ?? r), isError: !!r?.isError };
   }
   const r = await t.def.execute(args, {

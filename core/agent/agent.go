@@ -29,6 +29,8 @@ type Event struct {
 	Args    json.RawMessage `json:"args,omitempty"`
 	IsError bool            `json:"isError,omitempty"`
 	Usage   *UsageInfo      `json:"usage,omitempty"` // on "usage" events: one per model response
+	// Data holds the fields of the Pi-named events in pievents.go (compaction_end, auto_retry_start, queue_update, ...), under Pi's names.
+	Data map[string]any `json:"data,omitempty"`
 }
 
 type Agent struct {
@@ -62,7 +64,10 @@ type Agent struct {
 	// Thinking chooses the thinking level per model; HideThinking keeps thinking text out of the events (the blocks stay in the history).
 	Thinking     llm.ThinkingSettings
 	HideThinking bool
+	// KeptEntryID tells, right after OnCompact ran, the id of the first session entry the compaction kept ("" = no session).
+	KeptEntryID func() string
 
+	q     queues
 	depth int
 }
 
@@ -176,10 +181,11 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		a.reportQueues(emit)
 		a.dispatch(ctx, events.TurnStart, map[string]any{"turn": turn})
 		sys := a.systemPrompt(ctx)
 		if a.needsCompaction(sys) {
-			a.autoCompact(ctx, emit)
+			a.autoCompact(ctx, emit, ReasonThreshold)
 		}
 		thinking, maxTokens := a.thinkingFor()
 		level := ""
@@ -187,16 +193,15 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 			level = thinking.Level
 		}
 		req := llm.Request{Model: a.Model, System: sys, Messages: a.History, MaxTokens: maxTokens, Thinking: thinking}
-		pctx := retryNotices(ctx, emit)
 		for _, n := range a.Tools.Names() {
 			t, _ := a.Tools.Get(n)
 			req.Tools = append(req.Tools, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
 		}
-		resp, err := a.Provider.Complete(pctx, req)
-		if err != nil && compact.IsOverflow(err) && !overflowed && a.autoCompact(ctx, emit) {
+		resp, err := a.complete(ctx, req, emit)
+		if err != nil && compact.IsOverflow(err) && !overflowed && a.autoCompact(ctx, emit, ReasonOverflow) {
 			overflowed = true // one recovery per prompt
 			req.Messages = a.History
-			resp, err = a.Provider.Complete(pctx, req)
+			resp, err = a.complete(ctx, req, emit)
 		}
 		if err != nil {
 			emit(Event{Type: "error", Text: err.Error()})
@@ -220,6 +225,12 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		}
 		a.dispatch(ctx, events.TurnEnd, map[string]any{"turn": turn})
 		if len(uses) == 0 {
+			if queued := a.drain(true); len(queued) > 0 { // messages that waited for the agent to finish
+				a.reportQueues(emit)
+				a.add(llm.Message{Role: "user", Content: textBlocks(queued)})
+				continue
+			}
+			a.reportQueues(emit)
 			emit(Event{Type: "done"})
 			return nil
 		}
@@ -227,6 +238,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		for _, u := range uses {
 			results = append(results, a.execTool(ctx, u, emit))
 		}
+		results = append(results, textBlocks(a.drain(false))...) // steering goes with the tool results, before the next request
 		a.add(llm.Message{Role: "user", Content: results})
 	}
 	emit(Event{Type: "notice", Text: fmt.Sprintf("stopped after %d turns", maxTurns)})
@@ -257,7 +269,10 @@ func (a *Agent) execTool(ctx context.Context, u llm.Block, emit func(Event)) llm
 	if t, ok := a.Tools.Get(u.Name); !ok {
 		err = fmt.Errorf("unknown tool %q", u.Name)
 	} else {
-		out, err = t.Run(ctx, args)
+		tctx := tools.WithUpdates(ctx, func(partial string) {
+			emit(Event{Type: EvToolUpdate, Tool: u.Name, CallID: u.ID, Args: args, Text: partial})
+		})
+		out, err = t.Run(tctx, args)
 	}
 	isErr := err != nil
 	if isErr && out == "" {
@@ -333,9 +348,17 @@ func LoadContextFiles(cwd, home string) []string {
 	return out
 }
 
+func textBlocks(texts []string) []llm.Block {
+	var out []llm.Block
+	for _, t := range texts {
+		out = append(out, llm.Block{Type: "text", Text: t})
+	}
+	return out
+}
+
 // autoCompact compacts the history and says so. It reports whether the history changed.
-func (a *Agent) autoCompact(ctx context.Context, emit func(Event)) bool {
-	r, err := a.Compact(ctx, "")
+func (a *Agent) autoCompact(ctx context.Context, emit func(Event), reason string) bool {
+	r, err := a.CompactFor(ctx, "", reason, emit)
 	if err != nil {
 		if !errors.Is(err, ErrNothingToCompact) {
 			emit(Event{Type: "notice", Text: err.Error()})

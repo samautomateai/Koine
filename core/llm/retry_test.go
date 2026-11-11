@@ -123,9 +123,14 @@ func TestRetryNoticesAndCancellation(t *testing.T) {
 	srv, _ := flaky(2, 500, "boom", nil)
 	defer srv.Close()
 	var notes []RetryNotice
+	var resumed []int
 	ctx := WithRetryNotify(context.Background(), func(n RetryNotice) { notes = append(notes, n) })
+	ctx = WithRetryResume(ctx, func(attempt int) { resumed = append(resumed, attempt) })
 	if _, err := postJSON(ctx, nil, "x", srv.URL, nil, []byte(`{}`), fast); err != nil {
 		t.Fatal(err)
+	}
+	if len(resumed) != 2 || resumed[0] != 1 || resumed[1] != 2 {
+		t.Errorf("resume hook saw %v, want the two retries that started", resumed)
 	}
 	if len(notes) != 2 || notes[0].Attempt != 1 || notes[1].Attempt != 2 || notes[0].Of != 3 || notes[0].Delay != time.Millisecond ||
 		notes[1].Delay != 2*time.Millisecond || notes[0].Err == nil {

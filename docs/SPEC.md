@@ -185,7 +185,8 @@ treated as opencode hooks.
 | `pi.on("input")` → `{action: "handled" \| "transform", text}`                                                        | ✅                                                                                           |
 | `pi.on("before_agent_start")` → `{systemPrompt}`                                                                     | ✅ (diffed into `systemAppend`)                                                              |
 | `pi.on("session_start" \| "turn_start" \| "turn_end" \| "agent_end")`                                                | ✅ observe-only                                                                              |
-| `pi.sendUserMessage`, `pi.exec`, `pi.getActiveTools`                                                                 | ✅                                                                                           |
+| `pi.sendUserMessage(text, {deliverAs})`, `pi.exec`, `pi.getActiveTools`                                              | ✅ `deliverAs` `"steer"` queues for after the current tool calls, else a follow-up           |
+| `pi.appendEntry(customType, data)`                                                                                   | ✅ stored as a `custom` session entry; never sent to the model                               |
 | `ctx.ui.*` (select/confirm/input/widgets/status)                                                                     | ⚠️ accepted, inert; `confirm`→`false`, others→`undefined`                                    |
 | `registerProvider`, `registerShortcut`, `registerFlag`, `registerMessageRenderer`, `@mariozechner/pi-tui` components | ⚠️ accepted, inert                                                                           |
 | Pi events not in §2 (e.g. `session_before_compact`, `model_select`)                                                  | ❌ never fired                                                                               |
@@ -253,10 +254,17 @@ and `Describe()`. `emit` receives `agent.Event`:
   `agent_start`, `turn_start`, `message_start`/`message_end` (user), the assistant `message_start`, `message_update` records
   (`assistantMessageEvent` `text_*`, `thinking_*` and `toolcall_*` with `start|delta|end`), `message_end`, `tool_execution_start`
   `{toolCallId,toolName,args}`, `tool_execution_end` `{toolCallId,toolName,result,isError,durationMs}`, the `toolResult` messages, `turn_end`
-  `{message,toolResults}`, and finally `agent_end` `{messages,willRetry}` and `agent_settled` `{aborted}`. Each block is one delta. Not written:
-  `queue_update`, `entry_appended`, `session_info_changed`, `thinking_level_changed`, compaction and retry events.
+  `{message,toolResults}`, and finally `agent_end` `{messages,willRetry}` and `agent_settled` `{aborted}`. Each block is one delta. Also written,
+  with Pi's fields: `tool_execution_update` `{toolCallId,toolName,args,partialResult}` (partial output of an extension tool), `queue_update`
+  `{steering,followUp}`, `entry_appended` `{entry}` (the session-file line), `session_info_changed` `{name}` (absent when cleared),
+  `thinking_level_changed` `{level}`, `compaction_start` `{reason}` and `compaction_end` `{reason,result:{summary,firstKeptEntryId,tokensBefore,
+  estimatedTokensAfter},aborted,willRetry,errorMessage}` with reason `manual|threshold|overflow`, `auto_retry_start` `{attempt,maxAttempts,delayMs,
+  errorMessage}`, `auto_retry_end` `{success,attempt,finalError}`, and `summarization_retry_scheduled` `{attempt,maxAttempts,delayMs,errorMessage}`,
+  `summarization_retry_attempt_start` `{source,reason}` and `summarization_retry_finished`. Assistant messages have `api`, `thinkingLevel` and
+  `usage.cost` (zeros when the model has no price). The same events (name, with the fields under `data`) reach the HTTP server's SSE stream. Shapes
+  Pi's page leaves open follow the session file; see `compat/DIVERGENCES.md`.
 - **Environment** (REQ-CLI-004): the CLI sets `AI_AGENT=koine` and `KOINE_CODING_AGENT=true`; the bash tool also gets `KOINE_SESSION_ID`,
-  `KOINE_SESSION_FILE` (unset with `--no-session`), `KOINE_SESSION_PROVIDER` and `KOINE_SESSION_MODEL`. The mapping of Pi's variables is in
+  `KOINE_SESSION_FILE` (unset with `--no-session`), `KOINE_SESSION_PROVIDER`, `KOINE_SESSION_MODEL` and, while the model is asked to think, `KOINE_SESSION_REASONING_LEVEL`. The mapping of Pi's variables is in
   `compat/DIVERGENCES.md`.
 - **Sessions** (REQ-SESS-001): every run writes `~/.koine/sessions/--<cwd with / as ->--/<timestamp>_<uuid>.jsonl` in Pi's v3 format.
   `-c` continues the latest, `--session ID|PATH|NAME` resumes, `--fork` copies, `-n NAME` names, `--no-session` writes nothing, `-r` lists.

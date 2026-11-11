@@ -342,3 +342,33 @@ func TestListModelsAndTokens(t *testing.T) {
 		t.Error("tokens")
 	}
 }
+
+func TestExplicitExtensionsObeyTheTrustGate(t *testing.T) {
+	isolate(t)
+	t.Setenv("KOINE_TRUST", "") // not trusted: nothing in this folder was approved
+	t.Setenv("KOINE_MODEL", "")
+	proj := t.TempDir()
+	ext := filepath.Join(proj, "cli.mjs")
+	writeFile(t, ext, `export default function (pi) { pi.registerFlag("label", { type: "string", default: "d" }); }`)
+	a, err := NewWithOptions(context.Background(), proj, Options{Load: LoadOptions{Extensions: []string{ext, "other.mjs"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if a.Trusted {
+		t.Fatal("the folder must be untrusted for this test")
+	}
+	if len(a.ExtFlags()) != 0 {
+		t.Errorf("an extension from -e ran in an untrusted folder: %+v", a.ExtFlags())
+	}
+	if !warned(a, "-e extension(s) NOT loaded") || !warned(a, "this folder is untrusted") ||
+		!warned(a, "2 project extension/hook/provider entries were NOT loaded") {
+		t.Errorf("warnings %v", a.Warnings)
+	}
+	if err := a.TrustProject(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.ExtFlags()) != 1 {
+		t.Errorf("after trusting, the -e extension should load: %v %v", a.ExtFlags(), a.Warnings)
+	}
+}

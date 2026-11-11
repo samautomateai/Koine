@@ -228,6 +228,55 @@ for (const rt of runtimes) {
     assert.ok(!notes.some((n) => n.method === "compat"), "registerFlag and getFlag are not reported as inert");
   });
 
+  test(`runner: appendEntry, sendUserMessage and onUpdate reach the host (${rt.runtime})`, async () => {
+    const f = tmp(
+      "session.mjs",
+      `
+      export default function (pi) {
+        pi.registerTool({
+          name: "stream",
+          description: "d",
+          parameters: { type: "object", properties: {} },
+          execute: async (id, args, signal, onUpdate) => {
+            onUpdate({ content: [{ type: "text", text: "half" }], details: {} });
+            onUpdate("plain");
+            return { content: [{ type: "text", text: "done" }] };
+          },
+        });
+        pi.registerCommand("go", {
+          description: "g",
+          handler: async () => {
+            pi.appendEntry("my-ext", { count: 2 });
+            pi.appendEntry();
+            pi.sendUserMessage("steer me", { deliverAs: "steer" });
+            pi.sendUserMessage("plain");
+          },
+        });
+      }`,
+    );
+    const { results: r, notes } = await rpc(
+      f,
+      [
+        ["initialize", {}],
+        ["command.execute", { name: "go", args: "" }],
+        ["tool.execute", { name: "stream", args: {}, callId: "ext-1" }],
+      ],
+      rt,
+    );
+    assert.equal(r[2].result.content, "done");
+    const by = (m) => notes.filter((n) => n.method === m).map((n) => n.params);
+    assert.deepEqual(by("append_entry"), [
+      { customType: "my-ext", data: { count: 2 } },
+      { customType: "", data: null },
+    ]);
+    assert.deepEqual(by("send_user_message"), [{ text: "steer me", deliverAs: "steer" }, { text: "plain" }]);
+    assert.deepEqual(by("tool_update"), [
+      { callId: "stream/ext-1", text: "half" },
+      { callId: "stream/ext-1", text: "plain" },
+    ]);
+    assert.ok(!notes.some((n) => n.method === "compat"), "none of these are reported as inert");
+  });
+
   test(`runner: bad module reports error on initialize (${rt.runtime})`, async () => {
     const f = tmp("none.mjs", `export const notAFunction = 1;`);
     const { results: r } = await rpc(f, [["initialize", {}]], rt);

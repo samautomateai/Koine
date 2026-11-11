@@ -189,9 +189,10 @@
   {
    "kind": "api",
    "name": "pi.appendEntry",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "conformance",
+   "note": "stored as a custom session entry; core/ext/jstest/shims.test.mjs and TestExtensionsStoreSessionDataQueueMessagesAndStreamToolOutput check the hand-over"
   },
   {
    "kind": "api",

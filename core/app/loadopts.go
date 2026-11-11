@@ -83,8 +83,8 @@ func (a *App) loadPrompts() []prompts.Prompt {
 	return prompts.Merge(explicit, found)
 }
 
-// explicitExtensions turns the -e paths into extension targets. They are the user's own command line, not something found in the project,
-// so the trust gate (which guards discovery) does not apply to them. A directory is itself an extension when it has extension.json or an
+// explicitExtensions turns the -e paths into extension targets. They run code, so they obey the trust gate like every other extension
+// (ADR 0002): in an untrusted folder extensionTargets does not call this. A directory is itself an extension when it has extension.json or an
 // index file, otherwise the extensions inside it are loaded as in a discovery directory.
 func (a *App) explicitExtensions() []extTarget {
 	var out []extTarget
@@ -121,13 +121,20 @@ func (a *App) explicitExtensions() []extTarget {
 	return out
 }
 
-// extensionTargets lists what to start: the -e paths first, then (unless -ne) the discovered and configured extensions. skipped counts
+// extensionTargets lists what to start: the -e paths first (only in a trusted folder), then (unless -ne) the discovered and configured
+// extensions. skipped counts
 // the untrusted project entries that were left out.
 func (a *App) extensionTargets() (out []extTarget, skipped int) {
-	out = a.explicitExtensions()
+	if a.Trusted {
+		out = a.explicitExtensions()
+	} else if n := len(a.opts.Load.Extensions); n > 0 {
+		skipped += n
+		a.Warnings = append(a.Warnings, fmt.Sprintf("-e extension(s) NOT loaded (%s): this folder is untrusted; run /trust or start with --trust",
+			strings.Join(a.opts.Load.Extensions, ", ")))
+	}
 	if !a.opts.Load.NoExtensions {
 		found, n := discoverExtensions(a.Cwd, a.Home, a.Cfg, a.Trusted)
-		out, skipped = append(out, found...), n
+		out, skipped = append(out, found...), skipped+n
 	}
 	return out, skipped
 }

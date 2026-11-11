@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"sort"
 	"time"
 
 	"koine/core/agent"
@@ -56,6 +57,7 @@ type jsonStream struct {
 	enc      *json.Encoder
 	app      *app.App
 	turnOpen bool
+	closing  bool           // the turn ends with its tool results, but turn_end waits until their session entries are reported
 	last     map[string]any // the assistant message of the open turn
 	results  []any          // tool-result messages of the open turn
 	messages []any          // every message of the run, for agent_end
@@ -106,14 +108,18 @@ func usageOf(m llm.Message) map[string]any {
 		u["input"], u["output"] = m.Usage.Input, m.Usage.Output
 		u["cacheRead"], u["cacheWrite"], u["totalTokens"] = m.Usage.CacheRead, m.Usage.CacheWrite, m.Usage.Total()
 	}
-	if c := m.Cost; c != nil {
-		u["cost"] = map[string]any{"input": c.Input, "output": c.Output, "cacheRead": c.CacheRead, "cacheWrite": c.CacheWrite, "total": c.Total}
+	// Pi's Usage always has a cost; a model Koine has no price for reports zeros
+	c := llm.Cost{}
+	if m.Cost != nil {
+		c = *m.Cost
 	}
+	u["cost"] = map[string]any{"input": c.Input, "output": c.Output, "cacheRead": c.CacheRead, "cacheWrite": c.CacheWrite, "total": c.Total}
 	return u
 }
 
 // Message reports one message added to the conversation.
 func (j *jsonStream) Message(m llm.Message) {
+	j.closeTurnIfPending()
 	now := time.Now().UnixMilli()
 	switch {
 	case m.Role == "assistant":
@@ -126,17 +132,37 @@ func (j *jsonStream) Message(m llm.Message) {
 			j.both(msg)
 			j.results = append(j.results, msg)
 		}
-		j.closeTurn()
+		if texts := userBlocks(m); len(texts) > 0 { // steering that rode along with the tool results opens the next turn
+			j.closeTurn()
+			j.openTurn()
+			j.both(map[string]any{"role": "user", "content": texts, "timestamp": now})
+		} else {
+			j.closing = true
+		}
 	default:
 		j.openTurn()
-		var blocks []any
-		for _, b := range m.Content {
-			if b.Type == "text" {
-				blocks = append(blocks, map[string]any{"type": "text", "text": b.Text})
-			}
-		}
-		j.both(map[string]any{"role": "user", "content": blocks, "timestamp": now})
+		j.both(map[string]any{"role": "user", "content": userBlocks(m), "timestamp": now})
 	}
+}
+
+// userBlocks are the text blocks of a user message, as Pi's content blocks.
+func userBlocks(m llm.Message) []any {
+	var blocks []any
+	for _, b := range m.Content {
+		if b.Type == "text" {
+			blocks = append(blocks, map[string]any{"type": "text", "text": b.Text})
+		}
+	}
+	return blocks
+}
+
+// apiOf is Pi's name for the wire protocol of a provider: Koine speaks Anthropic's Messages API to anthropic and chat completions to
+// every other provider.
+func apiOf(provider string) string {
+	if provider == "anthropic" {
+		return "anthropic-messages"
+	}
+	return "openai-completions"
 }
 
 func (j *jsonStream) assistant(m llm.Message, now int64) {
@@ -175,9 +201,13 @@ func (j *jsonStream) assistant(m llm.Message, now int64) {
 			upd(rec("toolcall_end", "contentIndex", i, "toolCall", call))
 		}
 	}
-	msg := map[string]any{"role": "assistant", "content": blocks, "provider": provider, "model": model, "usage": usage, "stopReason": stop, "timestamp": now}
-	start := map[string]any{"role": "assistant", "content": []any{}, "provider": provider, "model": model, "usage": usageOf(llm.Message{}),
-		"stopReason": "stop", "timestamp": now}
+	msg := map[string]any{"role": "assistant", "content": blocks, "api": apiOf(provider), "provider": provider, "model": model, "usage": usage,
+		"stopReason": stop, "timestamp": now}
+	start := map[string]any{"role": "assistant", "content": []any{}, "api": apiOf(provider), "provider": provider, "model": model,
+		"usage": usageOf(llm.Message{}), "stopReason": "stop", "timestamp": now}
+	if m.ThinkingLevel != "" {
+		msg["thinkingLevel"], start["thinkingLevel"] = m.ThinkingLevel, m.ThinkingLevel
+	}
 	j.put(rec("message_start", "message", start))
 	for _, u := range updates {
 		j.put(u)
@@ -196,11 +226,20 @@ func (j *jsonStream) closeTurn() {
 		results = []any{}
 	}
 	j.put(rec("turn_end", "message", j.last, "toolResults", results))
-	j.turnOpen, j.last, j.results = false, nil, nil
+	j.turnOpen, j.closing, j.last, j.results = false, false, nil, nil
+}
+
+func (j *jsonStream) closeTurnIfPending() {
+	if j.closing {
+		j.closeTurn()
+	}
 }
 
 // Event reports tool progress; text, usage and done are already covered by Message.
 func (j *jsonStream) Event(e agent.Event) {
+	if e.Type != agent.EvEntryAppended {
+		j.closeTurnIfPending()
+	}
 	switch e.Type {
 	case "tool_start":
 		j.started[e.CallID] = time.Now()
@@ -217,15 +256,39 @@ func (j *jsonStream) Event(e agent.Event) {
 			fields = append(fields, "durationMs", time.Since(t).Milliseconds())
 		}
 		j.put(rec("tool_execution_end", fields...))
+	case agent.EvToolUpdate:
+		args := e.Args
+		if len(args) == 0 {
+			args = json.RawMessage("{}")
+		}
+		j.put(rec("tool_execution_update", "toolCallId", e.CallID, "toolName", e.Tool, "args", args,
+			"partialResult", map[string]any{"content": []any{map[string]any{"type": "text", "text": e.Text}}, "details": map[string]any{}}))
+	case agent.EvQueueUpdate, agent.EvEntryAppended, agent.EvSessionInfoChanged, agent.EvThinkingChanged, agent.EvCompactionStart,
+		agent.EvCompactionEnd, agent.EvRetryStart, agent.EvRetryEnd, agent.EvSumRetryScheduled, agent.EvSumRetryStart, agent.EvSumRetryFinished:
+		j.put(fromData(e)) // these carry Pi's own names and fields
 	case "error":
 		// a failed provider call has no assistant message in the history, so report it as the error message Pi would have recorded
 		j.openTurn()
 		provider, model := j.app.ProviderAndModel()
-		msg := map[string]any{"role": "assistant", "content": []any{}, "provider": provider, "model": model, "usage": usageOf(llm.Message{}),
-			"stopReason": "error", "errorMessage": e.Text, "timestamp": time.Now().UnixMilli()}
+		msg := map[string]any{"role": "assistant", "content": []any{}, "api": apiOf(provider), "provider": provider, "model": model,
+			"usage": usageOf(llm.Message{}), "stopReason": "error", "errorMessage": e.Text, "timestamp": time.Now().UnixMilli()}
 		j.both(msg)
 		j.last = msg
 	}
+}
+
+// fromData is the record for an event whose Type and Data are already Pi's: "type" first, then the fields in alphabetical order.
+func fromData(e agent.Event) record {
+	r := record{{"type", e.Type}}
+	keys := make([]string, 0, len(e.Data))
+	for k := range e.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		r = append(r, kv{k, e.Data[k]})
+	}
+	return r
 }
 
 // Finish closes the run: the open turn, agent_end and agent_settled.
