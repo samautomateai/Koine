@@ -241,7 +241,7 @@ func kittyName(code, mod int) string {
 		if code < 32 {
 			return ""
 		}
-		base = strings.ToLower(string(rune(code)))
+		base = strings.ToLower(string(rune(code))) //nolint:gosec // code is a decoded key code; invalid runes become U+FFFD
 	}
 	return modName(mod) + base
 }
