@@ -158,6 +158,7 @@ func (a *App) applyLLMSettings() {
 	a.router.Retry = a.Cfg.retryPolicy()
 	a.Agent.Thinking = a.Cfg.thinkingSettings(a.thinking)
 	a.Agent.HideThinking = a.Cfg.HideThinkingBlock.V
+	a.Agent.Images = a.Cfg.imageOptions()
 }
 
 // chooseThinking takes a ":level" suffix off model and settles the explicit thinking level: --thinking beats the suffix. It returns the

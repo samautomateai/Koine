@@ -22,7 +22,7 @@ type OpenAICompat struct {
 
 type oaMessage struct {
 	Role       string       `json:"role"`
-	Content    *string      `json:"content"`
+	Content    any          `json:"content"` // a string, or an array of parts when the message carries images
 	ToolCalls  []oaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
 }
@@ -38,8 +38,14 @@ type oaToolCall struct {
 
 func sp(s string) *string { return &s }
 
-// toOpenAI converts provider-neutral messages: tool_use blocks become tool_calls
-// on the assistant message, and each tool_result becomes its own "tool" message.
+// oaImage is an image part: chat completions take images as data URLs.
+func oaImage(b Block) map[string]any {
+	return map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:" + b.MimeType() + ";base64," + b.Base64()}}
+}
+
+// toOpenAI converts provider-neutral messages: tool_use blocks become tool_calls on the assistant message, and each tool_result becomes
+// its own "tool" message. Tool messages cannot carry images, so the images of a tool result follow as a user message, as Pi does. A user
+// message with images has an array of text and image_url parts instead of a string.
 func toOpenAI(system string, msgs []Message) []oaMessage {
 	var out []oaMessage
 	if system != "" {
@@ -47,14 +53,19 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 	}
 	for _, m := range msgs {
 		var text []string
+		var parts []map[string]any
 		var calls []oaToolCall
 		var results []oaMessage
+		var fromTools []Block
 		for _, b := range m.Content {
 			switch b.Type {
 			case "text":
 				if b.Text != "" {
 					text = append(text, b.Text)
+					parts = append(parts, map[string]any{"type": "text", "text": b.Text})
 				}
+			case "image":
+				parts = append(parts, oaImage(b))
 			case "tool_use":
 				c := oaToolCall{ID: b.ID, Type: "function"}
 				c.Function.Name = b.Name
@@ -69,14 +80,25 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 					content = "Error: " + content
 				}
 				results = append(results, oaMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: sp(content)})
+				fromTools = append(fromTools, b.Images...)
 			}
 		}
 		out = append(out, results...)
-		if len(text) == 0 && len(calls) == 0 {
+		if len(fromTools) > 0 {
+			ps := []map[string]any{{"type": "text", "text": "Attached image(s) from tool result:"}}
+			for _, im := range fromTools {
+				ps = append(ps, oaImage(im))
+			}
+			out = append(out, oaMessage{Role: "user", Content: ps})
+		}
+		if len(parts) == 0 && len(calls) == 0 {
 			continue
 		}
 		msg := oaMessage{Role: m.Role, ToolCalls: calls}
-		if len(text) > 0 {
+		switch {
+		case len(parts) > len(text):
+			msg.Content = parts
+		case len(text) > 0:
 			msg.Content = sp(strings.Join(text, "\n"))
 		}
 		out = append(out, msg)

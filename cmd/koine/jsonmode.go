@@ -128,7 +128,7 @@ func (j *jsonStream) Message(m llm.Message) {
 	case len(m.Content) > 0 && m.Content[0].Type == "tool_result":
 		for _, b := range m.Content {
 			msg := map[string]any{"role": "toolResult", "toolCallId": b.ToolUseID, "toolName": j.names[b.ToolUseID], "isError": b.IsError,
-				"content": []any{map[string]any{"type": "text", "text": b.Content}}, "timestamp": now}
+				"content": resultBlocks(b), "timestamp": now}
 			j.both(msg)
 			j.results = append(j.results, msg)
 		}
@@ -145,13 +145,30 @@ func (j *jsonStream) Message(m llm.Message) {
 	}
 }
 
-// userBlocks are the text blocks of a user message, as Pi's content blocks.
+// userBlocks are the text and image blocks of a user message, as Pi's content blocks.
 func userBlocks(m llm.Message) []any {
 	var blocks []any
 	for _, b := range m.Content {
-		if b.Type == "text" {
+		switch b.Type {
+		case "text":
 			blocks = append(blocks, map[string]any{"type": "text", "text": b.Text})
+		case "image":
+			blocks = append(blocks, imageBlock(b))
 		}
+	}
+	return blocks
+}
+
+// imageBlock is Pi's ImageContent: {type, data, mimeType}.
+func imageBlock(b llm.Block) map[string]any {
+	return map[string]any{"type": "image", "data": b.Base64(), "mimeType": b.MimeType()}
+}
+
+// resultBlocks are the content of a tool result: its text, then its images.
+func resultBlocks(b llm.Block) []any {
+	blocks := []any{map[string]any{"type": "text", "text": b.Content}}
+	for _, im := range b.Images {
+		blocks = append(blocks, imageBlock(im))
 	}
 	return blocks
 }

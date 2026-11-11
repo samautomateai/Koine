@@ -7,7 +7,7 @@ import (
 	"errors"
 )
 
-// Block is one piece of a message. Type is text, thinking, tool_use or tool_result.
+// Block is one piece of a message. Type is text, image, thinking, tool_use or tool_result.
 type Block struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
@@ -26,6 +26,10 @@ type Block struct {
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	Content   string `json:"content,omitempty"`
 	IsError   bool   `json:"is_error,omitempty"`
+
+	// An image block carries its base64 data in Source, in Anthropic's wire shape. A tool_result can carry images next to its text (Images).
+	Source *ImageSource `json:"source,omitempty"`
+	Images []Block      `json:"-"`
 
 	CacheControl *CacheControl `json:"cache_control,omitempty"` // set by the Anthropic provider on the blocks it marks for caching
 }

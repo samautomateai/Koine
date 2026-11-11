@@ -44,21 +44,6 @@ func TestParseArgs(t *testing.T) {
 	}
 }
 
-func TestExpandFiles(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("alpha\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	abs := filepath.Join(dir, "a.txt")
-	got, err := expandFiles(dir, []string{"a.txt", abs})
-	if err != nil || strings.Count(got, "alpha") != 2 || !strings.Contains(got, `<file name="a.txt">`) {
-		t.Fatalf("%q %v", got, err)
-	}
-	if _, err := expandFiles(dir, []string{"missing.txt"}); err == nil || !strings.Contains(err.Error(), "@missing.txt") {
-		t.Fatalf("want a named error, got %v", err)
-	}
-}
-
 // firstUserText is the text of the first user message the fake API saw.
 func firstUserText(seen []map[string]any) string {
 	blocks := seen[0]["messages"].([]any)[0].(map[string]any)["content"].([]any)

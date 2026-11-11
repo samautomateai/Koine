@@ -217,6 +217,7 @@ _Verified by:_ `jstest/shims.test.mjs` (8 tests, run under Node **and** Bun),
 `read`(path, offset, limit) · `write`(path, content) · `edit`(path, old, new,
 replaceAll) · `bash`(command, timeout) · `ls` · `glob`(pattern, path) ·
 `grep`(pattern, path, glob) · `skill`(name) · `task`(agent, prompt).
+`read` of a PNG, JPEG, GIF, WebP or BMP file (found by content, not name) attaches the image to the result (REQ-LLM-006).
 Output over 30 000 bytes is middle-truncated. `edit` requires `old` to match
 exactly once unless `replaceAll`. `bash` defaults to a 120 s timeout. `glob` and
 `grep` skip `.git` and `node_modules`; `grep` skips binary files and caps at 200 hits.
@@ -238,7 +239,8 @@ and `Describe()`. `emit` receives `agent.Event`:
 ```
 
 - **Command line** (`koine [options] [--] [@files] [message]`, REQ-CLI-001): with a message, piped stdin, `-p` or `--mode json` it runs one
-  prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines.
+  prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines. An `@file` that is an image by its content, and image data
+  piped on stdin, are sent as images instead (REQ-CLI-005, REQ-LLM-006); an unreadable image is a usage error like a missing file.
   Text mode prints only the text after the last tool call to stdout; tool names, thinking, notices and errors go to stderr. `--mode json` prints one
   record per line on stdout in Pi's JSON event stream (below). Exit codes: 0 ok, 1 failed (provider, tool-loop or unknown `--model`), 2 usage (bad option, missing
   `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options, and those that extensions registered.
@@ -283,8 +285,16 @@ and `Describe()`. `emit` receives `agent.Event`:
 - **Settings** (REQ-CFG-001): `~/.koine/settings.json` and `<project>/.koine/settings.json`, Pi's key names. The status of every Pi key is
   in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `enabledModels`, `sessionDir`, `extensions`, `compaction.*`, `branchSummary.*`, `treeFilterMode`, the thinking settings, `retry.*`, `httpIdleTimeoutMs` (see below). Koine-only:
   `model`, `maxTurns`, `hooks`, `plugin`, `providers`, `compaction.contextWindow`. Project values override user values; global-only keys are
-  ignored in a project; an untrusted project applies only `model`, `maxTurns`, `enabledModels`, `compaction`, the thinking settings and the retry settings (not the tree settings). Problems are listed at startup (`/reload` re-checks).
+  ignored in a project; an untrusted project applies only `model`, `maxTurns`, `enabledModels`, `compaction`, the thinking settings, the retry settings and the image settings (not the tree settings). Problems are listed at startup (`/reload` re-checks).
 - **Agent directory and prompt files** (REQ-CFG-002): the user directory is `~/.koine`, or `$KOINE_AGENT_DIR`. `SYSTEM.md` (replaces the system prompt) and `APPEND_SYSTEM.md` (added after the context files) are read from a trusted project's `.koine/` or `.pi/`, else from the user directory or `~/.pi/agent`; the first non-blank file wins and files are never combined. `--system-prompt` and `--append-system-prompt` override them.
+- **Images** (REQ-LLM-006): a message block `{"type":"image","source":{"type":"base64","media_type","data"}}` internally; in session files and `--mode json`
+  Pi's `{"type":"image","data","mimeType"}` inside user and `toolResult` content. Sources: `@file` arguments, piped image data, and the `read` tool.
+  Anthropic: `image` blocks, and a tool result with images becomes a content array of `text` then `image` parts. OpenAI-compatible: `image_url` parts with
+  `data:<type>;base64,…`; the images of a tool result follow as a user message headed `Attached image(s) from tool result:`. Limits with
+  `images.autoResize` (default true): at most 2000 by 2000 pixels (Pi's documented value) and 4.5 MB encoded (Koine's own; Pi's default was not found);
+  files over 25 MiB are refused. WebP and BMP are sent unchanged. `images.blockImages` (default false) keeps all images from providers. The catalog's
+  `input` list (`["text","image"]`, Pi's field) gates by model; unlisted means allowed. Nothing is verified against a real provider: the wire shapes are
+  tested with fake servers only. `terminal.showImages` and `terminal.imageWidthCells` are inert (no inline rendering, TUI-12).
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.
 - **Usage and cost** (REQ-LLM-004): the model catalog is built in; `~/.koine/model-catalog.json` (`{"models":[{"id","contextWindow","maxOutput","cost":{"input","output","cacheRead","cacheWrite"},"longContext":{"threshold","multiplier"}}]}`, USD per million tokens) adds or replaces entries by id. Each response emits an event `{"type":"usage","usage":{input,output,cacheRead,cacheWrite,cost?,contextTokens,contextWindow,contextPercent}}`; `cost` is absent when the model has no known price. Assistant messages in the session file carry Pi's `usage` object. `/session` prints totals, cost and context use. `compaction.contextWindow` overrides the catalog's window.
@@ -336,6 +346,7 @@ Config merge order (later wins for scalars, hooks/plugins/extensions append):
 ## 10. Known limits (v1)
 
 - Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, retried as configured (four attempts by default).
+- Images: WebP and BMP are not resized; the HTTP server and the line-mode TUI take text only (no paste or inline display, TUI-12).
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
 - No permission prompts yet.
 - The `bubbletea` and `wails` frontends are written against the same API but are

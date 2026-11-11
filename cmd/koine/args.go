@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"koine/core/llm"
@@ -204,27 +203,11 @@ func (c *cliArgs) addPositional(vals []string) {
 	}
 }
 
-// expandFiles renders the @file arguments as <file> blocks to put before the message.
-func expandFiles(dir string, files []string) (string, error) {
-	var b strings.Builder
-	for _, f := range files {
-		p := f
-		if !strings.HasPrefix(p, "/") {
-			p = dir + string(os.PathSeparator) + p
-		}
-		data, err := os.ReadFile(p)
-		if err != nil {
-			return "", fmt.Errorf("@%s: %w", f, err)
-		}
-		fmt.Fprintf(&b, "<file name=%q>\n%s\n</file>\n", f, strings.TrimRight(string(data), "\n"))
-	}
-	return b.String(), nil
-}
-
 const usage = `usage: koine [options] [--] [@files] [message]
 
 Runs one prompt and prints the answer when a message is given, stdin is piped, or stdout is redirected; otherwise starts the interactive session.
-Piped stdin is put before the message. @file arguments are included as <file> blocks.
+Piped stdin is put before the message. @file arguments are included as <file> blocks; image files (by content: png, jpeg, gif, webp,
+bmp) and piped image data are sent as images, resized to at most 2000 by 2000 pixels unless images.autoResize is off.
 
   -p, --print                  run non-interactively (default when stdin or stdout is not a terminal)
       --mode text|json         text: final answer on stdout (default); json: one event per line on stdout

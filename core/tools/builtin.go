@@ -52,7 +52,7 @@ func RegisterBuiltinsEnv(r *Registry, cwd string, shellEnv func() []string) {
 		return filepath.Join(cwd, p)
 	}
 
-	r.Register(&Func{N: "read", D: "Read a text file. Returns numbered lines. Use offset/limit for large files.",
+	r.Register(&Func{N: "read", D: "Read a text file or an image (jpg, png, gif, webp, bmp). Text is numbered; use offset/limit for large files.",
 		S: schema(map[string]any{"path": str("File path"), "offset": num("1-based first line"), "limit": num("Max lines (default 2000)")}, "path"),
 		F: func(ctx context.Context, a json.RawMessage) (string, error) {
 			var p struct {
@@ -61,6 +61,9 @@ func RegisterBuiltinsEnv(r *Registry, cwd string, shellEnv func() []string) {
 			}
 			if err := json.Unmarshal(a, &p); err != nil {
 				return "", err
+			}
+			if text, ok, err := readImage(ctx, abs(p.Path)); ok || err != nil { // images become attachments (readimage.go)
+				return text, err
 			}
 			data, err := os.ReadFile(abs(p.Path))
 			if err != nil {

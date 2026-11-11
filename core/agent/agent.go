@@ -64,6 +64,10 @@ type Agent struct {
 	// Thinking chooses the thinking level per model; HideThinking keeps thinking text out of the events (the blocks stay in the history).
 	Thinking     llm.ThinkingSettings
 	HideThinking bool
+	// Images are the images.* settings. pendingImages ride along with the next Run (RunWithImages); imageNotice is the last reason images were left out.
+	Images        ImageOptions
+	pendingImages []llm.Block
+	imageNotice   string
 	// KeptEntryID tells, right after OnCompact ran, the id of the first session entry the compaction kept ("" = no session).
 	KeptEntryID func() string
 
@@ -159,6 +163,8 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 	if emit == nil {
 		emit = func(Event) {}
 	}
+	images := a.pendingImages
+	a.pendingImages = nil
 	d := a.dispatch(ctx, events.Input, map[string]any{"text": prompt})
 	if d.Block {
 		emit(Event{Type: "notice", Text: "input blocked: " + d.Reason})
@@ -168,7 +174,12 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		prompt = *d.Text
 	}
 	prompt = a.ExpandInput(prompt)
-	a.add(llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: prompt}}})
+	var user []llm.Block
+	if prompt != "" {
+		user = textBlocks([]string{prompt})
+	}
+	user = append(user, images...)
+	a.add(llm.Message{Role: "user", Content: user})
 
 	maxTurns := a.MaxTurns
 	if maxTurns <= 0 {
@@ -192,7 +203,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		if thinking != nil {
 			level = thinking.Level
 		}
-		req := llm.Request{Model: a.Model, System: sys, Messages: a.History, MaxTokens: maxTokens, Thinking: thinking}
+		req := llm.Request{Model: a.Model, System: sys, Messages: a.forModel(emit), MaxTokens: maxTokens, Thinking: thinking}
 		for _, n := range a.Tools.Names() {
 			t, _ := a.Tools.Get(n)
 			req.Tools = append(req.Tools, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
@@ -200,7 +211,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		resp, err := a.complete(ctx, req, emit)
 		if err != nil && compact.IsOverflow(err) && !overflowed && a.autoCompact(ctx, emit, ReasonOverflow) {
 			overflowed = true // one recovery per prompt
-			req.Messages = a.History
+			req.Messages = a.forModel(emit)
 			resp, err = a.complete(ctx, req, emit)
 		}
 		if err != nil {
@@ -272,7 +283,7 @@ func (a *Agent) execTool(ctx context.Context, u llm.Block, emit func(Event)) llm
 		tctx := tools.WithUpdates(ctx, func(partial string) {
 			emit(Event{Type: EvToolUpdate, Tool: u.Name, CallID: u.ID, Args: args, Text: partial})
 		})
-		out, err = t.Run(tctx, args)
+		out, err = t.Run(tools.WithImages(tctx, a.imageSink(&res.Images)), args)
 	}
 	isErr := err != nil
 	if isErr && out == "" {

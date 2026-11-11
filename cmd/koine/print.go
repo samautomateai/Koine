@@ -9,6 +9,7 @@ import (
 
 	"koine/core/agent"
 	"koine/core/app"
+	"koine/core/llm"
 )
 
 // streams are the process's standard streams, injectable so the command line can be tested end to end.
@@ -29,34 +30,43 @@ func stdStreams() streams {
 	return streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr, InTTY: isTTY(os.Stdin), OutTTY: isTTY(os.Stdout)}
 }
 
-// buildPrompt joins piped stdin, @files and the message, in that order, separated by blank lines.
-func buildPrompt(c cliArgs, dir string, st streams) (string, error) {
+// buildPrompt joins piped stdin, @files and the message, in that order, separated by blank lines. Images (from @file arguments or piped
+// image data) come back separately, to go with the prompt; notes say what was done to them.
+func buildPrompt(c cliArgs, a *app.App, st streams) (string, []llm.Block, []string, error) {
 	var parts []string
+	var images []llm.Block
+	var notes []string
 	if !st.InTTY && st.In != nil {
 		b, err := io.ReadAll(st.In)
 		if err != nil {
-			return "", fmt.Errorf("reading stdin: %w", err)
+			return "", nil, nil, fmt.Errorf("reading stdin: %w", err)
 		}
-		if s := strings.TrimSpace(string(b)); s != "" {
-			parts = append(parts, s)
+		in, err := a.PipedInput(b)
+		if err != nil {
+			return "", nil, nil, err
 		}
+		if in.Text != "" {
+			parts = append(parts, in.Text)
+		}
+		images, notes = append(images, in.Images...), append(notes, in.Notes...)
 	}
-	files, err := expandFiles(dir, c.Files)
+	files, err := a.FileArgs(c.Files)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
-	if files != "" {
-		parts = append(parts, strings.TrimRight(files, "\n"))
+	if files.Text != "" {
+		parts = append(parts, strings.TrimRight(files.Text, "\n"))
 	}
+	images, notes = append(images, files.Images...), append(notes, files.Notes...)
 	if m := strings.TrimSpace(strings.Join(c.Message, " ")); m != "" {
 		parts = append(parts, m)
 	}
-	return strings.Join(parts, "\n\n"), nil
+	return strings.Join(parts, "\n\n"), images, notes, nil
 }
 
 // runPrint runs one prompt and returns the exit code. In text mode only the final answer (the text after the last tool call) goes to
 // stdout; tool activity, notices and errors go to stderr. In json mode stdout carries only Pi's JSON event stream (jsonmode.go).
-func runPrint(ctx context.Context, a *app.App, prompt, mode string, st streams) int {
+func runPrint(ctx context.Context, a *app.App, prompt string, images []llm.Block, mode string, st streams) int {
 	failed := false
 	var final strings.Builder
 	var js *jsonStream
@@ -101,7 +111,7 @@ func runPrint(ctx context.Context, a *app.App, prompt, mode string, st streams) 
 			fmt.Fprintln(st.Err, "koine: error:", e.Text)
 		}
 	}
-	_, err := a.HandleInput(ctx, prompt, emit)
+	_, err := a.HandleInputImages(ctx, prompt, images, emit)
 	if js != nil {
 		js.Finish(ctx.Err() != nil)
 	}

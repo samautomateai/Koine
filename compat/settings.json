@@ -269,13 +269,16 @@
     {
       "key": "images.autoResize",
       "type": "boolean",
-      "status": "todo",
-      "note": "Needs image content blocks (CLI-05)."
+      "status": "verified",
+      "test": "TestImageSettingsMapToTheAgentAndProjectOverridesUser",
+      "note": "Default true: PNG, JPEG and GIF larger than 2000 by 2000 pixels (or 4.5 MB encoded) are scaled down before sending; WebP and BMP cannot be resized and go unchanged. Applies to @file, piped images and the read tool (TestAutoResizeAndBlockImagesSettings)."
     },
     {
       "key": "images.blockImages",
       "type": "boolean",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestBlockImagesSettingKeepsEveryImageFromTheProvider",
+      "note": "No image reaches a provider; each is replaced by a text note and the user is told once. The history and the session file keep the images."
     },
     {
       "key": "markdown.codeBlockIndent",
