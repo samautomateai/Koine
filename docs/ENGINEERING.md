@@ -8,7 +8,7 @@ These rules apply to people and to coding agents. Each one is either enforced by
 1. Every behaviour has a requirement ID in `docs/requirements.md`. Change behaviour → change or add the requirement in the same PR.
 2. A requirement is `implemented` only with `Tests:` that exist, and a `Design:` section that lists it under `Satisfies:`.
 3. Structural choices with real alternatives get an ADR (`docs/adr/`), numbered, with Status and Date. Reversing one means a new ADR that supersedes it.
-4. Docs are living: product code under `core/`, `cmd/`, `scripts/`, `compat/` must change together with `docs/`, `CHANGELOG.md` or `compat/*.md`, or the PR states `Docs-Impact: none` with a reason. Broken relative links fail.
+4. Docs are living, and so is the parity tracker. Product code under `core/`, `cmd/`, `scripts/`, `compat/` must change together with a `CHANGELOG.md` line and an update to the requirement, design, SPEC, gap table or compat manifest it affects (`docs/CHECKLIST.md` says which), or the PR states `Docs-Impact: none — <specific reason>`. Deciding which documents apply is the author's job; this rule is never skipped. Broken relative links fail.
 5. User-visible changes get a line under "Unreleased" in `CHANGELOG.md`.
 
 ## 2. Code

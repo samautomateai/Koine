@@ -161,7 +161,7 @@ func TestCompactCommandIsSavedAndSurvivesResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := `{"compaction":{"keepRecentTokens":300,"contextWindow":1000000}}`
-	if err := os.WriteFile(filepath.Join(dir, ".koine", "config.json"), []byte(cfg), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".koine", "settings.json"), []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	a := newApp(t, dir, RunOptions{})

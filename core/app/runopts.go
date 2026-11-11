@@ -1,6 +1,11 @@
 package app
 
-import "os"
+import (
+	"os"
+	"strings"
+
+	"koine/core/tools"
+)
 
 // RunOptions are per-run overrides from the command line. They survive /reload.
 type RunOptions struct {
@@ -42,5 +47,54 @@ func (a *App) applyRunOptions() {
 		a.Agent.Tools = a.Tools.Filtered(nil, a.Tools.Names())
 	case len(o.Tools) > 0:
 		a.Agent.Tools = a.Tools.Filtered(o.Tools, nil)
+	case a.Cfg.DefaultTools != nil:
+		a.pickTools(a.Cfg.DefaultTools)
 	}
+}
+
+// pickTools applies the defaultTools setting. Plain names are the base selection (or everything, when there are none); "+name" adds,
+// "-name" removes, in order. An empty list removes the built-in tools and keeps the rest. "builtin:" entries select extensions in Pi and
+// are ignored here.
+func (a *App) pickTools(spec []string) {
+	all := a.Tools.Names()
+	set := map[string]bool{}
+	plain := false
+	for _, e := range spec {
+		if !strings.HasPrefix(e, "+") && !strings.HasPrefix(e, "-") && !strings.HasPrefix(e, "builtin:") {
+			plain = true
+			set[tools.Canon(e)] = true
+		}
+	}
+	if !plain {
+		for _, n := range all {
+			set[n] = true
+		}
+		if len(spec) == 0 {
+			b := tools.NewRegistry()
+			tools.RegisterBuiltins(b, a.Cwd)
+			for _, n := range b.Names() {
+				delete(set, n)
+			}
+		}
+	}
+	for _, e := range spec {
+		switch {
+		case strings.HasPrefix(e, "builtin:"):
+		case strings.HasPrefix(e, "+"):
+			set[tools.Canon(e[1:])] = true
+		case strings.HasPrefix(e, "-"):
+			delete(set, tools.Canon(e[1:]))
+		}
+	}
+	var keep []string
+	for _, n := range all {
+		if set[n] {
+			keep = append(keep, n)
+		}
+	}
+	if len(keep) == 0 {
+		a.Agent.Tools = a.Tools.Filtered(nil, all)
+		return
+	}
+	a.Agent.Tools = a.Tools.Filtered(keep, nil)
 }

@@ -6,7 +6,7 @@ opencode, Pi, Codex and Koine itself. Keep it short; the detail is in the linked
 ## Before you change anything
 
 1. Read `docs/requirements.md` and `docs/design.md`. Find the requirement (`REQ-…`) your change belongs to, or add one.
-2. Behaviour change → requirement first, then a failing test, then code, then docs. Process: `.agents/skills/spec-driven-change/SKILL.md`.
+2. Behaviour change → requirement first, then a failing test, then code, then docs and the parity tracker (`docs/CHECKLIST.md`). Process: `.agents/skills/spec-driven-change/SKILL.md`.
 3. Rules and thresholds: `docs/ENGINEERING.md`. Wire protocol and user-visible behaviour: `docs/SPEC.md`.
 
 ## Commands (go-task; `task` lists all)
@@ -27,12 +27,12 @@ opencode, Pi, Codex and Koine itself. Keep it short; the detail is in the linked
 - Lines ≤ 160 columns, files ≤ 600 lines (`task size`). Split files rather than raising limits.
 - Per-package Go coverage ≥ 85%; JS lines ≥ 85%. New code ships with tests in the same change.
 - A `verified` item in `compat/pi.json` must name a test that exists. Never mark something verified without one.
-- Product code under `core/`, `cmd/`, `scripts/`, `compat/` changes together with `docs/` or `CHANGELOG.md`, or the PR says `Docs-Impact: none` and why.
+- **Docs and parity are part of every change** (`docs/CHECKLIST.md`). Product code under `core/`, `cmd/`, `scripts/`, `compat/` ships with a `CHANGELOG.md` line and an update to the requirement, design, SPEC, parity tracker (`docs/gap/`) or manifest it affects, or the PR says `Docs-Impact: none — <specific reason>`. You judge which documents apply; CI only checks the minimum. Say in your final message which you updated.
 - Project-local code must stay behind the trust gate (ADR 0002). Do not add a path that runs it earlier.
 
 ## Things that go wrong
 
-- Do not edit `core/ext/sidecar/surface.json` or `compat/pi.json` by hand for upstream changes: use `task upstream:rebase` and `task compat:sync`.
+- Do not edit `core/ext/sidecar/surface.json`, `compat/pi.json` or the key list of `compat/settings.json` by hand for upstream changes: use `task upstream:rebase` and `task compat:sync`. Settings keep Pi's names; add a Koine-only key to the `koine` list of `compat/settings.json`, never invent a near-copy of a Pi key.
 - Do not paste invisible Unicode (zero-width, BOM, tag characters) into sources; use escapes such as `\u200b` in code. `core/skills` rejects such skills on purpose.
 - Only upstream Pi (TypeScript) is tracked. PiG, pi-go, sky-valley/pi and Zero are reference reading (`docs/REFERENCES.md`).
 - Tests that start the app must isolate `HOME` and set `KOINE_TRUST` deliberately (see `isolate(t)` in `core/app`).

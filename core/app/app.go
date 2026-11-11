@@ -127,6 +127,7 @@ func (a *App) load(ctx context.Context) {
 		skippedCode = proj.codeCount()
 	}
 	a.Cfg = cfg
+	a.Warnings = append(a.Warnings, SettingsDiagnostics(a.Cwd, a.Home)...)
 	a.router = &llm.Router{Custom: cfg.Providers}
 
 	a.Tools = tools.NewRegistry()
