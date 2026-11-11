@@ -90,7 +90,7 @@ jobs:
       # Needs "Dependency graph" enabled in Settings → Security. Set the repository variable DEPENDENCY_REVIEW=true once it is.
       - name: Review new dependencies in PRs (licenses and known advisories)
         if: github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW == 'true'
-        uses: actions/dependency-review-action@v3
+        uses: actions/dependency-review-action@v5
         with: { fail-on-severity: high }
 
   vulnerability-scan:
