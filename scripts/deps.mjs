@@ -78,6 +78,9 @@ export function actionRefs(text) {
   return [...text.matchAll(/uses:\s*([\w.-]+\/[\w.-]+)(?:\/[\w./-]+)?@(v\d+(?:\.\d+\.\d+)?)\b/g)].map((m) => ({ repo: m[1], ref: m[2] }));
 }
 
+/** Escapes every regex metacharacter, backslash included. */
+export const esc = (t) => t.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&");
+
 export function rewrite(text, re, to) {
   return text.replace(new RegExp(re.source, `${re.flags.replace("g", "")}g`), (whole, v) => whole.replace(v, to));
 }
@@ -109,7 +112,7 @@ export function plan(root, tagsOf = remoteTags) {
           file,
           from: ref,
           to,
-          re: new RegExp(`${repo.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&")}(?:/[\\w./-]+)?@(${ref.replace(/\./g, "\\.")})\\b`),
+          re: new RegExp(`${esc(repo)}(?:/[\\w./-]+)?@(${esc(ref)})\\b`),
         });
       }
     }
