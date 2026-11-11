@@ -50,7 +50,7 @@
       "type": "string[]",
       "status": "verified",
       "test": "TestEnabledModelsSettingPicksTheStartupModel",
-      "note": "Patterns as for `--models`; the first match is the startup model when no model is set. There is no model cycling yet."
+      "note": "Patterns as for `--models`; the first match is the startup model when no model is set. Also the scope of Ctrl+P and Ctrl+Shift+P model cycling (TestUIScopedModels); `/scoped-models` edits it."
     },
     {
       "key": "hideThinkingBlock",
@@ -88,14 +88,16 @@
     {
       "key": "externalEditor",
       "type": "string",
-      "status": "inert",
-      "note": "Line mode has no editor keybinding."
+      "status": "verified",
+      "test": "TestEditExternally",
+      "note": "Ctrl+G; falls back to $VISUAL then $EDITOR. A project value is ignored in an untrusted folder."
     },
     {
       "key": "doubleEscapeAction",
       "type": "\"tree\"|\"fork\"|\"none\"",
-      "status": "inert",
-      "note": "Line mode has no Escape key. The value is read and validated, and `App.DoubleEscapeAction()` hands it to frontends that have one (REQ-SESS-002)."
+      "status": "verified",
+      "test": "TestUIDoubleEscape",
+      "note": "Double Escape on an empty editor opens `/tree` or `/fork`, or does nothing (REQ-TUI-001)."
     },
     {
       "key": "treeFilterMode",
@@ -182,22 +184,28 @@
     {
       "key": "theme",
       "type": "string",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestUIThemeSelectorAndReload",
+      "note": "Built-ins `system`, `dark`, `light`, or a theme in `<agent dir>/themes`. User themes are reloaded by `/reload`, not watched."
     },
     {
       "key": "quietStartup",
       "type": "boolean|\"header\"",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestUISettingsSelector",
+      "note": "`true` hides the banner and listing, `\"header\"` hides the listing."
     },
     {
       "key": "tuiMode",
       "type": "\"regular\"|\"fullscreen\"",
-      "status": "inert"
+      "status": "inert",
+      "note": "Koine implements regular (scrollback) mode only; Pi defaults to fullscreen. See compat/DIVERGENCES.md."
     },
     {
       "key": "fullscreenExitOutput",
       "type": "\"transcript\"|\"resume-hint\"",
-      "status": "inert"
+      "status": "inert",
+      "note": "No fullscreen mode."
     },
     {
       "key": "fullscreenScrollbar",
@@ -217,57 +225,75 @@
     {
       "key": "editorPaddingX",
       "type": "number",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestTUIDefaultsAndClamps",
+      "note": "Clamped to 0-3."
     },
     {
       "key": "outputPad",
       "type": "number",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestTUIDefaultsAndClamps",
+      "note": "0 or 1."
     },
     {
       "key": "autocompleteMaxVisible",
       "type": "number",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestTUIDefaultsAndClamps",
+      "note": "Clamped to 3-20, default 5."
     },
     {
       "key": "showHardwareCursor",
       "type": "boolean",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestTUIDefaultsAndClamps",
+      "note": "Places the real cursor at the editor cursor."
     },
     {
       "key": "terminal.showImages",
       "type": "boolean",
-      "status": "inert"
+      "status": "inert",
+      "note": "Image rendering in the terminal is not implemented (TUI-12)."
     },
     {
       "key": "terminal.imageWidthCells",
       "type": "number",
-      "status": "inert"
+      "status": "inert",
+      "note": "Image rendering in the terminal is not implemented (TUI-12)."
     },
     {
       "key": "terminal.clearOnShrink",
       "type": "boolean",
-      "status": "inert"
+      "status": "inert",
+      "note": "Regular mode never reflows what it has printed; a resize reprints the transcript."
     },
     {
       "key": "terminal.showTerminalProgress",
       "type": "boolean",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestScreenDraw",
+      "note": "OSC 9;4 progress while the agent runs."
     },
     {
       "key": "terminal.hyperlinks",
       "type": "boolean|\"auto\"",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestResolveSettingsAndSave",
+      "note": "`auto` uses Koine's own list of terminals (Pi's detection is not documented)."
     },
     {
       "key": "terminal.images",
       "type": "boolean|\"kitty\"|\"iterm2\"|\"auto\"",
-      "status": "inert"
+      "status": "inert",
+      "note": "Image rendering in the terminal is not implemented (TUI-12)."
     },
     {
       "key": "terminal.trueColor",
       "type": "boolean|\"auto\"",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestResolveSettingsAndSave",
+      "note": "`auto` reads COLORTERM; without true colour themes are reduced to 256 colours."
     },
     {
       "key": "images.autoResize",
@@ -286,12 +312,14 @@
     {
       "key": "markdown.codeBlockIndent",
       "type": "string",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestMarkdownCodeBlocks"
     },
     {
       "key": "markdown.mermaid",
       "type": "\"off\"|\"final\"|\"streaming\"",
-      "status": "inert"
+      "status": "inert",
+      "note": "Diagrams are shown as code."
     },
     {
       "key": "transport",
@@ -419,7 +447,8 @@
     {
       "key": "themes",
       "type": "string[]",
-      "status": "inert"
+      "status": "inert",
+      "note": "Theme locations come from `--theme` and the `themes/` directories; the setting is not read."
     },
     {
       "key": "enableSkillCommands",

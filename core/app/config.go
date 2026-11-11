@@ -44,6 +44,7 @@ type Config struct {
 	Providers     map[string]llm.ProviderConfig `json:"providers,omitempty"`
 	LLMSettings                                 // thinking, retry and timeout settings (llmopts.go)
 	ImageSettings                               // images.autoResize and images.blockImages (imageopts.go)
+	TUISettings                                 // terminal UI settings (tuiopts.go)
 }
 
 // BranchSummaryConfig is Pi's branchSummary object: tokens kept free when summarising a branch, and whether to skip the question.
@@ -146,6 +147,7 @@ func mergeConfig(dst *Config, src Config) {
 	}
 	dst.merge(src.LLMSettings)
 	dst.mergeImages(src.ImageSettings)
+	dst.TUISettings.mergeTUI(src.TUISettings)
 	c := src.Compaction
 	if c.Enabled != nil {
 		dst.Compaction.Enabled = c.Enabled

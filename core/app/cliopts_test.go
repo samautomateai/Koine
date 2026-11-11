@@ -216,7 +216,7 @@ func TestExplicitResourcesAndTheirProblems(t *testing.T) {
 	defer a.Close()
 	for _, want := range []string{"extension builtin:mcp: Koine has no built-in extensions", "extension missing.mjs", "extension notes.txt: not a script",
 		"extension badjson/extension.json: no command", "extension badjson: no extension found there", "extension emptydir: no extension found there",
-		"skill " + filepath.Join(proj, "no-skill"), "prompt template " + filepath.Join(proj, "no-prompt.md"), "themes are not supported yet"} {
+		"skill " + filepath.Join(proj, "no-skill"), "prompt template " + filepath.Join(proj, "no-prompt.md")} {
 		if !warned(a, want) {
 			t.Errorf("no warning %q in %v", want, a.Warnings)
 		}

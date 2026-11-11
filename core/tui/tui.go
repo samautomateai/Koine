@@ -76,8 +76,8 @@ func choose(in *bufio.Reader, out io.Writer, title string, options []string) int
 	return n - 1
 }
 
-// Run starts the interactive loop. Ctrl-C cancels a running turn; at the prompt it exits.
-func Run(ctx context.Context, a *app.App) error {
+// runLines is the line-mode loop used when stdin or stdout is not a terminal. Ctrl-C cancels a running turn; at the prompt it exits.
+func runLines(ctx context.Context, a *app.App) error {
 	info := a.Describe()
 	fmt.Printf("%skoine%s  %s · %s\n", bold, reset, info.Model, info.Cwd)
 	fmt.Printf("%s%d tools · %d skills · %d agents · %d commands — /help%s\n",

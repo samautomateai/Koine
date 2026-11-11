@@ -40,9 +40,22 @@
 
 - `--mode json` writes every event of Pi's documented schema with Pi's field names (including `queue_update`, `entry_appended`, `session_info_changed`, `thinking_level_changed`, `compaction_*`, `auto_retry_*`, `summarization_retry_*` and `tool_execution_update`), but Koine does not stream from providers: each content block is one `text_delta` or one tool-call triple, and `message_update.usage` is the final usage. Pi's JSON page names fields without giving the inner shape of some of them; for these Koine follows the session-file format and does not claim parity: `entry` (the session line as Koine writes it), `compaction_end.result` (`summary`, `firstKeptEntryId`, `tokensBefore`, `estimatedTokensAfter`, no `details`; the token count after is Koine's estimate), `partialResult` and the message objects. `api` is derived from the provider (`anthropic-messages` for Anthropic, `openai-completions` for the rest). `agent_end.willRetry` is always false: retries and overflow recovery happen inside one run. `entry_appended` needs a session (none with `--no-session`). Queues have one source, `pi.sendUserMessage(text, {deliverAs})` (default follow-up); `queue_update` is reported when the agent loop next looks at the queues, and a message queued while idle waits for the next run. None of these shapes were compared with Pi's source.
 - `-e` runs code, so it obeys the trust gate (ADR 0002): in an untrusted folder it is skipped with a warning, and an option such as `--plan` that only that extension defines is then an unknown option (the error says why). `--skill` and `--prompt-template` are data, keep the hidden-text audit, and load in any folder. `builtin:*` extensions (mcp, codemode, tool-search, llama.cpp) do not exist; `-e builtin:x` only warns.
-- `--theme`, `--use-theme` and `--no-themes` are accepted and ignored with a warning; Koine has no themes (CLI-50). `--tui-mode`, `--no-mcp`, `--offline`, `--verbose`, `--export`, `--session-id` and `-na` are not options here (other rows).
+- `--tui-mode`, `--no-mcp`, `--offline`, `--verbose`, `--export`, `--session-id` and `-na` are not options here (other rows).
 - `--model` fuzzy matching only knows the model catalog (`core/llm/models.json` plus the user's `model-catalog.json`); an id it does not list is sent as written if its provider is known. Ties between equal matches of one provider take the undated, then the latest id; Pi's own tie-break was not checked. `--models` and `enabledModels` choose the startup model; there is no model cycling.
 - Extension options are read after the extensions load, so a typo in an option name is reported only then (exit 2) and the extensions have started by that time.
+
+## Terminal UI
+
+- Koine implements Pi's regular (scrollback) mode only. Pi's default `tuiMode` is fullscreen; `tuiMode`, `fullscreen*`, `terminal.clearOnShrink`
+  stay `inert`. A resize or Ctrl+O reprints the whole transcript.
+- Images (paste, inline display, `terminal.showImages`, `imageWidthCells`, `images`) are not drawn (TUI-12). `markdown.mermaid` is not drawn.
+- Pi's theme docs do not list the colour tokens; the 51 tokens (and 5 optional ones) are Koine's reading of them. okhsl colours are rejected.
+  User themes are reloaded by `/reload`, not watched as Pi does.
+- Key defaults come from Pi's keybindings page. Not verified against Pi: the double Ctrl+C exit rule, the number of lines Pi shows for collapsed
+  tool output, how Pi ranks `@` file matches, and how `terminal.hyperlinks: "auto"` detects terminals (Koine uses its own list).
+- Rendering is covered only by unit tests of pure functions (plus one pseudo-terminal test of the raw-mode shim). No test drives a real terminal
+  emulator, so layout in a particular terminal was not seen.
+- The `@` file index skips `.git`, `node_modules` and names listed plainly in `.gitignore`; it does not implement gitignore patterns.
 
 ## Environment
 
@@ -53,7 +66,7 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - Directories: `PI_CODING_AGENT_DIR` is `KOINE_AGENT_DIR`; `PI_CODING_AGENT_SESSION_DIR` is `KOINE_SESSION_DIR`.
 - Not applicable, no `KOINE_` counterpart because the feature does not exist: `PI_PACKAGE_DIR` (no packages, a single binary), `PI_OFFLINE` and `PI_SKIP_VERSION_CHECK` (Koine does no catalog refresh or version check), `PI_SELF_UPDATE_COMMAND` (no self-update), `PI_TELEMETRY` (no telemetry), `PI_CODEMODE_MAX_WORKERS` (no codemode), `PI_SHARE_VIEWER_URL` (no `/share`), `PI_RADIUS_GATEWAY` (no `/bug`).
 - Reserved for later, not read yet: `PI_CACHE_RETENTION` as `KOINE_CACHE_RETENTION` (provider caching, LLM area) and the terminal variables `PI_CLEAR_ON_SHRINK`, `PI_HARDWARE_CURSOR`, `PI_CLIPBOARD_OSC52`, `PI_HYPERLINKS`, `PI_PROGRAM_STATUS`, `PI_IMAGE_PROTOCOL`, `PI_TRUE_COLOR`, `PI_TUI_ESC_TIMEOUT` as the same names with `KOINE_` (the line-mode TUI has no use for them).
-- Not `PI_` variables: `HTTP_PROXY` and `HTTPS_PROXY` are honoured by Go's default HTTP transport (not tested here); `VISUAL` and `EDITOR` are unused because Koine has no external-editor feature.
+- Not `PI_` variables: `HTTP_PROXY` and `HTTPS_PROXY` are honoured by Go's default HTTP transport (not tested here); `VISUAL` and `EDITOR` start the external editor (Ctrl+G) when `externalEditor` is not set.
 
 ## Images
 
