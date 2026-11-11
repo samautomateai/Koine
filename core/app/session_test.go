@@ -142,3 +142,70 @@ func TestSessionSlashCommands(t *testing.T) {
 		t.Errorf("empty list: %q", got)
 	}
 }
+
+// summarising answers a summary request with SUMMARY and anything else with "ok".
+type summarising struct{ summaries int }
+
+func (s *summarising) Complete(_ context.Context, r llm.Request) (*llm.Response, error) {
+	if strings.HasPrefix(r.System, "You summarise") {
+		s.summaries++
+		return &llm.Response{Content: []llm.Block{{Type: "text", Text: "SUMMARY"}}}, nil
+	}
+	return &llm.Response{Content: []llm.Block{{Type: "text", Text: "ok"}}}, nil
+}
+
+func TestCompactCommandIsSavedAndSurvivesResume(t *testing.T) {
+	isolate(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".koine"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := `{"compaction":{"keepRecentTokens":300,"contextWindow":1000000}}`
+	if err := os.WriteFile(filepath.Join(dir, ".koine", "config.json"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp(t, dir, RunOptions{})
+	p := &summarising{}
+	a.Agent.Provider = p
+	if got := say(t, a, "/compact"); !strings.Contains(got, "nothing to compact") {
+		t.Errorf("empty: %q", got)
+	}
+	for i := 0; i < 8; i++ {
+		say(t, a, strings.Repeat("question ", 60))
+	}
+	if a.Agent.KeepRecent != 300 || a.Agent.ContextWindow != 1000000 {
+		t.Fatalf("config not applied: keep=%d window=%d", a.Agent.KeepRecent, a.Agent.ContextWindow)
+	}
+	got := say(t, a, "/compact focus on the tests")
+	if !strings.Contains(got, "compacted:") || p.summaries != 1 {
+		t.Fatalf("/compact: %q summaries=%d", got, p.summaries)
+	}
+	n := len(a.Agent.History)
+	b := newApp(t, dir, RunOptions{Continue: true})
+	if len(b.Agent.History) != n || !strings.Contains(b.Agent.History[0].Content[0].Text, "SUMMARY") {
+		t.Errorf("resumed %d messages, want %d starting with the summary: %+v", len(b.Agent.History), n, b.Agent.History[0])
+	}
+	if len(a.Warnings) != 0 {
+		t.Errorf("warnings: %v", a.Warnings)
+	}
+}
+
+func TestCompactionNotSavedWhenFileAndConversationDisagree(t *testing.T) {
+	isolate(t)
+	a := newApp(t, t.TempDir(), RunOptions{})
+	a.Agent.Provider = &summarising{}
+	a.Agent.KeepRecent = 100
+	for i := 0; i < 6; i++ {
+		say(t, a, strings.Repeat("question ", 60))
+	}
+	a.Agent.History = append(a.Agent.History, llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: "not in the file"}}})
+	say(t, a, "/compact")
+	if len(a.Warnings) == 0 || !strings.Contains(a.Warnings[len(a.Warnings)-1], "disagree") {
+		t.Errorf("warnings: %v", a.Warnings)
+	}
+	off := false
+	a.configureCompaction(CompactionConfig{Enabled: &off})
+	if a.Agent.AutoCompact {
+		t.Error("enabled:false must switch auto-compaction off")
+	}
+}

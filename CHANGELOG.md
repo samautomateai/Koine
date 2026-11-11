@@ -6,6 +6,7 @@ All notable changes. Format follows [Keep a Changelog](https://keepachangelog.co
 
 ### Added
 
+- Compaction: automatic summarising before the context window fills, `/compact [focus]`, and one compact-and-retry on a provider overflow; saved in the session file (REQ-CMP-001). Settings under `compaction` in config.
 - Sessions: conversations are saved in Pi v3 JSONL; `-c`, `--session`, `--fork`, `-n`, `--no-session`, `--session-dir`, `-r`, and `/new /session /name /resume /fork` (REQ-SESS-001). `/clear` is now an alias of `/new`.
 - Scriptable command line: positional message, `@file`, piped stdin, `-p`, `--mode json`, `--model`, `--system-prompt`, `--append-system-prompt`, `-t`, `-nt`, `-h`, `-v`; answer on stdout, activity on stderr (REQ-CLI-001).
 - `task deps:check` / `task deps:update` and a weekly `dependency-updates` workflow keep the Go toolchain, tool pins, action refs, Go modules and npm packages current (`scripts/deps.mjs`).
