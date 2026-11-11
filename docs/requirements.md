@@ -134,41 +134,49 @@ tests, a named test that does not exist, a missing design reference, and duplica
 ## Parity with upstream Pi (from the gap assessment, see `docs/gap-assessment.md`)
 
 ### REQ-CLI-001 — Scriptable command line
+
 - Status: planned
 - Statement: `koine [options] [@files] [message]` runs one prompt when stdin or stdout is not a terminal, prepends piped stdin, writes only the final answer to stdout and diagnostics to stderr, supports `--mode json`, and selects model, tools and resources by flags. Gap rows CLI-01..06, 12, 29..31, 48.
 - Design: none yet
 
 ### REQ-LLM-004 — Model catalog, usage and cost, thinking, prompt caching
+
 - Status: planned
 - Statement: Each model has known context window, limits and price; usage and cost are tracked per session; thinking levels map to each provider with block replay; prompt caching is on for Anthropic. Gap rows LLM-11, 22, 23, 25, 28.
 - Design: none yet
 
 ### REQ-SESS-002 — Pi-compatible session files
+
 - Status: planned
 - Statement: Sessions persist as JSONL in Pi's v3 tree format so they can be continued, resumed by id, forked and read by Pi. Extends REQ-SESS-001. Gap rows CLI-15..21, SESS-01.
 - Design: none yet
 
 ### REQ-CMP-001 — Compaction and overflow recovery
+
 - Status: planned
 - Statement: Context is compacted automatically and on demand with a structured summary, never separating a tool result from its call; a provider overflow triggers one compaction and retry. Gap rows CMP-01..05, LLM-31.
 - Design: none yet
 
 ### REQ-MCP-001 — MCP client
+
 - Status: planned
 - Statement: Koine connects to MCP servers over stdio and streamable HTTP from `mcp.json` (also reading `.mcp.json` and opencode config), exposes their tools as `mcp__server__tool`, and treats project-scoped servers as untrusted code. Gap rows LLM-42..47.
 - Design: none yet
 
 ### REQ-PKG-001 — Install Pi packages
+
 - Status: planned
 - Statement: `koine install|remove|update|list` handles npm, git and local Pi packages with a `pi` manifest, feeds their extensions, skills and prompts to the loaders, pins by hash and never runs install scripts. Gap rows EXT-34..40.
 - Design: none yet
 
 ### REQ-EXT-005 — Extensions can use the user interface
+
 - Status: planned
 - Statement: Extension dialogs (`select`, `confirm`, `input`) and text status surfaces reach the active frontend; `ctx.mode` and `ctx.hasUI` are truthful; shim exports match upstream so extensions never fail to link. Gap rows EXT-07, 24..26, 28.
 - Design: none yet
 
 ### REQ-TOOL-001 — Built-in tool parity
+
 - Status: planned
 - Statement: `read`, `edit`, `bash`, `grep`, `find`, `ls` match Pi's behaviour: tail-truncated bash output with a saved full log, multi-edit with fuzzy matching and line-ending preservation, `.gitignore`-aware search, `find` by that name. Gap rows TOOL-01..22.
 - Design: none yet

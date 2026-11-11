@@ -3,7 +3,7 @@
 Status: first pass, 2026-11-10. Living document: when a gap closes, change its row in the detail files, update the counts here, and link the
 requirement that now covers it.
 
-**Scope.** Only upstream Pi (TypeScript) is the yardstick. The 197 extension *API* items are tracked separately in `compat/pi.json`
+**Scope.** Only upstream Pi (TypeScript) is the yardstick. The 197 extension _API_ items are tracked separately in `compat/pi.json`
 (`koine -compat`). This assessment covers everything else: behaviour, CLI, tools, models, packages. It asks "what would a Pi user miss?", not
 "what exists in Pi", so Pi features we should not copy are listed too.
 
@@ -14,29 +14,29 @@ priorities and efforts are judgement calls.
 
 ## Scoreboard (222 behaviours assessed)
 
-| Area | Detail | Have | Partial | Missing | By design | Open P0 | Open P1 |
-|---|---|---|---|---|---|---|---|
-| CLI, modes, sessions, settings | [cli.md](gap/cli.md) | 3 | 11 | 32 | 5 | 10 | 18 |
-| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 8 | 27 | 42 | 0 | 11 | 33 |
-| Providers, models, auth, MCP | [llm.md](gap/llm.md) | 0 | 13 | 36 | 0 | 15 | 13 |
-| Extension behaviour, Pi packages | [ext.md](gap/ext.md) | 4 | 19 | 20 | 2 | 10 | 19 |
-| **Total** | | **15** | **70** | **130** | **7** | **46** | **83** |
+| Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
+| ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
+| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 3      | 11      | 32      | 5         | 10      | 18      |
+| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 8      | 27      | 42      | 0         | 11      | 33      |
+| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 0      | 13      | 36      | 0         | 15      | 13      |
+| Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 4      | 19      | 20      | 2         | 10      | 19      |
+| **Total**                                |                          | **15** | **70**  | **130** | **7**     | **46**  | **83**  |
 
-Read this honestly: Koine is a working agent core with a broad *compatibility surface* (extensions, skills, hooks, trust), but as a daily-driver
+Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
 coding agent it is far from Pi. About 7% of behaviours match, and the 46 open P0 items cluster in a few places.
 
 ## What the P0 gaps have in common
 
 Most P0 rows trace back to six missing foundations. Fix these in order, because later ones depend on earlier ones.
 
-| # | Foundation | Unblocks | Main rows |
-|---|---|---|---|
-| 1 | **Streaming provider interface** | live output in every frontend, idle timeouts, tool-call deltas, interrupt latency | LLM-02, AGT-01 |
-| 2 | **Model catalog + usage/cost accounting** | context %, compaction triggers, image gating, thinking support, footer | LLM-11, LLM-28, CMP-07 |
-| 3 | **Session persistence** (JSONL, Pi v3 tree format) | resume/continue/fork, compaction, branch summaries, session events for extensions | CLI-15..21, SESS-01, EXT-17 |
-| 4 | **Compaction + overflow recovery** | long tasks; today history grows until the provider rejects it | CMP-01..05, LLM-31 |
-| 5 | **Scriptable CLI** | positional prompt, stdin, `@file`, auto print mode, clean stdout/stderr, `--mode json`, tool/resource flags, `--model` | CLI-01..06, 12, 29..31, 48 |
-| 6 | **Credentials + MCP** | `auth.json`, `!command` secrets, OAuth login; MCP stdio client and `mcp.json` | LLM-14, 15, 42, 45 |
+| #   | Foundation                                         | Unblocks                                                                                                               | Main rows                   |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| 1   | **Streaming provider interface**                   | live output in every frontend, idle timeouts, tool-call deltas, interrupt latency                                      | LLM-02, AGT-01              |
+| 2   | **Model catalog + usage/cost accounting**          | context %, compaction triggers, image gating, thinking support, footer                                                 | LLM-11, LLM-28, CMP-07      |
+| 3   | **Session persistence** (JSONL, Pi v3 tree format) | resume/continue/fork, compaction, branch summaries, session events for extensions                                      | CLI-15..21, SESS-01, EXT-17 |
+| 4   | **Compaction + overflow recovery**                 | long tasks; today history grows until the provider rejects it                                                          | CMP-01..05, LLM-31          |
+| 5   | **Scriptable CLI**                                 | positional prompt, stdin, `@file`, auto print mode, clean stdout/stderr, `--mode json`, tool/resource flags, `--model` | CLI-01..06, 12, 29..31, 48  |
+| 6   | **Credentials + MCP**                              | `auth.json`, `!command` secrets, OAuth login; MCP stdio client and `mcp.json`                                          | LLM-14, 15, 42, 45          |
 
 Cheap and high-value on their own, independent of the foundations: parent-directory `AGENTS.md` (CTX-01), prompt-template argument fixes
 (TPL-02..04), `find` alias and `.gitignore`-aware grep (TOOL-17/18), `bash` tail truncation with a temp file and process-group kill (TOOL-12/13),
@@ -47,14 +47,14 @@ Cheap and high-value on their own, independent of the foundations: parent-direct
 
 Sizes are rough (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks of focused work).
 
-| Phase | Goal | Contents | Size |
-|---|---|---|---|
-| A. Usable in scripts | `koine -p` behaves like `pi -p` | CLI-01..04, 12, 29..31, 48; CTX-01; TPL-02..04; TOOL-12, 13, 17, 18, 20; EXT-25 | M |
-| B. Usable for real work | long sessions survive | LLM-02 streaming; LLM-11/28 catalog + usage; LLM-25 caching; LLM-22/23 thinking; sessions CLI-15/16/17/19; compaction CMP-01..05, LLM-31 | L |
-| C. Ecosystem | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26; tool fidelity EXT-12..14, 20, 45 | L |
-| D. Packages | install Pi packages | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41 | L |
-| E. Frontends | interactive quality | compile Bubble Tea and Wails (REQ-FE-002); TUI-02..06, 09; steering/follow-up AGT-02/03; parallel tools AGT-04 | L |
-| F. Later | | OAuth logins (LLM-17..19), more providers (LLM-04..08, 10), `--mode rpc` (CLI-07), HTML export, tree views, images (TOOL-03, LLM-27) | L |
+| Phase                   | Goal                                            | Contents                                                                                                                                               | Size |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| A. Usable in scripts    | `koine -p` behaves like `pi -p`                 | CLI-01..04, 12, 29..31, 48; CTX-01; TPL-02..04; TOOL-12, 13, 17, 18, 20; EXT-25                                                                        | M    |
+| B. Usable for real work | long sessions survive                           | LLM-02 streaming; LLM-11/28 catalog + usage; LLM-25 caching; LLM-22/23 thinking; sessions CLI-15/16/17/19; compaction CMP-01..05, LLM-31               | L    |
+| C. Ecosystem            | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26; tool fidelity EXT-12..14, 20, 45 | L    |
+| D. Packages             | install Pi packages                             | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41                                                         | L    |
+| E. Frontends            | interactive quality                             | compile Bubble Tea and Wails (REQ-FE-002); TUI-02..06, 09; steering/follow-up AGT-02/03; parallel tools AGT-04                                         | L    |
+| F. Later                |                                                 | OAuth logins (LLM-17..19), more providers (LLM-04..08, 10), `--mode rpc` (CLI-07), HTML export, tree views, images (TOOL-03, LLM-27)                   | L    |
 
 ## Deliberately not copying
 
