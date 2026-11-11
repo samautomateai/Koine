@@ -131,7 +131,7 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 - Status: implemented
 - Statement: On a terminal, `koine` runs a raw-mode UI in regular (scrollback) mode with Pi's editor (multiline, kill ring, undo, paste markers, history), `/` and `@` autocomplete, markdown and tool-call rendering with edit diffs, a footer with context, tokens and cost, selectors (model, thinking, settings, theme, scoped models), a `/tree` navigator, external editor, suspend, thinking toggle, Esc interrupt and a trust prompt. `keybindings.json` and JSON themes (`--theme`, `--use-theme`, `--no-themes`, `theme`) configure keys and colours. Fullscreen mode and images are not implemented. Without a terminal or with `KOINE_LINE_MODE=1` the line loop is used. Gap rows TUI-02..11, 13..15, CMD-02, CMP-07.
-- Design: DES-040
+- Design: DES-041
 - Tests: TestEditorKillRingYankAndUndo; TestEditorPasteMarkers; TestEditorHistory; TestCompleteSlashCommands; TestCompleteFileReferences; TestMarkdownTables; TestEditRendersADiffFromItsArguments; TestFooter; TestLoadBindings; TestParseTheme; TestUIModelSelector; TestUITreeNavigator; TestUIDoubleEscape; TestUIAskAndTrustPrompt; TestLoopRunsAPromptAndExits; TestRawTerminalOnAPseudoTerminal; TestTUIDefaultsAndClamps; TestTUIProjectSettingsNeedTrust; TestThemeArgs; TestTreeMovePrefillsTheEditorWhenOneIsAttached; TestUntrustedCodeIsCounted
 
 ### REQ-SESS-001 — Persist and resume sessions
