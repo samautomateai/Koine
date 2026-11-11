@@ -50,6 +50,9 @@ type App struct {
 	// Choose lets an interactive frontend ask the user to pick one of options (for /resume and the /tree summary question). It returns the
 	// index, or -1 to cancel. Nil in print, JSON and server runs, where those commands fall back to listing and flags.
 	Choose func(title string, options []string) int
+	// NoUserBash turns "!cmd" and "!!cmd" into ordinary prompts. Print, JSON and server runs set it: text piped in or sent over HTTP must not
+	// become a shell command.
+	NoUserBash bool
 
 	// OnMessage, when set, is told of every message added to the conversation, in order, before it is saved (--mode json uses it).
 	OnMessage   func(llm.Message)
@@ -139,7 +142,7 @@ func (a *App) load(ctx context.Context) {
 	a.loadScope()
 
 	a.Tools = tools.NewRegistry()
-	tools.RegisterBuiltinsEnv(a.Tools, a.Cwd, a.shellEnv)
+	tools.RegisterWith(a.Tools, a.toolOptions())
 
 	sk := a.loadSkills()
 	if len(sk) > 0 {
@@ -273,6 +276,9 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 	a.emit = emit
 	defer func() { a.emit = prev }()
 	notice := func(s string) { emit(agent.Event{Type: "notice", Text: s}) }
+	if !a.NoUserBash && a.userBash(ctx, line, emit) {
+		return false, nil
+	}
 	if !strings.HasPrefix(line, "/") || strings.HasPrefix(line, "/skill:") {
 		return false, a.Agent.RunWithImages(ctx, line, images, emit)
 	}

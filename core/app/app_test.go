@@ -106,7 +106,7 @@ func TestEverythingWorksTogether(t *testing.T) {
 		use("3", "py_add", `{"a":2,"b":3}`),
 		use("4", "bash", `{"command":"echo rm -rf nothing"}`), // blocked by Pi extension
 		use("5", "bash", `{"command":"echo forbidden"}`),      // blocked by Claude hook (exit 2)
-		use("6", "ls", `{}`),                                  // output rewritten by opencode hook
+		use("6", "bash", `{"command":"echo listed"}`),         // output rewritten by opencode hook
 		use("7", "skill", `{"name":"greeter"}`),
 		use("8", "read", `{"path":"hello.txt"}`),
 	}}}
@@ -274,8 +274,8 @@ func TestBrokenExtensionIsReportedNotFatal(t *testing.T) {
 	if !strings.Contains(w, "extension bad") || !strings.Contains(w, "boom at load") {
 		t.Errorf("warnings: %q", w)
 	}
-	if len(a.Describe().Tools) < 7 {
-		t.Error("built-in tools must survive broken extensions")
+	if got := strings.Join(a.Describe().Tools, ","); !strings.Contains(got, "bash") || !strings.Contains(got, "edit") || !strings.Contains(got, "read") {
+		t.Errorf("built-in tools must survive broken extensions, got %s", got)
 	}
 }
 
@@ -375,7 +375,7 @@ func TestReloadModelAndCompat(t *testing.T) {
 	}`)
 	a, _ := New(ctx, cwd)
 	defer a.Close()
-	a.Agent.Provider = &scripted{turns: [][]llm.Block{{use("1", "ls", `{}`)}}}
+	a.Agent.Provider = &scripted{turns: [][]llm.Block{{use("1", "read", `{"path":"none"}`)}}}
 	var out []string
 	emit := func(e agent.Event) { out = append(out, e.Text) }
 	_, _ = a.HandleInput(ctx, "go", emit)

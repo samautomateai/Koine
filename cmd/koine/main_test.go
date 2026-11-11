@@ -103,7 +103,7 @@ func TestEndToEndPrompt(t *testing.T) {
 	if !strings.Contains(sys, "<name>greeter</name>") || !strings.Contains(sys, "reviewer") {
 		t.Errorf("system prompt: %s", sys)
 	}
-	if got := len(seen[0]["tools"].([]any)); got < 10 {
+	if got := len(seen[0]["tools"].([]any)); got < 8 { // the four default built-ins plus skill, task and extension tools
 		t.Errorf("expected builtins + extension tools advertised, got %d", got)
 	}
 }

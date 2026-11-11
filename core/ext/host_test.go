@@ -24,6 +24,8 @@ for line in sys.stdin:
     m = json.loads(line); meth, id_, p = m.get("method"), m.get("id"), m.get("params", {})
     if meth == "initialize":
         send(method="register_tool", params={"name": "echo", "description": "d"})   # no schema -> default
+        send(method="register_tool", params={"name": "fancy", "description": "f", "promptSnippet": "Does fancy things",
+                                              "promptGuidelines": ["Use fancy for fancy work."]})
         send(method="register_command", params={"name": "hi", "description": "say hi"})
         send(method="log", params={"level": "info", "message": "hello from ext"})
         send(method="send_user_message", params={"text": "injected"})
@@ -215,5 +217,19 @@ func TestExtractSidecarIdempotent(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(a, f)); err != nil {
 			t.Errorf("missing %s", f)
 		}
+	}
+}
+
+func TestRegisteredToolsCarryPromptSnippetAndGuidelines(t *testing.T) {
+	_, reg, _, _ := start(t)
+	fancy, _ := reg.Get("fancy")
+	p, ok := fancy.(tools.Prompted)
+	if !ok || p.PromptSnippet() != "Does fancy things" || len(p.PromptGuidelines()) != 1 || p.PromptGuidelines()[0] != "Use fancy for fancy work." {
+		t.Fatalf("%#v", fancy)
+	}
+	// they reach the system prompt parts, and a tool that sent neither adds nothing
+	lines, rules := reg.PromptParts()
+	if strings.Join(lines, "|") != "- fancy: Does fancy things" || strings.Join(rules, "|") != "- Use fancy for fancy work." {
+		t.Fatalf("%q %q", lines, rules)
 	}
 }

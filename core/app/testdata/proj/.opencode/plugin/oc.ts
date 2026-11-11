@@ -12,7 +12,7 @@ export const MyPlugin: Plugin = async ({ directory, $ }) => {
       }),
     },
     "tool.execute.after": async (input, output) => {
-      if (input.tool === "ls") output.output += "[oc-after]";
+      if (input.tool === "bash" && output.output.includes("listed")) output.output += "[oc-after]";
     },
   };
 };

@@ -42,7 +42,7 @@ var eventMap = map[string]string{
 	events.AgentEnd:     "Stop",
 }
 
-var claudeNames = map[string]string{"bash": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "grep": "Grep", "glob": "Glob", "ls": "LS"}
+var claudeNames = map[string]string{"bash": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "grep": "Grep", "find": "Glob", "ls": "LS"}
 
 type payload struct {
 	ToolName string          `json:"toolName"`

@@ -62,3 +62,12 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - A catalog model without an `input` list allows images (Pi's default for `input` is `["text"]`); the built-in Claude models list `["text","image"]`. Unknown models are allowed so that a local vision model works without a catalog entry.
 - The `read` tool answers an image with the text `Read image file [type]` (and a bracketed note when resized); Pi's exact wording was not checked. OpenAI-compatible providers cannot take images in tool messages, so Koine sends them as a following user message headed `Attached image(s) from tool result:`.
 - The HTTP server (`/prompt`), `custom_message` entries with images and the extension `input` event's `images` (EXT-15) take or keep text only.
+## Built-in tools
+
+- `bash` has a default timeout of 120 seconds (Pi has none); the model's `timeout` argument or the user's interrupt still override it. The user's `!cmd` has no timeout.
+- `edit` fuzzy matching does not apply Unicode NFKC, and `read`/`edit` path variants do not try NFD, because the Go standard library has no normaliser (ADR 0004). Smart quotes, dashes, unusual spaces and trailing whitespace are folded as in Pi.
+- `read` refuses a file with a NUL byte in its first 8000 bytes as binary; Pi's behaviour for binary files was not found in its docs. Images are not read at all yet (TOOL-03).
+- `find` walks the tree with Koine's own `.gitignore` matcher instead of calling `fd`, and `grep` falls back to Go's RE2 regular expressions when `rg` is missing, so exotic patterns can differ between machines. Ignore files are honoured even outside a git repository.
+- The `edit` result carries the unified diff and the first changed line in its text instead of Pi's separate `details` object, because Koine's tools return text. The truncation hints, error messages and prompt snippets follow Pi's source as remembered; Pi's published docs only state the 2000-line and 50KB limits and the `promptSnippet`/`promptGuidelines` rules, so the exact wording is unverified.
+- `grep`, `find` and `ls` are registered but off by default, as in Pi; Koine hides them instead of removing them, so sub-agents (which Pi does not have) can still be given them.
+- `!cmd` is disabled in print, JSON and server runs, where text from a pipe or the network must not become a shell command. `!!cmd` is not saved in the session; Pi keeps it for display.

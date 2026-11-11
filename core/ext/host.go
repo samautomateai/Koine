@@ -14,7 +14,7 @@
 //
 // Extension -> host notifications:
 //
-//	register_tool    {name, description, schema}
+//	register_tool    {name, description, schema, promptSnippet?, promptGuidelines?}
 //	register_command {name, description}
 //	register_flag    {name, description, type: "boolean"|"string", default}
 //	log              {level, message}
@@ -266,6 +266,8 @@ func (p *Proc) notify(m msg) {
 		var t struct {
 			Name, Description string
 			Schema            json.RawMessage
+			PromptSnippet     string
+			PromptGuidelines  []string
 		}
 		if json.Unmarshal(m.Params, &t) != nil || t.Name == "" {
 			return
@@ -273,7 +275,7 @@ func (p *Proc) notify(m msg) {
 		if len(t.Schema) == 0 {
 			t.Schema = json.RawMessage(`{"type":"object","properties":{}}`)
 		}
-		h.Tools.Register(&procTool{p: p, name: t.Name, desc: t.Description, schema: t.Schema})
+		h.Tools.Register(&procTool{p: p, name: t.Name, desc: t.Description, schema: t.Schema, snippet: t.PromptSnippet, guidelines: t.PromptGuidelines})
 	case "register_command":
 		var c struct{ Name, Description string }
 		if json.Unmarshal(m.Params, &c) == nil && c.Name != "" {
@@ -444,8 +446,13 @@ type procTool struct {
 	p          *Proc
 	name, desc string
 	schema     json.RawMessage
+	snippet    string   // promptSnippet: the one-line entry in the system prompt's tool list
+	guidelines []string // promptGuidelines: rule bullets while the tool is active
 	callSeq    atomic.Int64
 }
+
+func (t *procTool) PromptSnippet() string      { return t.snippet }
+func (t *procTool) PromptGuidelines() []string { return t.guidelines }
 
 func (t *procTool) Name() string            { return t.name }
 func (t *procTool) Description() string     { return t.desc }

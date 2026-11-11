@@ -162,13 +162,13 @@ func TestToolOptionsEndToEnd(t *testing.T) {
 			}
 		}
 	}
-	check([]string{"read", "bash", "grep"}, []string{"write"}, "-xt", "write")
+	check([]string{"read", "bash", "edit"}, []string{"write", "grep"}, "-xt", "write")
 	check([]string{"read"}, []string{"write", "bash", "edit"}, "-xt", "WRITE", "-xt", "b*,e?it")
-	check([]string{"read", "grep"}, []string{"bash", "write", "edit", "ls", "glob"}, "-t", "r*,gr?p")
+	check([]string{"read", "grep"}, []string{"bash", "write", "edit", "ls", "find"}, "-t", "r*,gr?p")
 	check([]string{"read", "grep"}, []string{"grep2", "bash"}, "-t", "read,grep", "-xt", "bash")
-	check([]string{"read", "bash"}, []string{"write", "edit"}, "-t", "-write,-edit,-ls,-glob,-grep")
-	check([]string{"read", "bash", "write", "edit", "grep"}, []string{"ls"}, "-t", "-ls,+read")
-	check(nil, []string{"read", "bash", "write", "edit", "grep", "ls", "glob"}, "-nbt")
+	check([]string{"read", "bash"}, []string{"write", "edit"}, "-t", "-write,-edit,-ls,-find,-grep")
+	check([]string{"read", "bash", "write", "edit"}, []string{"ls", "grep"}, "-t", "-ls,+read")
+	check(nil, []string{"read", "bash", "write", "edit", "grep", "ls", "find"}, "-nbt")
 	check(nil, []string{"read", "bash"}, "-nt", "-xt", "nothing")
 	check([]string{"read"}, []string{"bash"}, "-nbt", "-t", "read")
 }

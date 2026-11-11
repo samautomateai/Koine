@@ -111,6 +111,7 @@ func runPrint(ctx context.Context, a *app.App, prompt string, images []llm.Block
 			fmt.Fprintln(st.Err, "koine: error:", e.Text)
 		}
 	}
+	a.NoUserBash = true
 	_, err := a.HandleInputImages(ctx, prompt, images, emit)
 	if js != nil {
 		js.Finish(ctx.Err() != nil)

@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"koine/core/agents"
 	"koine/core/compact"
@@ -88,18 +87,7 @@ func (a *Agent) dispatch(ctx context.Context, name string, payload any) events.D
 
 func (a *Agent) systemPrompt(ctx context.Context) string {
 	var b strings.Builder
-	if a.Base != "" {
-		b.WriteString(a.Base)
-	} else {
-		b.WriteString(defaultBase)
-	}
-	fmt.Fprintf(&b, "\n\nWorking directory: %s\nDate: %s\n", a.Cwd, time.Now().Format("2006-01-02"))
-	for _, c := range a.ContextFiles {
-		b.WriteString("\n" + c + "\n")
-	}
-	if s := skills.PromptSection(a.Skills); s != "" {
-		b.WriteString("\n" + s + "\n")
-	}
+	b.WriteString(a.basePrompt())
 	if a.depth == 0 && len(a.Defs) > 0 {
 		b.WriteString("\nSub-agents available through the `task` tool:\n")
 		for _, d := range a.Defs {

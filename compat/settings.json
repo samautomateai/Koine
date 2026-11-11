@@ -365,12 +365,16 @@
     {
       "key": "shellPath",
       "type": "string",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestShellSettingsReachTheBashToolAndUserBash",
+      "note": "The shell for bash and !cmd; a leading ~ expands (TestShellPathAndCommandPrefix). Like other code-running settings it only applies from the user file or a trusted project (TestUntrustedProjectCannotChooseTheShell)."
     },
     {
       "key": "shellCommandPrefix",
       "type": "string",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestShellSettingsReachTheBashToolAndUserBash",
+      "note": "Put on its own line before every bash command and !cmd. User file or trusted project only."
     },
     {
       "key": "npmCommand",

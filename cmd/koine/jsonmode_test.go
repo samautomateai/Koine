@@ -51,7 +51,8 @@ func TestJSONModeFollowsPisEventStream(t *testing.T) {
 	want := strings.Join([]string{
 		"session", "agent_start", "turn_start", "message_start:user", "message_end:user", "entry_appended",
 		"message_start:assistant", "message_update:toolcall_start", "message_update:toolcall_delta", "message_update:toolcall_end", "message_end:assistant",
-		"entry_appended", "tool_execution_start", "tool_execution_end", "message_start:toolResult", "message_end:toolResult", "entry_appended", "turn_end",
+		"entry_appended", "tool_execution_start", "tool_execution_update", "tool_execution_end", "message_start:toolResult", "message_end:toolResult",
+		"entry_appended", "turn_end",
 		"turn_start", "message_start:assistant", "message_update:text_start", "message_update:text_delta", "message_update:text_end", "message_end:assistant",
 		"entry_appended", "turn_end", "agent_end", "agent_settled"}, " ")
 	if got := strings.Join(kinds(recs), " "); got != want {
