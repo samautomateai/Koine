@@ -75,7 +75,7 @@ func TestRoundTripKeepsToolCallsAndResultsTogether(t *testing.T) {
 
 const piFile = `{"type":"session","version":3,"id":"abc12345-0000-4000-8000-000000000000","cwd":"/p"}
 {"type":"message","id":"a1","parentId":null,"message":{"role":"user","content":"first question","timestamp":1}}
-{"type":"message","id":"a2","parentId":"a1","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"first answer"}]}}
+{"type":"message","id":"a2","parentId":"a1","message":{"role":"assistant","content":[{"type":"thinking","thinking":"h"},{"type":"text","text":"first answer"}]}}
 {"type":"message","id":"a3","parentId":"a2","message":{"role":"user","content":[{"type":"text","text":"second question"},{"type":"image","data":"x"}]}}
 {"type":"message","id":"a4","parentId":"a3","message":{"role":"custom","customType":"x","content":"hook"}}
 {"type":"label","id":"a5","parentId":"a4","targetId":"a1","label":"start"}
