@@ -236,11 +236,39 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Statement: Extension dialogs (`select`, `confirm`, `input`) and text status surfaces reach the active frontend; `ctx.mode` and `ctx.hasUI` are truthful; shim exports match upstream so extensions never fail to link. Gap rows EXT-07, 24..26, 28.
 - Design: none yet
 
-### REQ-TOOL-001 — Built-in tool parity
+### REQ-TOOL-001 — Built-in tool parity, what remains
 
 - Status: planned
-- Statement: `read`, `edit`, `bash`, `grep`, `find`, `ls` match Pi's behaviour: tail-truncated bash output with a saved full log, multi-edit with fuzzy matching and line-ending preservation, `.gitignore`-aware search, `find` by that name. Gap rows TOOL-01..22.
+- Statement: The built-in tools match Pi where Pi's docs and behaviour could be checked (REQ-TOOL-002..005). Still open: `read` of images with resizing and a model-support check (TOOL-03), the Windows `powershell` tool (TOOL-16), the `user_bash` extension event, and rendering of tool updates in the frontends.
 - Design: none yet
+
+### REQ-TOOL-002 — File tools: read, write, edit, ls
+
+- Status: implemented
+- Statement: `read` returns plain text (no line numbers), cut at 2000 lines or 50KB with a hint to continue with `offset=N`, reports a first line over the limit, a missing file, a binary file and an offset past the end, and drops a BOM. `write` creates parent directories. `edit` takes `edits[]` (older single `oldText`/`newText` and `old`/`new` still work), matches every `oldText` against the original file, refuses missing, duplicate and overlapping matches, falls back to fuzzy matching (smart quotes, dashes, unusual spaces, trailing whitespace), keeps the BOM and the CRLF or LF endings, changes nothing when any edit fails, and returns a unified diff with the first changed line. `edit` and `write` on one file run one after the other (symlink aliases share a queue). `ls` is sorted without regard to case, marks directories with `/`, includes dotfiles and stops at 500 entries. Paths accept `~`, a leading `@`, unicode spaces, and macOS screenshot and curly-apostrophe spellings. Gap rows TOOL-01, 02, 04, 07..11, 19, 20.
+- Design: DES-040
+- Tests: TestReadReturnsPlainTextWithoutLineNumbers; TestReadLimitSaysHowToContinue; TestReadTruncatesAt2000LinesAndSaysWhereToContinue; TestReadTruncatesAt50KB; TestReadFirstLineOverTheByteLimit; TestReadErrors; TestReadDropsABOMAndExpandsHome; TestWriteCreatesParentsAndOverwrites; TestApplyEditsMatchesAgainstTheOriginal; TestApplyEditsErrors; TestApplyEditsFuzzyMatching; TestLineEndingAndBOMHelpers; TestEditToolMultiEditDiffAndFirstChangedLine; TestEditToolKeepsBOMAndCRLF; TestEditToolAcceptsOlderArgumentShapes; TestEditToolErrorsLeaveTheFileAlone; TestEditAndWriteInParallelAreSerialisedPerFile; TestFileMutationQueueSerialisesOneFile; TestFileMutationQueueSharesSymlinkAliasesAndSeparatesFiles; TestUnifiedDiff; TestUnifiedDiffOfAHugeChangeFallsBackToOneBlock; TestExpandAndResolvePath; TestResolveReadPathFindsMacOSAndCurlyNames; TestLs; TestLsIsCappedAt500Entries; TestTruncateHead; TestTruncateTail; TestTruncateLine; TestFormatSize
+
+### REQ-TOOL-003 — Search tools: grep, find
+
+- Status: implemented
+- Statement: `grep` takes `pattern`, `path`, `glob`, `ignoreCase`, `literal`, `context` and `limit` (100), prints `path:line: text` with context as `path-line- text`, cuts lines at 500 characters, stops at 50KB and says which limit was reached. It uses ripgrep when `rg` is installed and a Go search with the same options otherwise; both respect `.gitignore`, include dotfiles and skip `.git` and binary files. `find` (formerly `glob`, still accepted as a name) matches a glob (with `**`, `?`, `[…]`, `{a,b}`) against names or paths, respects `.gitignore` files of the tree and of the parent directories up to the repository root, includes dotfiles, marks directories with `/` and stops at 1000 results. Gap rows TOOL-17, 18.
+- Design: DES-040
+- Tests: TestFind; TestFindHonoursGitignoreInNestedAndParentDirectories; TestGrepGoFallback; TestGrepContextAndSeparators; TestGrepLimitAndLineCap; TestGrepByteLimit; TestGrepWithRipgrep; TestGrepWithRipgrepErrors; TestGrepUsesTheRealRipgrepWhenInstalled; TestIgnorePatterns; TestBraceExpansion
+
+### REQ-TOOL-004 — bash: truncation, abort, shell settings and user commands
+
+- Status: implemented
+- Statement: `bash` returns the last 2000 lines or 50KB of the combined output with a note that names a temp file holding the whole output, strips terminal escapes, enforces a timeout (default 120 seconds), kills the shell and everything it started on timeout or abort, reports partial output through the tool-update callback while it runs, and runs under `shellPath` with `shellCommandPrefix` put before the command. Those two settings, like other code-running settings, apply only from the user file or a trusted project. In interactive frontends `!cmd` runs a command and adds its output to the conversation, `!!cmd` runs it without telling the model; print, JSON and server runs treat such text as an ordinary prompt. Gap rows TOOL-12..15, CMD-03.
+- Design: DES-040
+- Tests: TestBashRunsInTheWorkingDirectoryAndReportsFailures; TestBashTimeoutKillsTheWholeProcessTree; TestBashAbortKillsTheCommand; TestBashKeepsTheTailAndSavesTheFullOutput; TestBashByteLimitAndALongLastLine; TestBashOutputBeyondTheMemoryWindowStillReachesTheFile; TestBashStripsTerminalEscapes; TestBashReportsPartialOutputWhileRunning; TestShellPathAndCommandPrefix; TestShellErrors; TestUserBashHasNoDefaultTimeout; TestFormatShellResult; TestShellSettingsReachTheBashToolAndUserBash; TestUntrustedProjectCannotChooseTheShell; TestUserBashAddsOutputToTheConversation; TestDoubleBangRunsWithoutTellingTheModel; TestUserBashCanBeCancelledAndSwitchedOff
+
+### REQ-TOOL-005 — Default tools and a structured system prompt
+
+- Status: implemented
+- Statement: `read`, `bash`, `edit` and `write` are the tools offered by default; `grep`, `find` and `ls` are registered but off until `-t`, `+name` or `defaultTools` names them. A tool definition may carry `promptSnippet` (one line in the system prompt's `<tools>` section) and `promptGuidelines` (bullets in `<rules>`, only while the tool is active); extension tools registered through the sidecar pass both on. The default system prompt is the preamble, `<tools>`, `<rules>`, `<project_context>`, the skills and `<environment>` (working directory and date); a custom `SYSTEM.md` replaces the preamble, `<tools>` and `<rules>`. Gap rows TOOL-21, 22, SYS-01.
+- Design: DES-040
+- Tests: TestBuiltinsAreTheSevenPiTools; TestDefaultToolsAreReadBashEditWrite; TestToolSelectionCombinesSettingAndOptions; TestPromptPartsListSnippetsAndDedupeGuidelines; TestSystemPromptHasToolsRulesAndEnvironmentSections; TestSystemPromptRulesFollowTheActiveTools; TestCustomBaseReplacesThePreambleAndToolSections; TestAddUserContextIsPersistedAndSentToTheModel; TestRegisteredToolsCarryPromptSnippetAndGuidelines; TestFilteredAndCanon
 
 ## Tracking upstream Pi
 

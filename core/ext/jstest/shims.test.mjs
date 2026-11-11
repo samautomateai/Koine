@@ -98,7 +98,8 @@ for (const rt of runtimes) {
       "pi.mjs",
       `
       export default function (pi) {
-        pi.registerTool({ name: "t1", description: "d", parameters: { type: "object", properties: { x: { type: "string" } } },
+        pi.registerTool({ name: "t1", description: "d", promptSnippet: "Gets t1", promptGuidelines: ["Use t1 for t1.", 7],
+          parameters: { type: "object", properties: { x: { type: "string" } } },
           async execute(id, p) { return { content: [{ type: "text", text: "got " + p.x + " " + id }] }; } });
         pi.registerCommand("cmd", { description: "c", handler: async (args, ctx) => { ctx.ui.notify("notified " + args); } });
         pi.on("tool_call", async (e) => e.toolName === "bash" ? { block: true, reason: "no bash" } : undefined);
@@ -140,7 +141,10 @@ for (const rt of runtimes) {
     assert.equal(r[10].result.systemAppend, "PI-EXTRA");
     assert.deepEqual(r[11].result, {});
     assert.equal(r[12].error.code, -32601);
-    assert.ok(notes.some((n) => n.method === "register_tool" && n.params.name === "t1"));
+    const t1 = notes.find((n) => n.method === "register_tool" && n.params.name === "t1");
+    assert.ok(t1);
+    assert.equal(t1.params.promptSnippet, "Gets t1");
+    assert.deepEqual(t1.params.promptGuidelines, ["Use t1 for t1."]);
     assert.ok(notes.some((n) => n.method === "register_command" && n.params.name === "cmd"));
     assert.ok(notes.some((n) => n.method === "log" && /handler bug/.test(n.params.message)));
   });

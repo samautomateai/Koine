@@ -9,13 +9,25 @@ import (
 // isAdjustment says whether a tool-list entry is a "+name" or "-name" change to a selection rather than a plain name.
 func isAdjustment(e string) bool { return strings.HasPrefix(e, "+") || strings.HasPrefix(e, "-") }
 
-// builtinNames lists the tools Koine ships (read, write, edit, bash, ls, glob, grep).
+// builtinNames lists the tools Koine ships (read, bash, edit, write, grep, find, ls).
 func (a *App) builtinNames() map[string]bool {
 	b := tools.NewRegistry()
 	tools.RegisterBuiltins(b, a.Cwd)
 	set := map[string]bool{}
 	for _, n := range b.Names() {
 		set[n] = true
+	}
+	return set
+}
+
+// withoutOptional is every tool except the built-ins that are off by default (grep, find, ls).
+func withoutOptional(all []string) map[string]bool {
+	set := map[string]bool{}
+	for _, n := range all {
+		set[n] = true
+	}
+	for _, n := range tools.OptionalBuiltins() {
+		delete(set, n)
 	}
 	return set
 }
@@ -64,13 +76,11 @@ func (a *App) defaultSelection(spec []string) map[string]bool {
 			plain = append(plain, e)
 		}
 	}
-	set := map[string]bool{}
+	var set map[string]bool
 	if len(plain) > 0 {
 		set = matching(all, plain)
 	} else {
-		for _, n := range all {
-			set[n] = true
-		}
+		set = withoutOptional(all)
 		if len(spec) == 0 {
 			for n := range a.builtinNames() {
 				delete(set, n)
@@ -89,10 +99,12 @@ func (a *App) defaultSelection(spec []string) map[string]bool {
 //	                              and "-t +name,-name" entries adjust it
 //	-xt a,b                       always applied last, to whatever was selected
 //
-// With no tool options and no defaultTools setting the registry is offered as it is, so tools that arrive later stay visible.
+// With no tool options and no defaultTools setting the registry is offered as it is, apart from grep, find and ls, which Pi leaves off
+// by default; they are hidden rather than removed, so tools that arrive later stay visible.
 func (a *App) selectTools() {
 	o, l := a.opts, a.opts.Load
 	if !o.NoTools && len(o.Tools) == 0 && !l.NoBuiltinTools && len(l.ExcludeTools) == 0 && a.Cfg.DefaultTools == nil {
+		a.Tools.Hide(tools.OptionalBuiltins()...)
 		return
 	}
 	all := a.Tools.Names()
@@ -111,13 +123,10 @@ func (a *App) selectTools() {
 	case len(plain) > 0:
 		set = matching(all, plain)
 	default:
-		set = map[string]bool{}
 		if a.Cfg.DefaultTools != nil {
 			set = a.defaultSelection(a.Cfg.DefaultTools)
 		} else {
-			for _, n := range all {
-				set[n] = true
-			}
+			set = withoutOptional(all)
 		}
 		if l.NoBuiltinTools {
 			for n := range a.builtinNames() {

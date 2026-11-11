@@ -15,7 +15,7 @@ func TestParseTools(t *testing.T) {
 		{"", nil, nil},
 		{"Read, Grep, MultiEdit", []string{"read", "grep", "edit"}, nil},
 		{"[Read, Bash]", []string{"read", "bash"}, nil},
-		{"- Read\n- Glob", []string{"read", "glob"}, nil},
+		{"- Read\n- Glob", []string{"read", "find"}, nil},
 		{"write: false\nedit: false\nbash: true", []string{"bash"}, []string{"write", "edit"}},
 		{"write: false\nedit: false", nil, []string{"write", "edit"}},
 		{"WebSearch", nil, nil}, // unsupported tools map to nothing

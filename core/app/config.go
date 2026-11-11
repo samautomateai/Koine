@@ -29,6 +29,9 @@ type Config struct {
 	SessionDir      string   `json:"sessionDir,omitempty"`
 	DefaultTools    []string `json:"defaultTools,omitempty"`
 	EnabledModels   []string `json:"enabledModels,omitempty"` // patterns, as for --models
+	// Shell the bash tool and !cmd use. Both run code, so only the user file and trusted projects set them.
+	ShellPath          string `json:"shellPath,omitempty"`
+	ShellCommandPrefix string `json:"shellCommandPrefix,omitempty"`
 	// Session tree settings (Pi names). Only the user file and trusted projects set them.
 	BranchSummary      BranchSummaryConfig `json:"branchSummary,omitempty"`
 	TreeFilterMode     string              `json:"treeFilterMode,omitempty"`
@@ -111,6 +114,12 @@ func mergeConfig(dst *Config, src Config) {
 	if src.SessionDir != "" {
 		dst.SessionDir = src.SessionDir
 	}
+	if src.ShellPath != "" {
+		dst.ShellPath = src.ShellPath
+	}
+	if src.ShellCommandPrefix != "" {
+		dst.ShellCommandPrefix = src.ShellCommandPrefix
+	}
 	if src.TreeFilterMode != "" {
 		dst.TreeFilterMode = src.TreeFilterMode
 	}
@@ -170,6 +179,12 @@ func mergeConfig(dst *Config, src Config) {
 // credentials — what an untrusted project is not allowed to contribute.
 func (c Config) codeCount() int {
 	n := len(c.Extensions) + len(c.Plugin) + len(c.Providers)
+	if c.ShellPath != "" {
+		n++
+	}
+	if c.ShellCommandPrefix != "" {
+		n++
+	}
 	for _, es := range c.Hooks {
 		n += len(es)
 	}

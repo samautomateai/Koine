@@ -129,6 +129,9 @@ Unknown methods must be answered with error `-32601`.
 | `log`               | `{level, message}`            | shown with `KOINE_DEBUG=1`                                                          |
 | `send_user_message` | `{text}`                      | injects a user message                                                              |
 
+`register_tool` may also carry `promptSnippet` (a string, one line for the system prompt's `<tools>` section) and `promptGuidelines`
+(an array of strings, bullets for `<rules>` while the tool is active). Both are optional; `ext.TestRegisteredToolsCarryPromptSnippetAndGuidelines`.
+
 `initialize` must complete within 30 s. If the process exits mid-call, pending
 calls fail with `extension exited` (no hangs). A 25-line Python reference
 implementation is in `core/app/testdata/proj/.koine/extensions/pyext/ext.py`.
@@ -206,7 +209,7 @@ treated as opencode hooks.
 | `auth`, `config`, `permission.ask`, `chat.params`, `chat.headers`, other events | ❌ ignored                                                                     |
 
 Tool-name mapping: koine built-ins are lower-case (`bash`, `read`, `write`, `edit`,
-`ls`, `glob`, `grep`) matching Pi/opencode; hooks see Claude names (§4).
+`grep`, `find`, `ls`) matching Pi; hooks see Claude names (§4, `find` is `Glob`).
 
 _Verified by:_ `jstest/shims.test.mjs` (8 tests, run under Node **and** Bun),
 `app.TestEverythingWorksTogether`, `cmd/koine.TestEndToEndPrompt`,
@@ -214,18 +217,43 @@ _Verified by:_ `jstest/shims.test.mjs` (8 tests, run under Node **and** Bun),
 
 ## 6. Built-in tools
 
-`read`(path, offset, limit) · `write`(path, content) · `edit`(path, old, new,
-replaceAll) · `bash`(command, timeout) · `ls` · `glob`(pattern, path) ·
-`grep`(pattern, path, glob) · `skill`(name) · `task`(agent, prompt).
+Seven tools, as in Pi (REQ-TOOL-002..005). `read`, `bash`, `edit` and `write` are offered by default; `grep`, `find` and `ls` are registered
+and offered once `-t`, `+name` or the `defaultTools` setting names them. `skill`(name) and `task`(agent, prompt) are Koine's own.
 `read` of a PNG, JPEG, GIF, WebP or BMP file (found by content, not name) attaches the image to the result (REQ-LLM-006).
-Output over 30 000 bytes is middle-truncated. `edit` requires `old` to match
-exactly once unless `replaceAll`. `bash` defaults to a 120 s timeout. `glob` and
-`grep` skip `.git` and `node_modules`; `grep` skips binary files and caps at 200 hits.
+Paths in every tool accept `~`, a leading `@`, unicode spaces, and (for `read`) macOS screenshot and curly-apostrophe spellings.
+Every tool that returns a list or a file stops at **2000 lines or 50KB, whichever comes first**, and says what was cut and how to get the rest.
+
+| Tool    | Arguments                                                              | Behaviour                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`  | `path`, `offset` (1-based line), `limit`                               | Plain text. Over the limit: `[Showing lines 1-2000 of N. Use offset=2001 to continue.]`. Errors for missing, binary, offset past the end.      |
+| `write` | `path`, `content`                                                      | Creates parent directories. Held in the file's mutation queue.                                                                                 |
+| `edit`  | `path`, `edits: [{oldText, newText}]`                                  | Exact, unique, non-overlapping matches against the original; fuzzy fallback; BOM and CRLF kept; all or nothing; the result has a unified diff. |
+| `bash`  | `command`, `timeout` (seconds, default 120)                            | Tail of the output; the full output is in a temp file named in the result; the process group is killed on timeout or abort.                    |
+| `grep`  | `pattern`, `path`, `glob`, `ignoreCase`, `literal`, `context`, `limit` | `path:line: text` (context `path-line- text`), 100 matches, 500-char lines. ripgrep when installed, otherwise a Go search.                     |
+| `find`  | `pattern` (glob), `path`, `limit`                                      | Relative paths, directories end in `/`, 1000 results. `glob` is accepted as an alias for the name.                                             |
+| `ls`    | `path`, `limit`                                                        | Sorted without regard to case, directories end in `/`, dotfiles included, 500 entries.                                                         |
+
+`edit` also accepts a single top-level `oldText`/`newText` (or `old`/`new`); `replaceAll` no longer exists. `grep`, `find` and the Go search respect
+`.gitignore` files in the tree and in the parent directories up to the repository root, include dotfiles and never enter `.git`.
+
+**`bash` details.** The shell is `shellPath` (default `/bin/bash`, else `bash` or `sh` on the PATH), run as `<shell> -c "<shellCommandPrefix>\n<command>"`.
+Both settings follow Pi's names and apply only from the user settings file or a trusted project. Output has terminal escapes stripped. While the
+command runs, the tail of its output goes to the tool-update callback (`tools.Updates`, JSON mode `tool_execution_update`).
+
+**Prompt metadata.** A tool may carry `promptSnippet` (one line for the `<tools>` section of the system prompt) and `promptGuidelines`
+(bullets for `<rules>`, only while the tool is active). Extension tools registered through the sidecar or the protocol's `register_tool` pass both.
+The default prompt is the preamble, `<tools>`, `<rules>`, `<project_context>`, the skills and `<environment>`; a `SYSTEM.md` or sub-agent prompt
+replaces the preamble, `<tools>` and `<rules>`.
+
+**User commands.** In an interactive frontend a line starting with `!` runs a shell command with the same shell settings and no timeout:
+`!cmd` shows the output and adds it to the conversation as a user message ("Ran `cmd`" and the output), `!!cmd` only shows it. Print, JSON and
+server runs do not do this (`App.NoUserBash`): the text is an ordinary prompt.
 
 ## 7. Slash commands
 
 `/help /clear /exit /quit /tools /skills /agents /commands /model [id[:level]] /thinking [level]`,
 `/skill:<name> [args]`, extension commands (§3.3), then prompt templates (§1).
+`!<command>` and `!!<command>` run a shell command (§6, user commands).
 Anything else is a prompt to the model. Slash commands never reach the model
 unless they expand to a prompt or skill.
 

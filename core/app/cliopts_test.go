@@ -174,18 +174,18 @@ func TestToolSelectionCombinesSettingAndOptions(t *testing.T) {
 		o     Options
 		want  string
 	}{
-		{"nothing set", nil, Options{}, "bash,edit,glob,grep,ls,read,write"},
-		{"exclude by pattern", nil, Options{Load: LoadOptions{ExcludeTools: []string{"w*", "BASH"}}}, "edit,glob,grep,ls,read"},
+		{"nothing set", nil, Options{}, "bash,edit,read,write"},
+		{"exclude by pattern", nil, Options{Load: LoadOptions{ExcludeTools: []string{"w*", "BASH"}}}, "edit,read"},
 		{"setting then exclude", map[string]string{".koine/settings.json": `{"defaultTools":["read","grep","bash"]}`},
 			Options{Load: LoadOptions{ExcludeTools: []string{"bash"}}}, "grep,read"},
 		{"no builtin with a setting that has plain names", map[string]string{".koine/settings.json": `{"defaultTools":["read"]}`},
 			Options{Load: LoadOptions{NoBuiltinTools: true}}, ""},
-		{"setting adjustments", map[string]string{".koine/settings.json": `{"defaultTools":["-bash","-w*"]}`}, Options{}, "edit,glob,grep,ls,read"},
+		{"setting adjustments", map[string]string{".koine/settings.json": `{"defaultTools":["-bash","-w*"]}`}, Options{}, "edit,read"},
 		{"-t adjustments apply to the setting", map[string]string{".koine/settings.json": `{"defaultTools":["read","grep"]}`},
 			Options{RunOptions: RunOptions{Tools: []string{"+ls", "-read"}}}, "grep,ls"},
 		{"-t beats -nbt", nil, Options{RunOptions: RunOptions{Tools: []string{"read"}}, Load: LoadOptions{NoBuiltinTools: true}}, "read"},
 		{"-nt beats -t", nil, Options{RunOptions: RunOptions{NoTools: true, Tools: []string{"read"}}}, ""},
-		{"unmatched entries change nothing", nil, Options{RunOptions: RunOptions{Tools: []string{"+nosuch", "-nosuch*"}}}, "bash,edit,glob,grep,ls,read,write"},
+		{"unmatched entries change nothing", nil, Options{RunOptions: RunOptions{Tools: []string{"+nosuch", "-nosuch*"}}}, "bash,edit,read,write"},
 	}
 	for _, c := range cases {
 		if got := names(startApp(t, c.o, c.files)); got != c.want {

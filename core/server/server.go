@@ -50,6 +50,7 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "data: %s\n\n", b)
 		fl.Flush()
 	}
+	s.App.NoUserBash = true // text from the network is a prompt, never a shell command
 	// The request context cancels the run if the client disconnects.
 	if _, err := s.App.HandleInput(r.Context(), req.Text, emit); err != nil {
 		emit(agent.Event{Type: "error", Text: err.Error()})

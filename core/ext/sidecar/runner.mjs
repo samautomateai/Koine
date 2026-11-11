@@ -293,6 +293,8 @@ function makeApi() {
         name: def.name,
         description: def.description ?? def.label ?? "",
         schema: def.parameters ?? { type: "object", properties: {} },
+        promptSnippet: typeof def.promptSnippet === "string" ? def.promptSnippet : undefined,
+        promptGuidelines: Array.isArray(def.promptGuidelines) ? def.promptGuidelines.filter((g) => typeof g === "string") : undefined,
       });
     },
     registerCommand(name, opts = {}) {
