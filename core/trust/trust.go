@@ -5,6 +5,7 @@ package trust
 
 import (
 	"encoding/json"
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ type Store struct {
 }
 
 func Open(home string) *Store {
-	s := &Store{path: filepath.Join(home, ".koine", "trust.json")}
+	s := &Store{path: filepath.Join(agentdir.Of(home), "trust.json")}
 	if home == "" {
 		return s
 	}

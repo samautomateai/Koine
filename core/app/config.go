@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"koine/compat"
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -164,8 +165,8 @@ func LoadConfigScoped(cwd, home string) (user, project Config, used []string) {
 	if home != "" {
 		read(&user, filepath.Join(home, ".claude", "settings.json"), true)
 		read(&user, filepath.Join(home, ".config", "opencode", "opencode.json"), false)
-		read(&user, filepath.Join(home, ".koine", "config.json"), false) // the older name of settings.json
-		read(&user, filepath.Join(home, ".koine", "settings.json"), false)
+		read(&user, filepath.Join(agentdir.Of(home), "config.json"), false) // the older name of settings.json
+		read(&user, filepath.Join(agentdir.Of(home), "settings.json"), false)
 	}
 	read(&project, filepath.Join(cwd, ".claude", "settings.json"), true)
 	read(&project, filepath.Join(cwd, "opencode.json"), false)
@@ -193,7 +194,7 @@ func SettingsDiagnostics(cwd, home string) []string {
 	files := []struct {
 		path    string
 		project bool
-	}{{filepath.Join(home, ".koine", "config.json"), false}, {filepath.Join(home, ".koine", "settings.json"), false},
+	}{{filepath.Join(agentdir.Of(home), "config.json"), false}, {filepath.Join(agentdir.Of(home), "settings.json"), false},
 		{filepath.Join(cwd, ".koine", "config.json"), true}, {filepath.Join(cwd, ".koine", "settings.json"), true}}
 	for _, f := range files {
 		if home == "" && !f.project {

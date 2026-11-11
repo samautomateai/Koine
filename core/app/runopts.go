@@ -36,6 +36,7 @@ func textOrFile(s string) string {
 
 func (a *App) applyRunOptions() {
 	o := a.opts
+	a.applyPromptFiles()
 	if o.System != "" {
 		a.Agent.Base = textOrFile(o.System)
 	}

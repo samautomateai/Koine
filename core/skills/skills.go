@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,7 +56,7 @@ func roots(cwd, home string) []root {
 	}
 	if home != "" {
 		r = append(r,
-			root{filepath.Join(home, ".koine", "skills"), true},
+			root{filepath.Join(agentdir.Of(home), "skills"), true},
 			root{filepath.Join(home, ".pi", "agent", "skills"), true},
 			root{filepath.Join(home, ".agents", "skills"), false},
 			root{filepath.Join(home, ".config", "opencode", "skill"), false},
