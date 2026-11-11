@@ -228,7 +228,7 @@ Piped stdin is put before the message. @file arguments are included as <file> bl
 
   -p, --print                  run non-interactively (default when stdin or stdout is not a terminal)
       --mode text|json         text: final answer on stdout (default); json: one event per line on stdout
-      --model PATTERN[:LEVEL] model: an id, provider/id or part of an id or name; :LEVEL sets the thinking level
+      --model ID[:LEVEL]       model: an id, provider/id or part of an id or name; :LEVEL sets the thinking level
       --thinking LEVEL         thinking level: off, minimal, low, medium, high, xhigh or max (beats a :LEVEL suffix and the settings)
       --provider NAME          look --model up in this provider only (needs --model)
       --models P1,P2           models to start with: ids, fuzzy names or globs; the first is used when no model is set (or enabledModels)

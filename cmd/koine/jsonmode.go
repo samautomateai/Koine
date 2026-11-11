@@ -151,6 +151,11 @@ func (j *jsonStream) assistant(m llm.Message, now int64) {
 	for _, b := range m.Content {
 		i := len(blocks)
 		switch b.Type {
+		case "thinking":
+			blocks = append(blocks, map[string]any{"type": "thinking", "thinking": b.Thinking})
+			upd(rec("thinking_start", "contentIndex", i))
+			upd(rec("thinking_delta", "contentIndex", i, "delta", b.Thinking))
+			upd(rec("thinking_end", "contentIndex", i, "content", b.Thinking))
 		case "text":
 			blocks = append(blocks, map[string]any{"type": "text", "text": b.Text})
 			upd(rec("text_start", "contentIndex", i))

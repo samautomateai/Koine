@@ -39,7 +39,7 @@ func warned(a *App, substr string) bool {
 func TestResolveModelMatchesIdsNamesAndProviders(t *testing.T) {
 	a := startApp(t, Options{}, nil)
 	good := map[string]string{
-		"claude-sonnet-5-5":         "anthropic/claude-sonnet-5-5", // an id the catalog lists is exact
+		"claude-sonnet-5-5":         "claude-sonnet-5-5", // an id the catalog lists is kept as written
 		"CLAUDE-HAIKU-5-5":          "anthropic/claude-haiku-5-5",
 		"sonnet":                    "anthropic/claude-sonnet-5-5",
 		"Sonnet 5.5":                "anthropic/claude-sonnet-5-5",

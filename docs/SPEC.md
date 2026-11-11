@@ -251,7 +251,7 @@ and `Describe()`. `emit` receives `agent.Event`:
   extension (`pi.registerFlag`) are `--name` (boolean) or `--name VALUE` / `--name=VALUE` (string); other unknown options exit 2.
 - **JSON event stream** (REQ-CLI-003): `--mode json` writes one record per line: `{"type":"session","version":3,"id","timestamp","cwd"}`, then
   `agent_start`, `turn_start`, `message_start`/`message_end` (user), the assistant `message_start`, `message_update` records
-  (`assistantMessageEvent` `text_start|text_delta|text_end|toolcall_start|toolcall_delta|toolcall_end`), `message_end`, `tool_execution_start`
+  (`assistantMessageEvent` `text_*`, `thinking_*` and `toolcall_*` with `start|delta|end`), `message_end`, `tool_execution_start`
   `{toolCallId,toolName,args}`, `tool_execution_end` `{toolCallId,toolName,result,isError,durationMs}`, the `toolResult` messages, `turn_end`
   `{message,toolResults}`, and finally `agent_end` `{messages,willRetry}` and `agent_settled` `{aborted}`. Each block is one delta. Not written:
   `queue_update`, `entry_appended`, `session_info_changed`, `thinking_level_changed`, compaction and retry events.

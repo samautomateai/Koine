@@ -90,9 +90,9 @@ func TestThinkingFlagAndModelSuffixReachTheRequest(t *testing.T) {
 	if code, _, errs = cli("", "-C", dir, "--thinking", "sideways", "hi"); code != 2 || !strings.Contains(errs, "--thinking must be one of") || len(seen) != n {
 		t.Errorf("invalid level: code %d %q", code, errs)
 	}
-	// json mode forwards the thinking event
+	// json mode carries the thinking block in Pi's thinking_* records
 	code, out, _ = cli("", "-C", dir, "--mode", "json", "hi")
-	if code != 0 || !strings.Contains(out, `"type":"thinking","text":"weighing options"`) {
+	if code != 0 || !strings.Contains(out, `"type":"thinking_delta"`) || !strings.Contains(out, `"delta":"weighing options"`) {
 		t.Errorf("json mode: %d %q", code, out)
 	}
 }

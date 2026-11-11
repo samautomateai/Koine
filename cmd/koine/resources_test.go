@@ -204,7 +204,7 @@ func TestExtensionAndResourceFlags(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("%d %s", code, errs)
 	}
-	sys := api.Reqs[0]["system"].(string)
+	sys := systemText(api.Reqs[0]["system"])
 	if !has(api.toolNames(0), "from_flag_ext") {
 		t.Errorf("-e extension tool missing: %v", api.toolNames(0))
 	}
@@ -218,7 +218,7 @@ func TestExtensionAndResourceFlags(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("%d %s", code, errs)
 	}
-	sys = api.Reqs[0]["system"].(string)
+	sys = systemText(api.Reqs[0]["system"])
 	if strings.Contains(sys, "discovered skill") || strings.Contains(sys, "CONTEXT FILE TEXT") || !strings.Contains(sys, "skill from the command line") ||
 		!has(api.toolNames(0), "from_flag_ext") || has(api.toolNames(0), "discovered_tool") {
 		t.Errorf("-ns -nc -ne: tools %v system %s", api.toolNames(0), sys)
@@ -227,7 +227,7 @@ func TestExtensionAndResourceFlags(t *testing.T) {
 	if code, _, errs = cli("", "-C", dir, "--trust", "hi"); code != 0 {
 		t.Fatalf("%d %s", code, errs)
 	}
-	if sys = api.Reqs[0]["system"].(string); !strings.Contains(sys, "discovered skill") || !strings.Contains(sys, "CONTEXT FILE TEXT") ||
+	if sys = systemText(api.Reqs[0]["system"]); !strings.Contains(sys, "discovered skill") || !strings.Contains(sys, "CONTEXT FILE TEXT") ||
 		!has(api.toolNames(0), "discovered_tool") {
 		t.Errorf("trusted discovery should find the skill, the context file and the extension: %v %s", api.toolNames(0), sys)
 	}

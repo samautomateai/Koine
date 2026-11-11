@@ -185,6 +185,9 @@ func (a *App) resolveModel(pattern, provider string) (string, error) {
 	}
 	for _, c := range pool {
 		if c.ID == pattern { // exact id: keep the user's spelling
+			if _, _, err := a.router.Resolve(pattern); provider == "" && err == nil { // routable as written
+				return pattern, nil
+			}
 			return a.checked(c.full())
 		}
 	}

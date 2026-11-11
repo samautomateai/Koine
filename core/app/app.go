@@ -128,7 +128,8 @@ func (a *App) load(ctx context.Context) {
 		mergeConfig(&cfg, proj)
 	} else {
 		// harmless scalars still apply; code and credential routing do not
-		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction, LLMSettings: proj.LLMSettings, EnabledModels: proj.EnabledModels})
+		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction,
+			LLMSettings: proj.LLMSettings, EnabledModels: proj.EnabledModels})
 		skippedCode = proj.codeCount()
 	}
 	a.Cfg = cfg
