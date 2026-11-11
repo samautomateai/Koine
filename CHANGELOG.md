@@ -16,3 +16,4 @@ All notable changes. Format follows [Keep a Changelog](https://keepachangelog.co
 - Parity gap assessment against Pi 1.5.2 (222 behaviours) with prioritised phases and eight planned requirements.
 - UI modules pin fixed floors for vulnerable transitive dependencies (x/net, x/text).
 - Dependabot opens one grouped PR per ecosystem per month (majors stay separate).
+- Go 1.27.4 is the toolchain in all modules; CI reads it from go.mod.
