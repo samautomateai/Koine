@@ -65,31 +65,41 @@ _Verified by:_ `skills.TestDiscoverAcrossEcosystems`, `prompts.TestDiscoverAndEx
 
 ## 2. Event model
 
-Eight canonical events. A handler may return a **Decision** (all fields optional;
+Nine canonical events. A handler may return a **Decision** (all fields optional;
 the zero value means "no opinion").
 
-| Event                     | Payload                                      | Decision fields honoured                                                                               |
-| ------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `session_start`           | `{cwd}`                                      | –                                                                                                      |
-| `input`                   | `{text}`                                     | `block` (swallow the prompt), `text` (rewrite it)                                                      |
-| `system_prompt`           | `{system}`                                   | `systemAppend`                                                                                         |
-| `turn_start` / `turn_end` | `{turn}`                                     | –                                                                                                      |
-| `tool_call`               | `{toolName, callId, input}`                  | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `args` (replace input) |
-| `tool_result`             | `{toolName, callId, input, output, isError}` | `output` (replace what the model sees)                                                                 |
-| `agent_end`               | `{}`                                         | –                                                                                                      |
+| Event                     | Payload                                      | Decision fields honoured                                                                                                           |
+| ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `session_start`           | `{cwd}`                                      | –                                                                                                                                  |
+| `input`                   | `{text}`                                     | `block` (swallow the prompt), `text` (rewrite it)                                                                                  |
+| `system_prompt`           | `{system}`                                   | `systemAppend`                                                                                                                     |
+| `turn_start` / `turn_end` | `{turn}`                                     | –                                                                                                                                  |
+| `tool_call`               | `{toolName, callId, input}`                  | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `terminate` (with `block`), `args` (replace input) |
+| `tool_result`             | `{toolName, callId, input, output, isError}` | `output` (replace what the model sees), `isError` (override the error flag), `terminate`                                           |
+| `context`                 | `{messages}`                                 | `messages` (replace the conversation for this request; Koine's message shape, not Pi's)                                            |
+| `agent_end`               | `{}`                                         | –                                                                                                                                  |
 
 ```jsonc
 // Decision
-{ "block": true, "reason": "…", "args": {…}, "output": "…", "text": "…", "systemAppend": "…" }
+{ "block": true, "reason": "…", "args": {…}, "output": "…", "text": "…", "systemAppend": "…",
+  "isError": true, "terminate": true, "messages": [ … ] }
 ```
 
 Dispatchers run in order **hooks → extensions**. Decisions merge: `block`
 short-circuits; the last `args`/`output`/`text` wins; `systemAppend` values are
-newline-joined. A handler that errors or times out (30 s extensions, 60 s
+newline-joined; `terminate` and `isError` are set if any handler sets them and `messages` is the last non-empty one. A handler that errors or times out (30 s extensions, 60 s
 hooks) **fails open** (no decision) and is logged.
 
+_Agent-loop decisions_ (REQ-AGT-001): the tool calls of one assistant message are first checked in order (`tool_call`), then the allowed ones run
+at the same time; `tool_result` fires as each finishes. The loop stops after a batch only if **every** result in it asked to `terminate` (a
+blocked call with `terminate`, or a `tool_result` with it). `context` fires before every model request; `messages` must be a JSON array of
+messages in `llm.Message` form (`role`, `content` blocks of type `text`, `thinking`, `tool_use`, `tool_result`); one that does not decode is
+ignored with a notice. The JS sidecar maps Pi's `tool_call` `{block, reason, terminate}` and `tool_result` `{content, isError}`, and never
+subscribes Pi handlers to `context`.
+
 _Verified by:_ `events.TestMerge`, `events.TestMultiStopsAtBlock`,
-`agent.TestToolCallHooks`, `agent.TestInputHook`, `agent.TestSystemPromptContents`.
+`agent.TestToolCallHooks`, `agent.TestInputHook`, `agent.TestSystemPromptContents`,
+`agent.TestTerminateStopsTheLoopOnlyWhenEveryResultAsksForIt`, `agent.TestContextEventTransformContextAndPrepareNextTurn`.
 
 ## 3. Extension wire protocol (language-agnostic)
 
@@ -147,13 +157,14 @@ under `"hooks"` in `.koine/config.json` or `.claude/settings.json`; both the
 flat `{matcher, command}` and nested `{matcher, hooks:[{type:"command", command}]}`
 forms are accepted.
 
-| koine event     | Hook event         | Stdin JSON (besides `hook_event_name`, `session_id`, `cwd`)                                     |
-| --------------- | ------------------ | ----------------------------------------------------------------------------------------------- |
-| `tool_call`     | `PreToolUse`       | `tool_name` (Claude names: `Bash`, `Read`, `Write`, `Edit`, `Grep`, `Glob`, `LS`), `tool_input` |
-| `tool_result`   | `PostToolUse`      | `tool_name`, `tool_input`, `tool_response`                                                      |
-| `input`         | `UserPromptSubmit` | `prompt`                                                                                        |
-| `session_start` | `SessionStart`     | –                                                                                               |
-| `agent_end`     | `Stop`             | –                                                                                               |
+| koine event     | Hook event         | Stdin JSON (besides `hook_event_name`, `session_id`, `cwd`)                                                                        |
+| --------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `tool_call`     | `PreToolUse`       | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `terminate` (with `block`), `args` (replace input) |
+| `tool_result`   | `PostToolUse`      | `output` (replace what the model sees), `isError` (override the error flag), `terminate`                                           |
+| `context`       | `{messages}`       | `messages` (replace the conversation for this request; Koine's message shape, not Pi's)                                            |
+| `input`         | `UserPromptSubmit` | `prompt`                                                                                                                           |
+| `session_start` | `SessionStart`     | –                                                                                                                                  |
+| `agent_end`     | `Stop`             | –                                                                                                                                  |
 
 `matcher` is a case-insensitive regex, anchored, tested against both the koine
 and the Claude tool name (`""`/`*` = all). **Exit code 2 blocks** (stderr is the
@@ -284,7 +295,7 @@ and `Describe()`. `emit` receives `agent.Event`:
   `agent_start`, `turn_start`, `message_start`/`message_end` (user), the assistant `message_start`, `message_update` records
   (`assistantMessageEvent` `text_*`, `thinking_*` and `toolcall_*` with `start|delta|end`), `message_end`, `tool_execution_start`
   `{toolCallId,toolName,args}`, `tool_execution_end` `{toolCallId,toolName,result,isError,durationMs}`, the `toolResult` messages, `turn_end`
-  `{message,toolResults}`, and finally `agent_end` `{messages,willRetry}` and `agent_settled` `{aborted}`. Each block is one delta. Also written,
+  `{message,toolResults}`, and finally `agent_end` `{messages,willRetry}` and `agent_settled` `{aborted}`. When the provider streams, the deltas arrive as they come (`contentIndex` counts the blocks shown, so it shifts when `hideThinkingBlock` is on); otherwise each block is one delta. `message_end` always carries the whole message. Also written,
   with Pi's fields: `tool_execution_update` `{toolCallId,toolName,args,partialResult}` (partial output of an extension tool), `queue_update`
   `{steering,followUp}`, `entry_appended` `{entry}` (the session-file line), `session_info_changed` `{name}` (absent when cleared),
   `thinking_level_changed` `{level}`, `compaction_start` `{reason}` and `compaction_end` `{reason,result:{summary,firstKeptEntryId,tokensBefore,
@@ -344,11 +355,36 @@ and `Describe()`. `emit` receives `agent.Event`:
   0 or `retry.enabled: false` turns retries off), `retry.baseDelayMs` (2000, doubled each time) and `retry.maxAgentDelayMs` (60000, the longest backoff).
   A `Retry-After` header is waited for, but one longer than `retry.provider.maxRetryDelayMs` (60000; 0 = no limit) ends the retries with an error.
   A 429 that reports an exhausted quota or credit is not retried. `retry.provider.timeoutMs`, else `httpIdleTimeoutMs` (a number, 0 or `"disabled"`),
-  bounds one response; with neither set there is no timeout. `retry.provider.maxRetries` is accepted and ignored. Each retry emits a `notice`.
+  is how long a streamed response may be silent (default 300000 as in Pi; 0 or `"disabled"` turns it off). A response that is not streamed is bounded by
+  them only when one is set. `retry.provider.maxRetries` is accepted and ignored. Each retry emits a `notice`; a stream is retried only before its
+  first byte.
   A provider answer that does not fit the context window (HTTP 413, or the provider's own wording) triggers one compaction and one retry per prompt.
+- **Streaming** (REQ-LLM-003): providers that can stream (Anthropic, OpenAI-compatible) request server-sent events; a server that answers with plain
+  JSON still works. While a response arrives the agent emits `{"type":"text_delta","text":…}`, `{"type":"thinking_delta","text":…}` (not when
+  `hideThinkingBlock` is set) and `{"type":"tool_delta","tool":NAME,"callId":ID,"text":FRAGMENT}`; the first `tool_delta` of a call has no text and
+  announces it, later ones carry argument JSON. When the response is complete the unchanged `text` and `thinking` events carry the whole blocks, so a
+  frontend should render either the deltas or the final blocks of a response, not both. `tool_start` and `tool_end` still mark the execution of a
+  call, not its generation. Tested against fake servers only, not live APIs.
+- **Queues and loop events** (REQ-AGT-001): `Agent.Steer(text)` and `Agent.FollowUp(text)` (or `POST /api/steer` and `/api/follow-up` with
+  `{"text":…}`, answered `202` with `{"steering":[…],"followUp":[…]}`) queue messages typed during a run. `steeringMode` and `followUpMode`
+  (`one-at-a-time`, the default, or `all`) say whether each delivery point hands over one message or all of them. Steering is delivered after the
+  assistant turn and its tool calls, before the next request, and also ahead of the first request if it was queued before the run started;
+  follow-ups only when the agent has no tool calls and no steering message left. Queued text is not passed through the `input` hook. Events:
+  `{"type":"queue_update","data":{"steering":[…],"followUp":[…]}}` (the whole queues, always arrays) and `{"type":"user_message","text":…}` when a queued
+  message enters the conversation. `Agent.ClearQueues()` empties both and returns the text.
+- **Tool execution** (REQ-AGT-001): calls from one assistant message are checked in order and run concurrently; `tool_start` appears in call order, `tool_end`
+  in completion order, results reach the model in call order. `Agent.ToolExecution = "sequential"` or a tool whose `ExecutionMode()` is `"sequential"`
+  runs the whole batch one call at a time; `write` and `edit` run in parallel, serialized per file by the mutation queue. A tool that panics returns an error result.
+- **Abort** (REQ-AGT-001): cancelling the run's context ends it with that error after closing off the transcript: text received so far is kept as an
+  assistant message with `stopReason` `aborted` (saved in the session file, not sent to providers again), every `tool_use` has a `tool_result` (`aborted`
+  for calls that did not run), and an `{"type":"aborted"}` event is emitted. Queued messages stay queued. A history with unanswered `tool_use` blocks
+  (a crash) is repaired with synthetic error results whenever it is sent.
+- **Per-request hooks** (REQ-AGT-001): `Agent.TransformContext(ctx, msgs)` and the `context` event rewrite the messages of one request (never the
+  history); `Agent.PrepareNextTurn(ctx, TurnInfo)` is called before every request and may return a new model and thinking level, which then stay in
+  force. Pi does not document `prepareNextTurn`, so this behaviour is Koine's own.
 - **HTTP/SSE** (`koine --serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
-  `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.
+  `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run. `POST /api/steer` and `POST /api/follow-up` queue a message.
   This is the integration point for an Electron UI.
 - **Wails v2** (`desktop/`): `Backend.Info()`, `Backend.Send(text)`, `Backend.Cancel()`;
   events on `koine:event`, completion on `koine:done`.
@@ -373,7 +409,7 @@ Config merge order (later wins for scalars, hooks/plugins/extensions append):
 
 ## 10. Known limits (v1)
 
-- Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, retried as configured (four attempts by default).
+- Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); streamed, retried as configured (four attempts by default). No frontend renders streamed deltas yet.
 - Images: WebP and BMP are not resized; the HTTP server and the line-mode TUI take text only (no paste or inline display, TUI-12).
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
 - No permission prompts yet.

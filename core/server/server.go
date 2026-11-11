@@ -24,7 +24,25 @@ func (s *Server) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(s.App.Describe())
 	})
 	mux.HandleFunc("POST /api/prompt", s.prompt)
+	mux.HandleFunc("POST /api/steer", s.queue(s.App.Agent.Steer))
+	mux.HandleFunc("POST /api/follow-up", s.queue(s.App.Agent.FollowUp))
 	return mux
+}
+
+// queue answers a request to queue a message for the running agent (steer or follow up). The queues come back as JSON; the message is
+// delivered by the run that is in progress, or by the next one, and the run's event stream reports it as queue_update and user_message.
+func (s *Server) queue(add func(string) (steering, followUp []string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Text string }
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Text == "" {
+			http.Error(w, "body must be {\"text\": \"...\"}", http.StatusBadRequest)
+			return
+		}
+		steering, followUp := add(req.Text)
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]any{"steering": steering, "followUp": followUp})
+	}
 }
 
 func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {

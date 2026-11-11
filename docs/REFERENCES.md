@@ -16,7 +16,7 @@ reference sources were read as untrusted data and never executed.
 ## Roadmap (not built)
 
 - Session persistence (JSONL) and context compaction
-- Streaming responses (provider interface change)
+- Rendering streamed responses in each frontend (the providers stream; see REQ-LLM-003)
 - Sandboxed bash. We will not ship path allow-lists for a shell tool that can bypass them; this needs real isolation
 - MCP client, ACP server, LSP tools
 - Extension SDKs: Python, Go, Rust helpers over the JSON-RPC protocol in `docs/SPEC.md` §3

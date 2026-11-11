@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"koine/core/llm"
@@ -44,7 +43,8 @@ func Data(kv ...any) map[string]any {
 
 func millis(d time.Duration) int64 { return d.Milliseconds() }
 
-// complete asks the provider and reports the retries it makes as Pi's auto_retry_start and auto_retry_end events (and as a notice).
+// complete asks the provider, streaming when it can, and reports the response as it arrives (text_delta, thinking_delta, tool_delta) and the
+// retries it makes as Pi's auto_retry_start and auto_retry_end events (and as a notice).
 func (a *Agent) complete(ctx context.Context, req llm.Request, emit func(Event)) (*llm.Response, error) {
 	retries := 0
 	ctx = llm.WithRetryNotify(ctx, func(n llm.RetryNotice) {
@@ -52,7 +52,18 @@ func (a *Agent) complete(ctx context.Context, req llm.Request, emit func(Event))
 		emit(Event{Type: "notice", Text: fmt.Sprintf("retrying in %s (%d of %d): %v", n.Delay.Round(100*time.Millisecond), n.Attempt, n.Of, n.Err)})
 		emit(Event{Type: EvRetryStart, Data: Data("attempt", n.Attempt, "maxAttempts", n.Of, "delayMs", millis(n.Delay), "errorMessage", n.Err.Error())})
 	})
-	resp, err := a.Provider.Complete(ctx, req)
+	resp, err := llm.Stream(ctx, a.Provider, req, func(e llm.StreamEvent) {
+		switch e.Type {
+		case llm.EvTextDelta:
+			emit(Event{Type: "text_delta", Text: e.Delta})
+		case llm.EvThinkingDelta:
+			if !a.HideThinking {
+				emit(Event{Type: "thinking_delta", Text: e.Delta})
+			}
+		case llm.EvToolStart, llm.EvToolDelta: // the first tool_delta of a call has no text: it announces the call
+			emit(Event{Type: "tool_delta", Tool: e.Name, CallID: e.ID, Text: e.Delta})
+		}
+	})
 	if retries > 0 {
 		d := Data("success", err == nil, "attempt", retries)
 		if err != nil {
@@ -86,65 +97,4 @@ func Summarizing(ctx context.Context, emit func(Event), source, reason string, f
 		emit(Event{Type: EvSumRetryFinished, Data: Data()})
 	}
 	return err
-}
-
-// queues are the messages waiting for the agent: steering is delivered after the current tool calls, before the next model request; follow-up
-// waits until the agent would otherwise stop. They may be filled from any goroutine, for example by an extension.
-type queues struct {
-	mu       sync.Mutex
-	steering []string
-	followUp []string
-	shown    string // the queues as last reported, to report only changes
-}
-
-// Steer queues a message for delivery after the tool calls of the current turn.
-func (a *Agent) Steer(text string) {
-	a.q.mu.Lock()
-	a.q.steering = append(a.q.steering, text)
-	a.q.mu.Unlock()
-}
-
-// FollowUp queues a message for delivery once the agent has nothing else to do.
-func (a *Agent) FollowUp(text string) {
-	a.q.mu.Lock()
-	a.q.followUp = append(a.q.followUp, text)
-	a.q.mu.Unlock()
-}
-
-// Queued returns copies of the steering and follow-up queues.
-func (a *Agent) Queued() (steering, followUp []string) {
-	a.q.mu.Lock()
-	defer a.q.mu.Unlock()
-	return append([]string{}, a.q.steering...), append([]string{}, a.q.followUp...)
-}
-
-// reportQueues emits queue_update when the queues differ from what was last reported. It runs on the agent loop's goroutine only, so emit
-// is never called concurrently.
-func (a *Agent) reportQueues(emit func(Event)) {
-	s, f := a.Queued()
-	key := fmt.Sprintf("%q|%q", s, f)
-	a.q.mu.Lock()
-	changed := key != a.q.shown && (a.q.shown != "" || len(s)+len(f) > 0)
-	a.q.shown = key
-	a.q.mu.Unlock()
-	if changed {
-		emit(Event{Type: EvQueueUpdate, Data: Data("steering", s, "followUp", f)})
-	}
-}
-
-// drain takes the next message to deliver: all steering messages, else (when the agent would stop) one follow-up message.
-func (a *Agent) drain(stopping bool) []string {
-	a.q.mu.Lock()
-	defer a.q.mu.Unlock()
-	switch {
-	case len(a.q.steering) > 0:
-		out := a.q.steering
-		a.q.steering = nil
-		return out
-	case stopping && len(a.q.followUp) > 0:
-		out := a.q.followUp[:1]
-		a.q.followUp = append([]string{}, a.q.followUp[1:]...)
-		return out
-	}
-	return nil
 }

@@ -20,7 +20,23 @@ type RetryPolicy struct {
 	BaseDelay      time.Duration // wait before the first retry, doubled after each (retry.baseDelayMs); 0 = 2 s
 	MaxDelay       time.Duration // longest backoff wait (retry.maxAgentDelayMs); 0 = 60 s
 	MaxServerDelay time.Duration // longest Retry-After Koine will wait for (retry.provider.maxRetryDelayMs); 0 = 60 s, negative = no limit
-	Timeout        time.Duration // longest wait for one response (retry.provider.timeoutMs, else httpIdleTimeoutMs); 0 = none
+	// Timeout is retry.provider.timeoutMs, else httpIdleTimeoutMs. A response that is not streamed must arrive within it; a streamed one
+	// may be silent for that long. 0 = not set: no limit when not streaming, DefaultIdleTimeout when streaming. Negative = disabled.
+	Timeout time.Duration
+}
+
+// DefaultIdleTimeout is how long a streamed response may be silent when no timeout is set (Pi's httpIdleTimeoutMs default, 300000).
+const DefaultIdleTimeout = 300 * time.Second
+
+// idle is the longest silence tolerated while streaming; 0 = no limit.
+func (p RetryPolicy) idle() time.Duration {
+	switch {
+	case p.Timeout > 0:
+		return p.Timeout
+	case p.Timeout < 0:
+		return 0
+	}
+	return DefaultIdleTimeout
 }
 
 func (p RetryPolicy) attempts() int {
@@ -117,13 +133,10 @@ func retryAfter(h http.Header) time.Duration {
 	return 0
 }
 
-// postJSON POSTs payload and returns the body of a 200 response. Network errors, timeouts, 429 and 5xx are retried as pol says; other
-// statuses, and 429s that are about quota or billing, fail at once, and so does a Retry-After longer than pol allows.
-func postJSON(ctx context.Context, client *http.Client, label, url string, headers map[string]string, payload []byte,
-	pol RetryPolicy) ([]byte, error) {
-	if client == nil {
-		client = http.DefaultClient
-	}
+// retryLoop calls try until it answers 200 or fails for good. try returns the status, the headers and, for a status other than 200, the
+// body. Network errors, timeouts, 429 and 5xx are retried as pol says; other statuses, and 429s that are about quota or billing, fail at
+// once, and so does a Retry-After longer than pol allows.
+func retryLoop(ctx context.Context, label string, pol RetryPolicy, try func() (status int, h http.Header, body []byte, err error)) error {
 	notify, _ := ctx.Value(notifyKey{}).(func(RetryNotice))
 	resume, _ := ctx.Value(resumeKey{}).(func(int))
 	n := pol.attempts()
@@ -136,38 +149,55 @@ func postJSON(ctx context.Context, client *http.Client, label, url string, heade
 			}
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return ctx.Err()
 			case <-time.After(wait):
 			}
 			if resume != nil {
 				resume(attempt)
 			}
 		}
-		data, status, h, err := post(ctx, client, url, headers, payload, pol.Timeout)
+		status, h, data, err := try()
 		wait = pol.backoff(attempt + 1)
 		switch {
 		case err != nil:
 			if ctx.Err() != nil {
-				return nil, ctx.Err()
+				return ctx.Err()
 			}
 			lastErr = err
 		case status == 200:
-			return data, nil
+			return nil
 		default:
 			he := &HTTPError{Provider: label, Status: status, Body: truncate(string(data), 4000)}
 			if (status != 429 && status < 500) || IsQuotaError(he) {
-				return nil, he
+				return he
 			}
 			lastErr = he
 			if d := retryAfter(h); d > 0 {
 				if lim := orDur(pol.MaxServerDelay, 60*time.Second); pol.MaxServerDelay >= 0 && d > lim {
-					return nil, fmt.Errorf("%w (the server asks to wait %s, more than the %s allowed)", he, d.Round(time.Second), lim)
+					return fmt.Errorf("%w (the server asks to wait %s, more than the %s allowed)", he, d.Round(time.Second), lim)
 				}
 				wait = max(wait, d)
 			}
 		}
 	}
-	return nil, lastErr
+	return lastErr
+}
+
+// postJSON POSTs payload and returns the body of a 200 response, retrying as retryLoop does.
+func postJSON(ctx context.Context, client *http.Client, label, url string, headers map[string]string, payload []byte,
+	pol RetryPolicy) ([]byte, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	var out []byte
+	err := retryLoop(ctx, label, pol, func() (int, http.Header, []byte, error) {
+		data, status, h, err := post(ctx, client, url, headers, payload, pol.Timeout)
+		if err == nil && status == 200 {
+			out = data
+		}
+		return status, h, data, err
+	})
+	return out, err
 }
 
 // post makes one attempt, giving up after timeout (0 = never).

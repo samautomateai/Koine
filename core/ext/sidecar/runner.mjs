@@ -394,7 +394,8 @@ async function load() {
 function subscribed() {
   const set = new Set();
   const piToHost = { before_agent_start: "system_prompt" };
-  for (const k of state.handlers.keys()) set.add(piToHost[k] ?? k);
+  // "context" carries Koine's message shape, which is not Pi's, so Pi handlers are never given it (gap row AGT-07)
+  for (const k of state.handlers.keys()) if (k !== "context") set.add(piToHost[k] ?? k);
   const ocToHost = {
     "tool.execute.before": "tool_call",
     "tool.execute.after": "tool_result",
@@ -452,9 +453,13 @@ async function piEvent(name, p, d) {
     if (name === "tool_call" && r.block) {
       d.block = true;
       d.reason = r.reason ?? "blocked";
+      if (r.terminate) d.terminate = true;
       return;
     }
-    if (name === "tool_result" && r.content !== undefined) d.output = textOf(r.content);
+    if (name === "tool_result") {
+      if (r.content !== undefined) d.output = textOf(r.content);
+      if (typeof r.isError === "boolean") d.isError = r.isError;
+    }
     if (name === "input") {
       if (r.action === "handled") {
         d.block = true;

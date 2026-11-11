@@ -74,13 +74,16 @@
     {
       "key": "steeringMode",
       "type": "\"all\"|\"one-at-a-time\"",
-      "status": "todo",
-      "note": "Needs steering queues (CLI-27)."
+      "status": "verified",
+      "test": "TestQueueModeSettingsReachTheAgent",
+      "note": "Sets how Agent.Steer messages are delivered (default one-at-a-time). Frontends must call Agent.Steer to use it (CLI-27)."
     },
     {
       "key": "followUpMode",
       "type": "\"all\"|\"one-at-a-time\"",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestQueueModeSettingsReachTheAgent",
+      "note": "Sets how Agent.FollowUp messages are delivered (default one-at-a-time)."
     },
     {
       "key": "externalEditor",
@@ -308,7 +311,7 @@
       "type": "number|\"disabled\"",
       "status": "verified",
       "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
-      "note": "Bounds one provider response, as there is no streaming yet; with none set Koine waits (Pi defaults to 300000). 0 or \"disabled\" turns it off."
+      "note": "Streamed responses may be silent for this long, default 300000 as in Pi. A response that is not streamed (a server that answers with plain JSON) must arrive within it only when set. 0 or \"disabled\" turns it off."
     },
     {
       "key": "websocketConnectTimeoutMs",
@@ -347,7 +350,7 @@
       "type": "number",
       "status": "verified",
       "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
-      "note": "Wins over httpIdleTimeoutMs for one provider response."
+      "note": "Wins over httpIdleTimeoutMs: the longest silence in a streamed response, or the longest wait for one that is not streamed."
     },
     {
       "key": "retry.provider.maxRetries",

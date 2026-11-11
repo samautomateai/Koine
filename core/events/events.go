@@ -17,16 +17,23 @@ const (
 	TurnEnd      = "turn_end"
 	ToolCall     = "tool_call"   // before a tool runs; may block or rewrite args
 	ToolResult   = "tool_result" // after a tool runs; may rewrite output
+	Context      = "context"     // before each model request; may replace the messages (Koine's message shape, not Pi's)
 	AgentEnd     = "agent_end"
 )
 
 // Decision is what a handler may answer. The zero value means "no opinion".
 type Decision struct {
-	Block        bool            `json:"block,omitempty"`
-	Reason       string          `json:"reason,omitempty"`
-	Args         json.RawMessage `json:"args,omitempty"`   // replaces tool input
-	Output       *string         `json:"output,omitempty"` // replaces tool output
-	Text         *string         `json:"text,omitempty"`   // replaces user input
+	Block   bool            `json:"block,omitempty"`
+	Reason  string          `json:"reason,omitempty"`
+	Args    json.RawMessage `json:"args,omitempty"`    // replaces tool input
+	Output  *string         `json:"output,omitempty"`  // replaces tool output
+	Text    *string         `json:"text,omitempty"`    // replaces user input
+	IsError *bool           `json:"isError,omitempty"` // tool_result: overrides whether the result is an error
+	// Terminate asks the agent to stop after this batch of tool calls, unless a sibling result disagrees. It is read on a blocked
+	// tool_call and on tool_result.
+	Terminate bool `json:"terminate,omitempty"`
+	// Messages replaces the conversation for one request (context event): a JSON array of messages as llm.Message encodes them.
+	Messages     json.RawMessage `json:"messages,omitempty"`
 	SystemAppend string          `json:"systemAppend,omitempty"`
 }
 
@@ -45,6 +52,15 @@ func (d *Decision) Merge(o Decision) {
 	}
 	if o.Text != nil {
 		d.Text = o.Text
+	}
+	if o.IsError != nil {
+		d.IsError = o.IsError
+	}
+	if o.Terminate {
+		d.Terminate = true
+	}
+	if len(o.Messages) > 0 {
+		d.Messages = o.Messages
 	}
 	if o.SystemAppend != "" {
 		if d.SystemAppend != "" {

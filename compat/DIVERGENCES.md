@@ -28,7 +28,7 @@
 ## Thinking, caching and retry
 
 - Pi's built-in `thinkingBudgets` and its provider-specific level maps (`thinkingLevelMap`, OpenRouter and zai formats) are not documented well enough to copy, so Koine uses its own budgets (1024, 2048, 8192, 16384) and one mapping per API; the Claude catalog entries use Anthropic's adaptive thinking and effort as Anthropic's effort page describes it. These have been tested against fake servers only.
-- Koine has one retry loop. Pi's separate provider-level retries (`retry.provider.maxRetries`) are accepted and ignored. There is no jitter, and without streaming `httpIdleTimeoutMs` bounds the whole response and has no default (Pi's is 300000), so a long non-streaming answer is not cut off unless the user sets a limit.
+- Koine has one retry loop. Pi's separate provider-level retries (`retry.provider.maxRetries`) are accepted and ignored. There is no jitter. `httpIdleTimeoutMs` (default 300000, as in Pi) bounds the silence in a streamed response; a response that is not streamed (a server that answers with plain JSON) has no default limit, so it is not cut off unless the user sets one. Retries happen only before the first byte of a stream: a stream that fails midway is an error, not a retry.
 - A model the catalog does not know is sent thinking parameters only when the user chose a level for it (`--thinking`, a suffix, `/thinking` or `modelThinkingLevels`); Pi's default level applies to models it knows think. Anthropic cache breakpoints use the default 5-minute lifetime; Pi's long retention and OpenAI `prompt_cache_key` are not implemented.
 
 ## Settings
@@ -71,3 +71,10 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - The `edit` result carries the unified diff and the first changed line in its text instead of Pi's separate `details` object, because Koine's tools return text. The truncation hints, error messages and prompt snippets follow Pi's source as remembered; Pi's published docs only state the 2000-line and 50KB limits and the `promptSnippet`/`promptGuidelines` rules, so the exact wording is unverified.
 - `grep`, `find` and `ls` are registered but off by default, as in Pi; Koine hides them instead of removing them, so sub-agents (which Pi does not have) can still be given them.
 - `!cmd` is disabled in print, JSON and server runs, where text from a pipe or the network must not become a shell command. `!!cmd` is not saved in the session; Pi keeps it for display.
+
+## Agent loop
+
+- Pi's agent-loop source and `prepareNextTurn` are not documented on pi.dev, and the documented `afterToolCall` overrides are `details` and `terminate` only. Koine's `tool_result` decision also carries `isError`, because Pi's extension docs say `tool_result` handlers may return it. Where Pi is silent, Koine's choice is stated in `docs/SPEC.md` and marked unverified.
+- Koine does not preflight later calls while earlier ones already run: all calls of a message are checked in order, then the allowed ones run together. Events and result order match Pi's description (starts in source order, ends in completion order, results in source order).
+- An aborted assistant message is stored with `stopReason: "aborted"` and is never sent to a provider again; Pi's own handling of it is not documented, so this follows Pi's field name only.
+- The extension `context` event carries Koine's message shape (`role`, `content` blocks with `tool_use` and `tool_result`), not Pi's. The JS sidecar does not subscribe to it, so Pi `context` handlers never run; Go and out-of-process extensions can use it.

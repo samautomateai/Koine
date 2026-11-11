@@ -162,8 +162,9 @@ func TestRetryAndTimeoutSettingsMapToThePolicy(t *testing.T) {
 		{"no retries", `{"retry":{"maxRetries":0}}`, llm.RetryPolicy{Disabled: true}},
 		{"no limit on Retry-After", `{"retry":{"provider":{"maxRetryDelayMs":0}}}`, llm.RetryPolicy{MaxServerDelay: -1}},
 		{"idle timeout is the request timeout", `{"httpIdleTimeoutMs":1500}`, llm.RetryPolicy{Timeout: 1500 * time.Millisecond}},
-		{"disabled idle timeout", `{"httpIdleTimeoutMs":"disabled"}`, llm.RetryPolicy{}},
-		{"provider timeout beats idle timeout", `{"httpIdleTimeoutMs":1500,"retry":{"provider":{"timeoutMs":0}}}`, llm.RetryPolicy{}},
+		{"disabled idle timeout", `{"httpIdleTimeoutMs":"disabled"}`, llm.RetryPolicy{Timeout: -1}},
+		{"zero idle timeout", `{"httpIdleTimeoutMs":0}`, llm.RetryPolicy{Timeout: -1}},
+		{"provider timeout beats idle timeout", `{"httpIdleTimeoutMs":1500,"retry":{"provider":{"timeoutMs":0}}}`, llm.RetryPolicy{Timeout: -1}},
 		{"nonsense is ignored", `{"retry":{"maxRetries":"many","enabled":"yes"},"httpIdleTimeoutMs":"soon"}`, llm.RetryPolicy{}},
 	}
 	for _, tc := range cases {

@@ -134,26 +134,45 @@ func anthropicBody(req Request) map[string]any {
 	return body
 }
 
+func (a *Anthropic) request(req Request, stream bool) (url string, headers map[string]string, payload []byte, err error) {
+	body := anthropicBody(req)
+	if stream {
+		body["stream"] = true
+	}
+	payload, err = json.Marshal(body)
+	return a.BaseURL + "/v1/messages", map[string]string{"x-api-key": a.APIKey, "anthropic-version": "2023-06-01"}, payload, err
+}
+
 func (a *Anthropic) Complete(ctx context.Context, req Request) (*Response, error) {
-	payload, err := json.Marshal(anthropicBody(req))
+	url, headers, payload, err := a.request(req, false)
 	if err != nil {
 		return nil, err
 	}
-	data, err := postJSON(ctx, a.HTTP, "anthropic", a.BaseURL+"/v1/messages", map[string]string{
-		"x-api-key": a.APIKey, "anthropic-version": "2023-06-01",
-	}, payload, a.Retry)
+	data, err := postJSON(ctx, a.HTTP, "anthropic", url, headers, payload, a.Retry)
 	if err != nil {
 		return nil, err
 	}
+	return parseAnthropic(data)
+}
+
+// anthropicUsage is the usage object of a message and of the stream events that carry parts of it.
+type anthropicUsage struct {
+	Input      int `json:"input_tokens"`
+	Output     int `json:"output_tokens"`
+	CacheRead  int `json:"cache_read_input_tokens"`
+	CacheWrite int `json:"cache_creation_input_tokens"`
+}
+
+func (u anthropicUsage) usage() Usage {
+	return Usage(u)
+}
+
+// parseAnthropic reads a complete (not streamed) Messages API answer.
+func parseAnthropic(data []byte) (*Response, error) {
 	var out struct {
-		Content    []Block `json:"content"`
-		StopReason string  `json:"stop_reason"`
-		Usage      struct {
-			Input      int `json:"input_tokens"`
-			Output     int `json:"output_tokens"`
-			CacheRead  int `json:"cache_read_input_tokens"`
-			CacheWrite int `json:"cache_creation_input_tokens"`
-		} `json:"usage"`
+		Content    []Block        `json:"content"`
+		StopReason string         `json:"stop_reason"`
+		Usage      anthropicUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return nil, err
@@ -163,7 +182,5 @@ func (a *Anthropic) Complete(ctx context.Context, req Request) (*Response, error
 			out.Content[i] = Block{Type: "thinking", Redacted: true, Signature: b.Data}
 		}
 	}
-	u := out.Usage
-	return &Response{Content: out.Content, StopReason: out.StopReason,
-		Usage: Usage{Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite}}, nil
+	return &Response{Content: out.Content, StopReason: out.StopReason, Usage: out.Usage.usage()}, nil
 }

@@ -115,6 +115,11 @@ func (l lazyProvider) Complete(ctx context.Context, r llm.Request) (*llm.Respons
 	return l.a.router.Complete(ctx, r)
 }
 
+// Stream makes lazyProvider an llm.Streamer, so the agent streams through the router.
+func (l lazyProvider) Stream(ctx context.Context, r llm.Request, fn func(llm.StreamEvent)) (*llm.Response, error) {
+	return l.a.router.Stream(ctx, r, fn)
+}
+
 // load (re)discovers config, skills, prompts, agents, hooks and extensions. It
 // keeps conversation history and the selected model.
 func (a *App) load(ctx context.Context) {

@@ -30,14 +30,14 @@
    "name": "tool_call",
    "status": "verified",
    "test": "conformance",
-   "note": "block + argument rewrite"
+   "note": "block + argument rewrite; terminate on a block"
   },
   {
    "kind": "event",
    "name": "tool_result",
    "status": "verified",
    "test": "conformance",
-   "note": "output rewrite (text content only)"
+   "note": "output rewrite (text content only); isError override"
   },
   {
    "kind": "event",

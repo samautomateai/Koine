@@ -122,6 +122,9 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 	switch m.Role {
 	case "assistant":
 		blocks, stop := []piBlock{}, "stop"
+		if m.StopReason != "" {
+			stop = m.StopReason // "aborted"
+		}
 		for _, b := range m.Content {
 			switch b.Type {
 			case "text":
@@ -256,6 +259,9 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 			}
 			if len(cb) > 0 {
 				am := llm.Message{Role: "assistant", Content: cb, ThinkingLevel: pm.ThinkingLevel}
+				if pm.StopReason == "aborted" {
+					am.StopReason = pm.StopReason
+				}
 				usageFromPi(pm, &am)
 				out, ids = append(out, am), append(ids, e.ID)
 			}
