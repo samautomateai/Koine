@@ -22,6 +22,8 @@ type piMessage struct {
 	Model      string          `json:"model,omitempty"`
 	StopReason string          `json:"stopReason,omitempty"`
 	Usage      *piUsage        `json:"usage,omitempty"`
+	// ThinkingLevel is the level the response was requested with (Pi's optional thinkingLevel).
+	ThinkingLevel string `json:"thinkingLevel,omitempty"`
 }
 
 // piUsage is the usage object Pi stores on assistant messages. cost is left out when the model's price was not known.
@@ -71,6 +73,11 @@ type piBlock struct {
 	ID        string          `json:"id,omitempty"`
 	Name      string          `json:"name,omitempty"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
+	// Thinking blocks, in Pi's shape: the text (a pointer, because a redacted block has an empty one that must still be written),
+	// the provider's opaque replay data, and whether the block is redacted.
+	Thinking          *string `json:"thinking,omitempty"`
+	ThinkingSignature string  `json:"thinkingSignature,omitempty"`
+	Redacted          bool    `json:"redacted,omitempty"`
 }
 
 // AppendMessage stores one conversation message. A user message that carries tool results becomes one toolResult entry per result,
@@ -91,6 +98,9 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 			switch b.Type {
 			case "text":
 				blocks = append(blocks, piBlock{Type: "text", Text: b.Text})
+			case "thinking":
+				t := b.Thinking
+				blocks = append(blocks, piBlock{Type: "thinking", Thinking: &t, ThinkingSignature: b.Signature, Redacted: b.Redacted})
 			case "tool_use":
 				stop = "toolUse"
 				args := b.Input
@@ -102,7 +112,7 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 		}
 		c, _ := json.Marshal(blocks)
 		return put(piMessage{Role: "assistant", Content: c, Timestamp: now, Provider: provider, Model: model, StopReason: stop,
-			Usage: usageToPi(m)})
+			Usage: usageToPi(m), ThinkingLevel: m.ThinkingLevel})
 	default:
 		var text []piBlock
 		for _, b := range m.Content {
@@ -146,7 +156,7 @@ func (s *Session) toolName(id string) string {
 }
 
 // Messages rebuilds the conversation on the active branch. The latest compaction on the branch replaces everything before its
-// firstKeptEntryId with its summary. Roles and blocks Koine cannot represent (thinking, images, custom) are skipped.
+// firstKeptEntryId with its summary. Roles and blocks Koine cannot represent (images, custom) are skipped.
 func (s *Session) Messages() []llm.Message {
 	msgs, _ := s.messagesWithIDs()
 	return msgs
@@ -200,12 +210,16 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 					if b.Text != "" {
 						cb = append(cb, llm.Block{Type: "text", Text: b.Text})
 					}
+				case "thinking":
+					if b.Thinking != nil && (*b.Thinking != "" || b.ThinkingSignature != "") {
+						cb = append(cb, llm.Block{Type: "thinking", Thinking: *b.Thinking, Signature: b.ThinkingSignature, Redacted: b.Redacted})
+					}
 				case "toolCall":
 					cb = append(cb, llm.Block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: b.Arguments})
 				}
 			}
 			if len(cb) > 0 {
-				am := llm.Message{Role: "assistant", Content: cb}
+				am := llm.Message{Role: "assistant", Content: cb, ThinkingLevel: pm.ThinkingLevel}
 				usageFromPi(pm, &am)
 				out, ids = append(out, am), append(ids, e.ID)
 			}

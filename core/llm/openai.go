@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ type OpenAICompat struct {
 	APIKey  string // optional (local servers)
 	BaseURL string // e.g. https://api.openai.com/v1
 	HTTP    *http.Client
+	Retry   RetryPolicy
 }
 
 type oaMessage struct {
@@ -84,8 +86,16 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 
 func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, error) {
 	body := map[string]any{"model": req.Model, "messages": toOpenAI(req.System, req.Messages)}
+	effort := openAIEffort(req.Thinking)
+	if effort != "" {
+		body["reasoning_effort"] = effort
+	}
 	if req.MaxTokens > 0 {
-		body["max_tokens"] = req.MaxTokens
+		if effort != "" { // reasoning models reject max_tokens
+			body["max_completion_tokens"] = req.MaxTokens
+		} else {
+			body["max_tokens"] = req.MaxTokens
+		}
 	}
 	if len(req.Tools) > 0 {
 		var tools []map[string]any
@@ -107,15 +117,17 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 	if label == "" {
 		label = "openai"
 	}
-	data, err := postJSON(ctx, o.HTTP, label, strings.TrimRight(o.BaseURL, "/")+"/chat/completions", headers, payload)
+	data, err := postJSON(ctx, o.HTTP, label, strings.TrimRight(o.BaseURL, "/")+"/chat/completions", headers, payload, o.Retry)
 	if err != nil {
 		return nil, err
 	}
 	var out struct {
 		Choices []struct {
 			Message struct {
-				Content   *string      `json:"content"`
-				ToolCalls []oaToolCall `json:"tool_calls"`
+				Content          *string      `json:"content"`
+				ReasoningContent string       `json:"reasoning_content"` // DeepSeek, Mistral, vLLM and others
+				Reasoning        string       `json:"reasoning"`         // OpenRouter, Ollama
+				ToolCalls        []oaToolCall `json:"tool_calls"`
 			} `json:"message"`
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
@@ -138,6 +150,9 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 	if u := out.Usage; u.Prompt > 0 || u.Output > 0 { // OpenAI counts cached tokens inside prompt_tokens; Koine counts them apart
 		resp.Usage = Usage{Input: max(u.Prompt-u.Details.Cached, 0), Output: u.Output, CacheRead: u.Details.Cached}
 	}
+	if r := cmp.Or(ch.Message.ReasoningContent, ch.Message.Reasoning); r != "" {
+		resp.Content = append(resp.Content, Block{Type: "thinking", Thinking: r}) // no signature: shown and kept, never sent back
+	}
 	if ch.Message.Content != nil && *ch.Message.Content != "" {
 		resp.Content = append(resp.Content, Block{Type: "text", Text: *ch.Message.Content})
 	}
@@ -149,4 +164,15 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 		resp.Content = append(resp.Content, Block{Type: "tool_use", ID: c.ID, Name: c.Function.Name, Input: in})
 	}
 	return resp, nil
+}
+
+// openAIEffort is the reasoning_effort for a resolved Thinking. "off" sends nothing, and "max" is OpenAI's "xhigh".
+func openAIEffort(t *Thinking) string {
+	switch {
+	case t == nil || t.Level == "off":
+		return ""
+	case t.Level == "max":
+		return "xhigh"
+	}
+	return t.Level
 }

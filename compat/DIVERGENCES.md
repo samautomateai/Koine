@@ -25,6 +25,12 @@
 - Pi reads model metadata from its generated registry and a user `models.json`. Koine ships a small embedded catalog (`core/llm/models.json`) and reads `~/.koine/model-catalog.json` instead, because Pi's `models.json` has a different schema (providers, API keys, compat flags) that Koine does not implement. Prices in the embedded catalog come from third-party price pages and have not been checked against the vendor; the file records its source and check date.
 - The `usage` object written on assistant messages follows Pi's field names (`input`, `output`, `cacheRead`, `cacheWrite`, `totalTokens`, `cost`) as best known; it has not been compared with Pi's source. Reasoning tokens are not tracked yet.
 
+## Thinking, caching and retry
+
+- Pi's built-in `thinkingBudgets` and its provider-specific level maps (`thinkingLevelMap`, OpenRouter and zai formats) are not documented well enough to copy, so Koine uses its own budgets (1024, 2048, 8192, 16384) and one mapping per API; the Claude catalog entries use Anthropic's adaptive thinking and effort as Anthropic's effort page describes it. These have been tested against fake servers only.
+- Koine has one retry loop. Pi's separate provider-level retries (`retry.provider.maxRetries`) are accepted and ignored. There is no jitter, and without streaming `httpIdleTimeoutMs` bounds the whole response and has no default (Pi's is 300000), so a long non-streaming answer is not cut off unless the user sets a limit.
+- A model the catalog does not know is sent thinking parameters only when the user chose a level for it (`--thinking`, a suffix, `/thinking` or `modelThinkingLevels`); Pi's default level applies to models it knows think. Anthropic cache breakpoints use the default 5-minute lifetime; Pi's long retention and OpenAI `prompt_cache_key` are not implemented.
+
 ## Settings
 
 - `sessionShareDestination`, `collapseChangelog`, `enableInstallTelemetry`, `enableAnalytics`, `selfUpdateCommand` are `by-design` in `compat/settings.json`: Koine has no gist/Radius sharing, update check, telemetry or self-update. They are reported as ignored if set.

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"koine/core/llm"
 )
 
 // cliArgs is the parsed command line: `koine [options] [--] [@files] [messages]`.
@@ -21,6 +23,7 @@ type cliArgs struct {
 	AppendSystem string
 	Tools        []string
 	NoTools      bool
+	Thinking     string
 	Continue     bool
 	Resume       bool // list sessions and exit (line-mode stand-in for Pi's picker)
 	Session      string
@@ -60,6 +63,7 @@ var flagSpecs = []flagSpec{
 	{"append-system-prompt", "", valueFlag},
 	{"tools", "t", valueFlag},
 	{"no-tools", "nt", boolFlag},
+	{"thinking", "", valueFlag},
 	{"continue", "c", boolFlag},
 	{"resume", "r", boolFlag},
 	{"session", "", valueFlag},
@@ -103,11 +107,12 @@ func parseArgs(args []string) (cliArgs, error) {
 			return c, fmt.Errorf("unknown option %q (try --help)", a)
 		}
 		if f.Kind == valueFlag && !hasVal {
-			if i+1 >= len(args) {
+			rest := args[i+1:]
+			if len(rest) == 0 {
 				return c, fmt.Errorf("option %s needs a value", a)
 			}
+			val = rest[0]
 			i++
-			val = args[i]
 		} else if f.Kind == boolFlag && hasVal {
 			return c, fmt.Errorf("option %s does not take a value", a)
 		}
@@ -115,6 +120,9 @@ func parseArgs(args []string) (cliArgs, error) {
 	}
 	if c.Mode != "" && c.Mode != "text" && c.Mode != "json" {
 		return c, fmt.Errorf("--mode must be text or json (got %q)", c.Mode)
+	}
+	if c.Thinking != "" && !llm.ValidLevel(c.Thinking) {
+		return c, fmt.Errorf("--thinking must be one of %s (got %q)", strings.Join(llm.ThinkingLevels, ", "), c.Thinking)
 	}
 	return c, nil
 }
@@ -151,6 +159,8 @@ func (c *cliArgs) set(long, val string) {
 		}
 	case "no-tools":
 		c.NoTools = true
+	case "thinking":
+		c.Thinking = val
 	case "continue":
 		c.Continue = true
 	case "resume":
@@ -202,7 +212,8 @@ Piped stdin is put before the message. @file arguments are included as <file> bl
 
   -p, --print                  run non-interactively (default when stdin or stdout is not a terminal)
       --mode text|json         text: final answer on stdout (default); json: one event per line on stdout
-      --model ID               model to use (must resolve to a configured provider)
+      --model ID[:LEVEL]       model to use (must resolve to a configured provider); :LEVEL sets the thinking level
+      --thinking LEVEL         thinking level: off, minimal, low, medium, high, xhigh or max (beats a :LEVEL suffix and the settings)
       --system-prompt TEXT     replace the base system prompt (text, or a file path)
       --append-system-prompt T add to the system prompt (text, or a file path)
   -t, --tools a,b              offer only these tools

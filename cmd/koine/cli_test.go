@@ -136,7 +136,7 @@ func TestModelAndSystemPromptFlags(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("%d %s", code, errs)
 	}
-	sys := seen[0]["system"].(string)
+	sys := systemText(seen[0]["system"])
 	replaced := strings.HasPrefix(sys, "FROM FILE") && !strings.Contains(sys, "You are koine")
 	if seen[0]["model"] != "claude-haiku-5-5" || !replaced || !strings.Contains(sys, "EXTRA RULE") {
 		t.Errorf("model=%v system=%q", seen[0]["model"], sys)

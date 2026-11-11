@@ -37,7 +37,8 @@ type Config struct {
 	// Providers declares extra OpenAI-compatible (or anthropic-type) endpoints,
 	// addressed as "<name>/<model>". Project-level entries need trust: an
 	// endpoint + key env var from an untrusted repo could exfiltrate your key.
-	Providers map[string]llm.ProviderConfig `json:"providers,omitempty"`
+	Providers   map[string]llm.ProviderConfig `json:"providers,omitempty"`
+	LLMSettings                               // thinking, retry and timeout settings (llmopts.go)
 }
 
 // BranchSummaryConfig is Pi's branchSummary object: tokens kept free when summarising a branch, and whether to skip the question.
@@ -129,6 +130,7 @@ func mergeConfig(dst *Config, src Config) {
 			dst.DefaultTools = src.DefaultTools
 		}
 	}
+	dst.merge(src.LLMSettings)
 	c := src.Compaction
 	if c.Enabled != nil {
 		dst.Compaction.Enabled = c.Enabled
