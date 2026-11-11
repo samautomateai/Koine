@@ -109,7 +109,7 @@ export function plan(root, tagsOf = remoteTags) {
           file,
           from: ref,
           to,
-          re: new RegExp(`${repo.replace(/[./]/g, "\\$&")}(?:/[\\w./-]+)?@(${ref.replace(".", "\\.")})\\b`),
+          re: new RegExp(`${repo.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&")}(?:/[\\w./-]+)?@(${ref.replace(/\./g, "\\.")})\\b`),
         });
       }
     }
