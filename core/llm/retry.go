@@ -65,6 +65,13 @@ func WithRetryNotify(ctx context.Context, fn func(RetryNotice)) context.Context 
 	return context.WithValue(ctx, notifyKey{}, fn)
 }
 
+type resumeKey struct{}
+
+// WithRetryResume returns a context whose provider calls report each retry attempt when its wait is over and it starts (the retry's number).
+func WithRetryResume(ctx context.Context, fn func(attempt int)) context.Context {
+	return context.WithValue(ctx, resumeKey{}, fn)
+}
+
 // HTTPError is a provider answer that was not a success.
 type HTTPError struct {
 	Provider string
@@ -118,6 +125,7 @@ func postJSON(ctx context.Context, client *http.Client, label, url string, heade
 		client = http.DefaultClient
 	}
 	notify, _ := ctx.Value(notifyKey{}).(func(RetryNotice))
+	resume, _ := ctx.Value(resumeKey{}).(func(int))
 	n := pol.attempts()
 	var lastErr error
 	var wait time.Duration
@@ -130,6 +138,9 @@ func postJSON(ctx context.Context, client *http.Client, label, url string, heade
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			case <-time.After(wait):
+			}
+			if resume != nil {
+				resume(attempt)
 			}
 		}
 		data, status, h, err := post(ctx, client, url, headers, payload, pol.Timeout)

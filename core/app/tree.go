@@ -186,7 +186,12 @@ func (a *App) summariseBranch(ctx context.Context, left []session.Entry, focus s
 	if focus != "" {
 		instr += " Focus: " + focus
 	}
-	return compact.Summarize(ctx, a.Agent.Provider, a.Agent.Model, "", msgs, instr)
+	var summary string
+	err := agent.Summarizing(ctx, a.event, "branchSummary", "", func(c context.Context) (e error) {
+		summary, e = compact.Summarize(c, a.Agent.Provider, a.Agent.Model, "", msgs, instr)
+		return e
+	})
+	return summary, err
 }
 
 // labelTarget is the entry /label marks by default: the current position, or the nearest entry above it that is not bookkeeping.
@@ -263,7 +268,7 @@ func (a *App) cloneAt(leaf, text string, notice func(string)) error {
 	if err != nil {
 		return err
 	}
-	a.Session = f
+	a.setSession(f)
 	a.Agent.SetHistory(f.Messages())
 	notice("cloned into " + shortID(f.ID))
 	if text != "" {

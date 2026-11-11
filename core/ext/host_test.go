@@ -55,7 +55,7 @@ func start(t *testing.T) (*Host, *tools.Registry, func() []string, func() []stri
 	var mu sync.Mutex
 	var logs, msgs []string
 	h.Logf = func(f string, a ...any) { mu.Lock(); logs = append(logs, f); mu.Unlock() }
-	h.OnUserMessage = func(s string) { mu.Lock(); msgs = append(msgs, s); mu.Unlock() }
+	h.OnUserMessage = func(s, _ string) { mu.Lock(); msgs = append(msgs, s); mu.Unlock() }
 	if err := h.Start(context.Background(), Spec{Name: "py", Command: []string{"python3", script}, Env: map[string]string{"X": "1"}}); err != nil {
 		t.Fatal(err)
 	}

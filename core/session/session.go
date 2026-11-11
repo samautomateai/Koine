@@ -44,7 +44,9 @@ type Entry struct {
 	Label            string          `json:"label,omitempty"`    // label: empty (absent) clears the label
 	FromID           string          `json:"fromId,omitempty"`   // branch_summary: the leaf the summary was written from
 	CustomType       string          `json:"customType,omitempty"`
-	Content          json.RawMessage `json:"content,omitempty"` // custom_message
+	Content          json.RawMessage `json:"content,omitempty"`       // custom_message
+	Data             json.RawMessage `json:"data,omitempty"`          // custom: the extension's own data
+	ThinkingLevel    string          `json:"thinkingLevel,omitempty"` // thinking_level_change
 
 	raw []byte // the line as read, so copies keep fields Koine does not know
 }
@@ -58,6 +60,9 @@ type Session struct {
 	entries []Entry
 	leaf    string
 	started bool // header written (or loaded)
+
+	// OnAppend, if set, is called with every entry written to this session after it was written (not for entries copied by a fork).
+	OnAppend func(Entry)
 }
 
 func newID(n int) string {
@@ -207,6 +212,9 @@ func (s *Session) appendEntry(typ string, fill func(*Entry)) error {
 	s.started = true
 	s.entries = append(s.entries, e)
 	s.leaf = e.ID
+	if s.OnAppend != nil {
+		s.OnAppend(e)
+	}
 	return nil
 }
 

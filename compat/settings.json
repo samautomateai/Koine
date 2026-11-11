@@ -48,8 +48,9 @@
     {
       "key": "enabledModels",
       "type": "string[]",
-      "status": "todo",
-      "note": "Needs a model catalog (LLM-11)."
+      "status": "verified",
+      "test": "TestEnabledModelsSettingPicksTheStartupModel",
+      "note": "Patterns as for `--models`; the first match is the startup model when no model is set. There is no model cycling yet."
     },
     {
       "key": "hideThinkingBlock",

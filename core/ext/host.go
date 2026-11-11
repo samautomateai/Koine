@@ -5,18 +5,22 @@
 //
 // Host -> extension requests:
 //
-//	initialize      {protocol, host, cwd}            -> {name?, events?: [string]}
+//	initialize      {protocol, host, cwd, trusted}   -> {name?, events?: [string]}
 //	event           {name, payload}                  -> events.Decision
 //	tool.execute    {name, args, callId}             -> {content, isError?}
 //	command.execute {name, args}                     -> {output}
+//	flags           (notification) {values: {name: value}}  command-line values of the registered flags
 //	shutdown        (notification)
 //
 // Extension -> host notifications:
 //
 //	register_tool    {name, description, schema}
 //	register_command {name, description}
+//	register_flag    {name, description, type: "boolean"|"string", default}
 //	log              {level, message}
-//	send_user_message {text}
+//	send_user_message {text, deliverAs?: "steer"|"followUp"}
+//	append_entry     {customType, data}     stored in the session as a custom entry (never sent to the model)
+//	tool_update      {callId: "<tool>/<id of the tool.execute call>", text}   partial output of a running tool
 package ext
 
 import (
@@ -54,8 +58,10 @@ type Host struct {
 	Tools *tools.Registry
 	// Logf receives extension logs and stderr lines. May be nil.
 	Logf func(format string, args ...any)
-	// OnUserMessage is called when an extension asks to inject a user message.
-	OnUserMessage func(text string)
+	// OnUserMessage is called when an extension asks to inject a user message (pi.sendUserMessage). deliverAs is "steer", "followUp" or "".
+	OnUserMessage func(text, deliverAs string)
+	// OnAppendEntry is called when an extension stores data in the session (pi.appendEntry).
+	OnAppendEntry func(customType string, data json.RawMessage)
 	// Trusted is told to extensions as ctx.isProjectTrusted().
 	Trusted bool
 
@@ -63,6 +69,39 @@ type Host struct {
 	procs    []*Proc
 	commands map[string]Command
 	compat   []CompatNote
+	flags    []Flag
+	updates  sync.Map // call id of a running extension tool -> the function that takes its partial output
+}
+
+// Flag is a command-line option an extension registered (pi.registerFlag). Type is "boolean" or "string".
+type Flag struct {
+	Name, Description, Type, Extension string
+	Default                            any
+}
+
+// Flags returns the options the extensions registered, in the order they did.
+func (h *Host) Flags() []Flag {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]Flag(nil), h.flags...)
+}
+
+// SetFlags tells every extension the command-line values of its options (a bool for a boolean flag, a string otherwise). It is sent
+// after the extensions have loaded, because the command line cannot be read until their flags are known.
+func (h *Host) SetFlags(values map[string]any) {
+	if len(values) == 0 {
+		return
+	}
+	params, err := json.Marshal(map[string]any{"values": values})
+	if err != nil {
+		return
+	}
+	h.mu.Lock()
+	procs := append([]*Proc(nil), h.procs...)
+	h.mu.Unlock()
+	for _, p := range procs {
+		p.write(msg{JSONRPC: "2.0", Method: "flags", Params: params})
+	}
 }
 
 // CompatNote records an API an extension used that koine does not (fully)
@@ -242,6 +281,19 @@ func (p *Proc) notify(m msg) {
 			h.commands[c.Name] = Command{Name: c.Name, Description: c.Description, proc: p}
 			h.mu.Unlock()
 		}
+	case "register_flag":
+		var f struct {
+			Name, Description, Type string
+			Default                 any
+		}
+		if json.Unmarshal(m.Params, &f) == nil && f.Name != "" {
+			if f.Type != "string" {
+				f.Type = "boolean"
+			}
+			h.mu.Lock()
+			h.flags = append(h.flags, Flag{Name: f.Name, Description: f.Description, Type: f.Type, Extension: p.Name, Default: f.Default})
+			h.mu.Unlock()
+		}
 	case "compat":
 		var c struct{ Kind, API string }
 		if json.Unmarshal(m.Params, &c) == nil && c.API != "" {
@@ -254,9 +306,24 @@ func (p *Proc) notify(m msg) {
 		_ = json.Unmarshal(m.Params, &l)
 		h.logf("[%s] %s", p.Name, l.Message)
 	case "send_user_message":
-		var u struct{ Text string }
+		var u struct{ Text, DeliverAs string }
 		if json.Unmarshal(m.Params, &u) == nil && h.OnUserMessage != nil {
-			h.OnUserMessage(u.Text)
+			h.OnUserMessage(u.Text, u.DeliverAs)
+		}
+	case "append_entry":
+		var e struct {
+			CustomType string
+			Data       json.RawMessage
+		}
+		if json.Unmarshal(m.Params, &e) == nil && e.CustomType != "" && h.OnAppendEntry != nil {
+			h.OnAppendEntry(e.CustomType, e.Data)
+		}
+	case "tool_update":
+		var u struct{ CallID, Text string }
+		if json.Unmarshal(m.Params, &u) == nil {
+			if fn, ok := h.updates.Load(u.CallID); ok {
+				fn.(func(string))(u.Text)
+			}
 		}
 	}
 }
@@ -387,7 +454,12 @@ func (t *procTool) Run(ctx context.Context, args json.RawMessage) (string, error
 	if len(args) == 0 {
 		args = json.RawMessage("{}")
 	}
-	res, err := t.p.call(ctx, "tool.execute", map[string]any{"name": t.name, "args": args, "callId": fmt.Sprintf("ext-%d", t.callSeq.Add(1))})
+	id := fmt.Sprintf("ext-%d", t.callSeq.Add(1))
+	if up := tools.Updates(ctx); up != nil { // partial results of this call go to whoever listens for the run
+		t.p.host.updates.Store(t.name+"/"+id, up)
+		defer t.p.host.updates.Delete(t.name + "/" + id)
+	}
+	res, err := t.p.call(ctx, "tool.execute", map[string]any{"name": t.name, "args": args, "callId": id})
 	if err != nil {
 		return "", err
 	}

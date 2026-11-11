@@ -111,6 +111,8 @@ const state = {
   oc: [], // opencode hook objects
   tools: new Map(), // name -> {style, def}
   commands: new Map(),
+  flags: new Map(), // name -> {type, description, default}, from pi.registerFlag
+  flagValues: {}, // command-line values, sent by the host once every extension has loaded
   target: process.argv[2] || "",
 };
 
@@ -298,17 +300,27 @@ function makeApi() {
       notify("register_command", { name, description: opts.description ?? "" });
     },
     registerShortcut: inert("pi.registerShortcut"),
-    registerFlag: inert("pi.registerFlag"),
+    registerFlag(name, opts = {}) {
+      if (typeof name !== "string" || !name) return;
+      const def = {
+        type: opts?.type === "string" ? "string" : "boolean",
+        description: String(opts?.description ?? ""),
+        default: opts?.default,
+      };
+      state.flags.set(name, def);
+      notify("register_flag", { name, ...def });
+    },
     registerMessageRenderer: inert("pi.registerMessageRenderer"),
     registerProvider: inert("pi.registerProvider"),
     unregisterProvider: inert("pi.unregisterProvider"),
-    getFlag: inert("pi.getFlag"),
+    getFlag: (name) => (name in state.flagValues ? state.flagValues[name] : state.flags.get(name)?.default),
     sendMessage: (m) => {
       report("inert", "pi.sendMessage");
       log(typeof m === "string" ? m : (m?.content ?? JSON.stringify(m)));
     },
-    sendUserMessage: (t) => notify("send_user_message", { text: typeof t === "string" ? t : String(t?.text ?? t) }),
-    appendEntry: inert("pi.appendEntry"),
+    sendUserMessage: (t, o) =>
+      notify("send_user_message", { text: typeof t === "string" ? t : String(t?.text ?? t), deliverAs: o?.deliverAs }),
+    appendEntry: (customType, data) => notify("append_entry", { customType: String(customType ?? ""), data: data ?? null }),
     setSessionName: inert("pi.setSessionName"),
     setLabel: inert("pi.setLabel"),
     getActiveTools: () => [...state.tools.keys()],
@@ -502,7 +514,9 @@ async function onToolExecute({ name, args, callId }) {
   const t = state.tools.get(name);
   if (!t) throw new Error(`unknown tool ${name}`);
   if (t.style === "pi") {
-    const r = await t.def.execute(callId, args, new AbortController().signal, undefined, piCtx());
+    const onUpdate = (p) =>
+      notify("tool_update", { callId: `${name}/${callId}`, text: typeof p === "string" ? p : textOf(p?.content ?? p) });
+    const r = await t.def.execute(callId, args, new AbortController().signal, onUpdate, piCtx());
     return { content: typeof r === "string" ? r : textOf(r?.content ?? r), isError: !!r?.isError };
   }
   const r = await t.def.execute(args, {
@@ -549,6 +563,10 @@ rl.on("line", async (line) => {
     return;
   }
   if (m.method === "shutdown") process.exit(0);
+  if (m.method === "flags") {
+    Object.assign(state.flagValues, m.params?.values ?? {});
+    return;
+  }
   const fn = methods[m.method];
   if (m.id === undefined) return;
   if (!fn) return write({ id: m.id, error: { code: -32601, message: `method not found: ${m.method}` } });

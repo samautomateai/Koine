@@ -21,7 +21,10 @@ var (
 	piBaseline = "1.5.2"
 )
 
-func main() { os.Exit(run(os.Args[1:], stdStreams())) }
+func main() {
+	app.SetProcessMarkers()
+	os.Exit(run(os.Args[1:], stdStreams()))
+}
 
 // run is main without the process globals, so it can be tested end to end.
 func run(args []string, st streams) int {
@@ -32,7 +35,11 @@ func run(args []string, st streams) int {
 	}
 	switch {
 	case c.Help:
-		fmt.Fprint(st.Out, usage)
+		fmt.Fprint(st.Out, usage+extensionFlagHelp(c))
+		return 0
+	case c.ListModels:
+		home, _ := os.UserHomeDir()
+		fmt.Fprintln(st.Out, app.ListModels(home, c.ListSearch))
 		return 0
 	case c.Version:
 		fmt.Fprintf(st.Out, "koine %s+pi%s\n", version, piBaseline)
@@ -54,12 +61,27 @@ func run(args []string, st streams) int {
 	defer stop()
 	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: c.Trust, RunOptions: app.RunOptions{
 		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools, Thinking: c.Thinking,
-		SessionDir: c.SessionDir, NoSession: c.NoSession, Continue: c.Continue, SessionRef: c.Session, Fork: c.Fork, Name: c.Name}})
+		SessionDir: c.SessionDir, NoSession: c.NoSession, Continue: c.Continue, SessionRef: c.Session, Fork: c.Fork, Name: c.Name},
+		Load: c.loadOptions()})
 	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)
 		return 1
 	}
 	defer a.Close()
+	if len(c.UnknownLong) > 0 { // options only extensions can define: now that they are loaded, read the command line again with their types
+		types := map[string]string{}
+		for _, f := range a.ExtFlags() {
+			types[f.Name] = f.Type
+		}
+		if c, err = parseArgsWith(args, types); err != nil {
+			fmt.Fprintln(st.Err, "koine:", err)
+			if !a.Trusted && len(c.Extensions) > 0 {
+				fmt.Fprintln(st.Err, "koine: extensions from -e do not load in an untrusted folder; start with --trust to use their options")
+			}
+			return 2
+		}
+		a.SetExtFlags(c.ExtFlags)
+	}
 
 	if c.Resume {
 		if !st.InTTY { // piped: just list
@@ -74,6 +96,7 @@ func run(args []string, st streams) int {
 		}
 	}
 	if c.Serve != "" {
+		warnAll(a, st)
 		fmt.Fprintf(st.Err, "koine serving on http://%s\n", c.Serve)
 		s := &server.Server{App: a}
 		srv := &http.Server{Addr: c.Serve, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second} // no WriteTimeout: SSE streams
@@ -99,5 +122,14 @@ func run(args []string, st streams) int {
 		fmt.Fprintln(st.Err, "koine: nothing to do: give a message, pipe text on stdin, or name an @file")
 		return 2
 	}
+	warnAll(a, st)
 	return runPrint(ctx, a, prompt, c.Mode, st)
+}
+
+// warnAll prints the startup warnings (untrusted code that was not loaded, unusable -e paths and the like) on stderr for the modes that
+// have no screen of their own.
+func warnAll(a *app.App, st streams) {
+	for _, w := range a.Warnings {
+		fmt.Fprintln(st.Err, "koine: warning:", w)
+	}
 }

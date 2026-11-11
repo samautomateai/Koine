@@ -1,12 +1,6 @@
 package agent
 
-import (
-	"context"
-	"fmt"
-	"time"
-
-	"koine/core/llm"
-)
+import "koine/core/llm"
 
 // maxThinkingOutput is the output limit Koine asks for when thinking is on and no limit is set: thinking tokens count against it, so the
 // provider's small default would cut answers short.
@@ -31,13 +25,6 @@ func (a *Agent) ThinkingLevel() string {
 		return t.Level
 	}
 	return ""
-}
-
-// retryNotices makes provider retries show up as notices.
-func retryNotices(ctx context.Context, emit func(Event)) context.Context {
-	return llm.WithRetryNotify(ctx, func(n llm.RetryNotice) {
-		emit(Event{Type: "notice", Text: fmt.Sprintf("retrying in %s (%d of %d): %v", n.Delay.Round(100*time.Millisecond), n.Attempt, n.Of, n.Err)})
-	})
 }
 
 // showThinking emits the readable thinking of a response, unless thinking blocks are hidden. The blocks stay in the history either way.

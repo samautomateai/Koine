@@ -185,7 +185,8 @@ treated as opencode hooks.
 | `pi.on("input")` → `{action: "handled" \| "transform", text}`                                                        | ✅                                                                                           |
 | `pi.on("before_agent_start")` → `{systemPrompt}`                                                                     | ✅ (diffed into `systemAppend`)                                                              |
 | `pi.on("session_start" \| "turn_start" \| "turn_end" \| "agent_end")`                                                | ✅ observe-only                                                                              |
-| `pi.sendUserMessage`, `pi.exec`, `pi.getActiveTools`                                                                 | ✅                                                                                           |
+| `pi.sendUserMessage(text, {deliverAs})`, `pi.exec`, `pi.getActiveTools`                                              | ✅ `deliverAs` `"steer"` queues for after the current tool calls, else a follow-up           |
+| `pi.appendEntry(customType, data)`                                                                                   | ✅ stored as a `custom` session entry; never sent to the model                               |
 | `ctx.ui.*` (select/confirm/input/widgets/status)                                                                     | ⚠️ accepted, inert; `confirm`→`false`, others→`undefined`                                    |
 | `registerProvider`, `registerShortcut`, `registerFlag`, `registerMessageRenderer`, `@mariozechner/pi-tui` components | ⚠️ accepted, inert                                                                           |
 | Pi events not in §2 (e.g. `session_before_compact`, `model_select`)                                                  | ❌ never fired                                                                               |
@@ -239,8 +240,32 @@ and `Describe()`. `emit` receives `agent.Event`:
 - **Command line** (`koine [options] [--] [@files] [message]`, REQ-CLI-001): with a message, piped stdin, `-p` or `--mode json` it runs one
   prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines.
   Text mode prints only the text after the last tool call to stdout; tool names, thinking, notices and errors go to stderr. `--mode json` prints one
-  `agent.Event` per line on stdout. Exit codes: 0 ok, 1 failed (provider, tool-loop or unknown `--model`), 2 usage (bad option, missing
-  `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options.
+  record per line on stdout in Pi's JSON event stream (below). Exit codes: 0 ok, 1 failed (provider, tool-loop or unknown `--model`), 2 usage (bad option, missing
+  `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options, and those that extensions registered.
+- **Tool, resource and model options** (REQ-CLI-002): `-t a,b|pat*` allows only those tools; `-t +name,-name` changes the default selection (plain
+  names and `+`/`-` cannot be mixed); `-xt list` removes tools by name or pattern after everything else; `-nbt` drops the built-in tools and keeps
+  extension tools; `-nt` offers none. `-e PATH`, `--skill PATH`, `--prompt-template PATH` add resources (repeatable; a file, or a directory);
+  `-ne`, `-ns`, `-np`, `-nc` switch off discovered extensions, skills, prompt templates and `AGENTS.md`/`CLAUDE.md`; explicit paths still load.
+  `--theme`, `--use-theme`, `--no-themes` are accepted and ignored. `--model` takes an id, `provider/id` or part of an id or name; `--provider` limits
+  it to one provider; `--models p1,p2` or `enabledModels` give the scope, whose first model starts the session when no model is set (`--model`,
+  `$KOINE_MODEL`, `defaultModel`); `--api-key` replaces the key for this run; `--list-models [search]` lists the catalog. Options registered by an
+  extension (`pi.registerFlag`) are `--name` (boolean) or `--name VALUE` / `--name=VALUE` (string); other unknown options exit 2.
+- **JSON event stream** (REQ-CLI-003): `--mode json` writes one record per line: `{"type":"session","version":3,"id","timestamp","cwd"}`, then
+  `agent_start`, `turn_start`, `message_start`/`message_end` (user), the assistant `message_start`, `message_update` records
+  (`assistantMessageEvent` `text_*`, `thinking_*` and `toolcall_*` with `start|delta|end`), `message_end`, `tool_execution_start`
+  `{toolCallId,toolName,args}`, `tool_execution_end` `{toolCallId,toolName,result,isError,durationMs}`, the `toolResult` messages, `turn_end`
+  `{message,toolResults}`, and finally `agent_end` `{messages,willRetry}` and `agent_settled` `{aborted}`. Each block is one delta. Also written,
+  with Pi's fields: `tool_execution_update` `{toolCallId,toolName,args,partialResult}` (partial output of an extension tool), `queue_update`
+  `{steering,followUp}`, `entry_appended` `{entry}` (the session-file line), `session_info_changed` `{name}` (absent when cleared),
+  `thinking_level_changed` `{level}`, `compaction_start` `{reason}` and `compaction_end` `{reason,result:{summary,firstKeptEntryId,tokensBefore,
+  estimatedTokensAfter},aborted,willRetry,errorMessage}` with reason `manual|threshold|overflow`, `auto_retry_start` `{attempt,maxAttempts,delayMs,
+  errorMessage}`, `auto_retry_end` `{success,attempt,finalError}`, and `summarization_retry_scheduled` `{attempt,maxAttempts,delayMs,errorMessage}`,
+  `summarization_retry_attempt_start` `{source,reason}` and `summarization_retry_finished`. Assistant messages have `api`, `thinkingLevel` and
+  `usage.cost` (zeros when the model has no price). The same events (name, with the fields under `data`) reach the HTTP server's SSE stream. Shapes
+  Pi's page leaves open follow the session file; see `compat/DIVERGENCES.md`.
+- **Environment** (REQ-CLI-004): the CLI sets `AI_AGENT=koine` and `KOINE_CODING_AGENT=true`; the bash tool also gets `KOINE_SESSION_ID`,
+  `KOINE_SESSION_FILE` (unset with `--no-session`), `KOINE_SESSION_PROVIDER`, `KOINE_SESSION_MODEL` and, while the model is asked to think, `KOINE_SESSION_REASONING_LEVEL`. The mapping of Pi's variables is in
+  `compat/DIVERGENCES.md`.
 - **Sessions** (REQ-SESS-001): every run writes `~/.koine/sessions/--<cwd with / as ->--/<timestamp>_<uuid>.jsonl` in Pi's v3 format.
   `-c` continues the latest, `--session ID|PATH|NAME` resumes, `--fork` copies, `-n NAME` names, `--no-session` writes nothing, `-r` lists.
   Slash commands: `/new` (also `/clear`), `/session`, `/name [text]`, `/resume [number|ref]`, `/fork`.
@@ -256,9 +281,9 @@ and `Describe()`. `emit` receives `agent.Event`:
   migrated on open (ids and parents added, `firstKeptEntryIndex` becomes `firstKeptEntryId`, role `hookMessage` becomes `custom`) after saving
   `<file>.v<N>.bak`. `branch_summary` and `custom_message` entries reach the model as user messages; `custom`, `label` and unknown entries do not.
 - **Settings** (REQ-CFG-001): `~/.koine/settings.json` and `<project>/.koine/settings.json`, Pi's key names. The status of every Pi key is
-  in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `sessionDir`, `extensions`, `compaction.*`, `branchSummary.*`, `treeFilterMode`, the thinking settings, `retry.*`, `httpIdleTimeoutMs` (see below). Koine-only:
+  in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `enabledModels`, `sessionDir`, `extensions`, `compaction.*`, `branchSummary.*`, `treeFilterMode`, the thinking settings, `retry.*`, `httpIdleTimeoutMs` (see below). Koine-only:
   `model`, `maxTurns`, `hooks`, `plugin`, `providers`, `compaction.contextWindow`. Project values override user values; global-only keys are
-  ignored in a project; an untrusted project applies only `model`, `maxTurns`, `compaction`, the thinking settings and the retry settings (not the tree settings). Problems are listed at startup (`/reload` re-checks).
+  ignored in a project; an untrusted project applies only `model`, `maxTurns`, `enabledModels`, `compaction`, the thinking settings and the retry settings (not the tree settings). Problems are listed at startup (`/reload` re-checks).
 - **Agent directory and prompt files** (REQ-CFG-002): the user directory is `~/.koine`, or `$KOINE_AGENT_DIR`. `SYSTEM.md` (replaces the system prompt) and `APPEND_SYSTEM.md` (added after the context files) are read from a trusted project's `.koine/` or `.pi/`, else from the user directory or `~/.pi/agent`; the first non-blank file wins and files are never combined. `--system-prompt` and `--append-system-prompt` override them.
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.

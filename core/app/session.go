@@ -60,7 +60,7 @@ func (a *App) initSession() error {
 }
 
 func (a *App) useSession(s *session.Session) {
-	a.Session = s
+	a.setSession(s)
 	a.Agent.SetHistory(s.Messages())
 	if n := len(a.Agent.History); n > 0 {
 		a.Info = append(a.Info, fmt.Sprintf("session %s: %d messages loaded", shortID(s.ID), n))
@@ -68,6 +68,9 @@ func (a *App) useSession(s *session.Session) {
 }
 
 func (a *App) persist(m llm.Message) {
+	if a.OnMessage != nil {
+		a.OnMessage(m)
+	}
 	if a.Session == nil {
 		return
 	}
@@ -86,9 +89,9 @@ func shortID(id string) string {
 // NewSession clears the conversation and starts a new session file (or none, with --no-session).
 func (a *App) NewSession() {
 	a.Agent.Reset()
-	a.Session = nil
+	a.setSession(nil)
 	if !a.opts.NoSession {
-		a.Session = session.Create(a.SessionDir(), a.Cwd)
+		a.setSession(session.Create(a.SessionDir(), a.Cwd))
 	}
 }
 
@@ -114,9 +117,17 @@ func (a *App) sessionCommand(ctx context.Context, name, args string, emit func(a
 			notice("sessions are off (--no-session)")
 		} else if args == "" {
 			notice(fmt.Sprintf("name: %q", a.Session.Name()))
+		} else if args == "--clear" {
+			if err := a.Session.SetName(""); err != nil {
+				fail(err)
+			} else {
+				a.nameChanged("")
+				notice("name cleared")
+			}
 		} else if err := a.Session.SetName(args); err != nil {
 			fail(err)
 		} else {
+			a.nameChanged(args)
 			notice("named: " + args)
 		}
 	case "resume":
@@ -149,7 +160,7 @@ func (a *App) sessionCommand(ctx context.Context, name, args string, emit func(a
 			fail(err)
 			break
 		}
-		a.Session = f
+		a.setSession(f)
 		notice("forked into " + shortID(f.ID))
 	default:
 		return a.treeCommand(ctx, name, args, emit)
@@ -190,6 +201,7 @@ func (a *App) configureCompaction(c CompactionConfig) {
 	a.Agent.ContextWindow, a.Agent.Reserve, a.Agent.KeepRecent = w, c.ReserveTokens, c.KeepRecentTokens
 	a.Agent.AutoCompact = c.Enabled == nil || *c.Enabled
 	a.Agent.OnCompact = a.persistCompaction
+	a.Agent.KeptEntryID = a.keptEntryID
 }
 
 // persistCompaction records a compaction in the session file, so a resumed session starts from the summary.

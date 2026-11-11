@@ -18,6 +18,32 @@ type extTarget struct {
 
 var jsExt = map[string]bool{".js": true, ".mjs": true, ".cjs": true, ".ts": true, ".mts": true, ".cts": true}
 
+// dirTarget reads one extension directory: an extension.json with a command (any language), or an index.ts/js/mjs/mts (Pi and opencode).
+func dirTarget(p, name string) (extTarget, bool) {
+	if b, err := os.ReadFile(filepath.Join(p, "extension.json")); err == nil {
+		var s ext.Spec
+		if json.Unmarshal(b, &s) != nil || len(s.Command) == 0 {
+			return extTarget{}, false
+		}
+		if s.Name == "" {
+			s.Name = name
+		}
+		if s.Dir == "" {
+			s.Dir = p // relative paths in "command" resolve against the extension folder
+		}
+		if strings.HasPrefix(s.Command[0], "./") {
+			s.Command[0] = filepath.Join(p, s.Command[0])
+		}
+		return extTarget{name: s.Name, spec: &s}, true
+	}
+	for _, idx := range []string{"index.ts", "index.js", "index.mjs", "index.mts"} {
+		if _, err := os.Stat(filepath.Join(p, idx)); err == nil {
+			return extTarget{name: name, js: filepath.Join(p, idx)}, true
+		}
+	}
+	return extTarget{}, false
+}
+
 // scanDir lists extension entry points in dir:
 //   - loose *.ts/*.js files
 //   - subdirs with extension.json (any-language: {"command":[...]})
@@ -36,27 +62,8 @@ func scanDir(dir string) []extTarget {
 			}
 			continue
 		}
-		if b, err := os.ReadFile(filepath.Join(p, "extension.json")); err == nil {
-			var s ext.Spec
-			if json.Unmarshal(b, &s) == nil && len(s.Command) > 0 {
-				if s.Name == "" {
-					s.Name = e.Name()
-				}
-				if s.Dir == "" {
-					s.Dir = p // relative paths in "command" resolve against the extension folder
-				}
-				if strings.HasPrefix(s.Command[0], "./") {
-					s.Command[0] = filepath.Join(p, s.Command[0])
-				}
-				out = append(out, extTarget{name: s.Name, spec: &s})
-			}
-			continue
-		}
-		for _, idx := range []string{"index.ts", "index.js", "index.mjs", "index.mts"} {
-			if _, err := os.Stat(filepath.Join(p, idx)); err == nil {
-				out = append(out, extTarget{name: e.Name(), js: filepath.Join(p, idx)})
-				break
-			}
+		if t, ok := dirTarget(p, e.Name()); ok {
+			out = append(out, t)
 		}
 	}
 	return out

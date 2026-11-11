@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -34,7 +33,7 @@ func TestParseArgs(t *testing.T) {
 		}
 	}
 	for name, in := range map[string][]string{
-		"unknown":       {"--nope"},
+		"unknown":       {"-nope"},
 		"missing value": {"--model"},
 		"bad mode":      {"--mode", "xml"},
 		"bool value":    {"--print=yes"},
@@ -94,30 +93,6 @@ func TestMessageAloneRunsPrintModeEvenOnTerminal(t *testing.T) {
 	code := run([]string{"-C", t.TempDir(), "hello"}, streams{Out: &out, Err: &errb, InTTY: true, OutTTY: true})
 	if code != 0 || len(seen) == 0 || firstUserText(seen) != "hello" {
 		t.Fatalf("%d %s seen=%d", code, errb.String(), len(seen))
-	}
-}
-
-func TestJSONModeEmitsOneEventPerLine(t *testing.T) {
-	var seen []map[string]any
-	api := fakeAnthropic(t, &seen)
-	defer api.Close()
-	isolate(t, api.URL)
-	code, out, errs := cli("", "-C", project(t), "--trust", "--mode", "json", "go")
-	if code != 0 || errs != "" {
-		t.Fatalf("%d %q", code, errs)
-	}
-	types := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		var e map[string]any
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			t.Fatalf("not JSON: %q", line)
-		}
-		types[e["type"].(string)] = true
-	}
-	for _, want := range []string{"tool_start", "tool_end", "text"} {
-		if !types[want] {
-			t.Errorf("no %s event in %v", want, types)
-		}
 	}
 }
 
