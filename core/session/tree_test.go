@@ -162,7 +162,8 @@ func TestLabelsFindAndRows(t *testing.T) {
 	if got := ids(FilterAll); !strings.HasPrefix(got, "u1,a1,c1,u2,a2,") || strings.Count(got, ",") != 8 {
 		t.Errorf("all: %s", got)
 	}
-	if got := ids(FilterDefault); strings.Contains(got, "c1") || strings.Count(got, ",") != 4 { // no custom, no label entries
+	// entry ids are random hex, so match whole ids: a substring check on "c1" fails whenever a random id happens to contain it
+	if got := ids(FilterDefault); strings.Contains(","+got+",", ",c1,") || strings.Count(got, ",") != 4 { // no custom, no label entries
 		t.Errorf("default: %s", got)
 	}
 	if got := ids(FilterLabeledOnly); got != "a1" {
