@@ -302,7 +302,11 @@ function makeApi() {
     registerShortcut: inert("pi.registerShortcut"),
     registerFlag(name, opts = {}) {
       if (typeof name !== "string" || !name) return;
-      const def = { type: opts?.type === "string" ? "string" : "boolean", description: String(opts?.description ?? ""), default: opts?.default };
+      const def = {
+        type: opts?.type === "string" ? "string" : "boolean",
+        description: String(opts?.description ?? ""),
+        default: opts?.default,
+      };
       state.flags.set(name, def);
       notify("register_flag", { name, ...def });
     },
