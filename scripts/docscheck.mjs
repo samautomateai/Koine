@@ -2,7 +2,7 @@
 // Checks that requirements, design, ADRs and links stay consistent with each other and with the code.
 //   node scripts/docscheck.mjs [--root dir] [--base <git ref>] [--docs-impact-none]
 // --base also enforces the living-docs rule: product code changed since <ref> needs a docs change,
-// unless --docs-impact-none (or DOCS_IMPACT_NONE=1) is given, which a PR does by writing "Docs-Impact: none".
+// unless --docs-impact-none (or DOCS_IMPACT_NONE=1) is given, or $PR_BODY says "Docs-Impact: none — <reason>" with a real reason.
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -148,16 +148,36 @@ export function checkLinks(root) {
 }
 
 const isTest = (f) => /(_test\.go|\.test\.mjs)$/.test(f) || /(^|\/)(testdata|fixture)\//.test(f);
-const isProduct = (f) => /^(core|cmd|scripts|compat)\//.test(f) && /\.(go|mjs|js|json|sh)$/.test(f) && !isTest(f) && f !== "compat/pi.json";
-const isDoc = (f) => /^docs\//.test(f) || f === "CHANGELOG.md" || /^compat\/[A-Z]+\.md$/.test(f);
+const isProduct = (f) =>
+  /^(core|cmd|scripts|compat)\//.test(f) && /\.(go|mjs|js|json|sh)$/.test(f) && !isTest(f) && !/^compat\/(pi|settings)\.json$/.test(f);
+/** Files that record what Koine does and how far it matches Pi: requirements, design, ADRs, spec, gap tables, compatibility manifests. */
+const isTracker = (f) => /^docs\//.test(f) || /^compat\/([A-Z]+\.md|pi\.json|settings\.json)$/.test(f);
 
-/** Product code changed with no docs change and no explicit opt-out. */
+/**
+ * "Docs-Impact: none — <reason>" in a PR body opts out of the living-docs rule, but only with a real reason (a bare "none" or the
+ * template's placeholder does not count).
+ */
+export function parseDocsImpact(body) {
+  const m = /^Docs-Impact:[ \t]*none[ \t]*[-—–:]?[ \t]*(.*)$/im.exec(body ?? "");
+  const reason = (m?.[1] ?? "").trim();
+  return { none: Boolean(m) && reason.length >= 8 && !/^<.*>$/.test(reason), reason };
+}
+
+/**
+ * Living-docs rule (docs/CHECKLIST.md): product code changed ⇒ CHANGELOG.md has a line AND a requirement, design, SPEC, gap table or
+ * compatibility manifest changed too, unless the PR states why no documentation is affected.
+ */
 export function livingDocsViolation(changed, impactNone) {
   const product = changed.filter(isProduct);
-  if (!product.length || impactNone || changed.some(isDoc)) return null;
+  if (!product.length || impactNone) return null;
+  const missing = [];
+  if (!changed.includes("CHANGELOG.md")) missing.push("a line in CHANGELOG.md");
+  if (!changed.some(isTracker))
+    missing.push("an update to the requirement, design, SPEC, gap table or compat manifest it affects (docs/ or compat/)");
+  if (!missing.length) return null;
   return (
-    `product code changed (${product.slice(0, 3).join(", ")}${product.length > 3 ? ", …" : ""}) but no file under docs/, CHANGELOG.md or compat/*.md did. ` +
-    `Update the requirement/design/CHANGELOG, or state "Docs-Impact: none" in the PR with a reason.`
+    `product code changed (${product.slice(0, 3).join(", ")}${product.length > 3 ? ", …" : ""}) but there is no ${missing.join(" and no ")}. ` +
+    `Work through docs/CHECKLIST.md; if nothing needs updating, put "Docs-Impact: none — <specific reason>" in the PR description.`
   );
 }
 
@@ -185,7 +205,8 @@ export function run({ root, base, impactNone }) {
 export function main(argv) {
   const arg = (k) => argv[argv.indexOf(k) + 1];
   const root = argv.includes("--root") ? arg("--root") : process.cwd();
-  const impactNone = argv.includes("--docs-impact-none") || process.env.DOCS_IMPACT_NONE === "1";
+  const impactNone =
+    argv.includes("--docs-impact-none") || process.env.DOCS_IMPACT_NONE === "1" || parseDocsImpact(process.env.PR_BODY).none;
   const { errs, counts } = run({ root, base: argv.includes("--base") ? arg("--base") : undefined, impactNone });
   for (const e of errs) console.log("✗ " + e);
   console.error(

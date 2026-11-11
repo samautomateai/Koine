@@ -11,6 +11,7 @@ import {
   checkAdrs,
   checkLinks,
   livingDocsViolation,
+  parseDocsImpact,
   run,
   main,
 } from "../../scripts/docscheck.mjs";
@@ -122,16 +123,29 @@ test("docscheck finds broken relative links but ignores URLs, anchors and code b
   fs.rmSync(d, { recursive: true, force: true });
 });
 
-test("docscheck living-docs rule: code needs docs unless opted out", () => {
-  assert.match(livingDocsViolation(["core/app/app.go"], false), /no file under docs/);
-  assert.equal(livingDocsViolation(["core/app/app.go", "docs/design.md"], false), null);
-  assert.equal(livingDocsViolation(["core/app/app.go", "CHANGELOG.md"], false), null);
+test("docscheck living-docs rule: code needs a changelog line and a tracker update unless opted out", () => {
+  assert.match(livingDocsViolation(["core/app/app.go"], false), /no a line in CHANGELOG\.md and no an update to the requirement/);
+  assert.match(livingDocsViolation(["core/app/app.go", "CHANGELOG.md"], false), /no an update to the requirement, design, SPEC/);
+  assert.match(livingDocsViolation(["core/app/app.go", "docs/design.md"], false), /no a line in CHANGELOG\.md/);
+  assert.equal(livingDocsViolation(["core/app/app.go", "docs/design.md", "CHANGELOG.md"], false), null);
+  assert.equal(livingDocsViolation(["cmd/koine/main.go", "compat/settings.json", "CHANGELOG.md"], false), null, "a manifest is a tracker");
   assert.equal(livingDocsViolation(["core/app/app.go"], true), null);
   assert.equal(
-    livingDocsViolation(["core/app/app_test.go", "README.md", "compat/pi.json"], false),
+    livingDocsViolation(["core/app/app_test.go", "README.md", "compat/pi.json", "compat/settings.json"], false),
     null,
-    "tests and README alone are not product changes",
+    "tests, README and the manifests alone are not product changes",
   );
+});
+
+test("parseDocsImpact needs a real reason", () => {
+  assert.deepEqual(parseDocsImpact("x\nDocs-Impact: none — internal rename, no behaviour change\n"), {
+    none: true,
+    reason: "internal rename, no behaviour change",
+  });
+  assert.equal(parseDocsImpact("Docs-Impact: none - test-only helper refactor").none, true);
+  for (const bad of ["Docs-Impact: none", "Docs-Impact: none — <reason>", "Docs-Impact: none — n/a", "docs impact none", "", undefined]) {
+    assert.equal(parseDocsImpact(bad).none, false, String(bad));
+  }
 });
 
 test("docscheck main reports and returns an exit code", () => {

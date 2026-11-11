@@ -2,6 +2,10 @@
 
 One entry per rebase of `compat/pi.json`. Newest first.
 
+## Settings manifest — 2026-11-11
+
+- `compat/settings.json` baseline 1.5.2, built from Pi's settings reference (73 keys). Drift: `task upstream:check` (scripts/settings-check.mjs).
+
 ## 1.5.2 — 2026-11-10 (initial baseline)
 
 - Source: upstream source tree supplied by the user (all `@earendil-works/*` packages at 1.5.2).

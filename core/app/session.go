@@ -11,17 +11,15 @@ import (
 	"koine/core/session"
 )
 
-// SessionDir is where this project's sessions live: --session-dir (used as given), $KOINE_SESSION_DIR or ~/.koine/sessions, the last two
-// split per project as Pi does.
+// SessionDir is where this project's sessions live: --session-dir, $KOINE_SESSION_DIR or the sessionDir setting (in that order, used as
+// given, relative paths from the project), else ~/.koine/sessions split per project as Pi does.
 func (a *App) SessionDir() string {
-	if a.opts.SessionDir != "" {
-		return a.opts.SessionDir
+	for _, d := range []string{a.opts.SessionDir, os.Getenv("KOINE_SESSION_DIR"), a.Cfg.SessionDir} {
+		if d != "" {
+			return a.resolvePath(d)
+		}
 	}
-	root := os.Getenv("KOINE_SESSION_DIR")
-	if root == "" {
-		root = filepath.Join(a.Home, ".koine", "sessions")
-	}
-	return session.DirFor(root, a.Cwd)
+	return session.DirFor(filepath.Join(a.Home, ".koine", "sessions"), a.Cwd)
 }
 
 // initSession opens, continues, forks or creates the session for this run and loads its history into the agent.
@@ -186,4 +184,15 @@ func (a *App) persistCompaction(firstKept int, summary string, tokensBefore int)
 	if err := a.Session.Compact(firstKept, summary, tokensBefore); err != nil {
 		a.Warnings = append(a.Warnings, "compaction not saved to the session: "+err.Error())
 	}
+}
+
+// resolvePath expands a leading ~ and makes relative paths relative to the project.
+func (a *App) resolvePath(p string) string {
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		p = filepath.Join(a.Home, strings.TrimPrefix(p, "~"))
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(a.Cwd, p)
+	}
+	return p
 }

@@ -1,0 +1,455 @@
+{
+  "schema": 1,
+  "upstream": {
+    "package": "@earendil-works/pi-coding-agent",
+    "baseline": "1.5.2",
+    "doc": "docs/settings.md"
+  },
+  "files": {
+    "global": "~/.koine/settings.json",
+    "project": ".koine/settings.json",
+    "legacy": ["~/.koine/config.json", ".koine/config.json"]
+  },
+  "keys": [
+    {
+      "key": "defaultProvider",
+      "type": "string",
+      "status": "verified",
+      "test": "TestSettingsPiKeysMapToKoine",
+      "note": "With defaultModel, selects `provider/model` (Koine routes custom providers that way)."
+    },
+    {
+      "key": "defaultModel",
+      "type": "string",
+      "status": "verified",
+      "test": "TestSettingsPiKeysMapToKoine"
+    },
+    {
+      "key": "defaultThinkingLevel",
+      "type": "\"off\"|\"minimal\"|\"low\"|\"medium\"|\"high\"|\"xhigh\"|\"max\"",
+      "status": "todo",
+      "note": "Needs thinking support in core/llm (LLM-25)."
+    },
+    {
+      "key": "modelThinkingLevels",
+      "type": "object",
+      "status": "todo"
+    },
+    {
+      "key": "thinkingBudgets",
+      "type": "object",
+      "status": "todo"
+    },
+    {
+      "key": "enabledModels",
+      "type": "string[]",
+      "status": "todo",
+      "note": "Needs a model catalog (LLM-11)."
+    },
+    {
+      "key": "hideThinkingBlock",
+      "type": "boolean",
+      "status": "inert",
+      "note": "No thinking blocks are shown yet."
+    },
+    {
+      "key": "showCacheMissNotices",
+      "type": "boolean",
+      "status": "todo"
+    },
+    {
+      "key": "cacheWarming",
+      "type": "\"off\"|\"streaming\"|\"idle\"",
+      "status": "todo",
+      "scope": "global",
+      "note": "Global only."
+    },
+    {
+      "key": "steeringMode",
+      "type": "\"all\"|\"one-at-a-time\"",
+      "status": "todo",
+      "note": "Needs steering queues (CLI-27)."
+    },
+    {
+      "key": "followUpMode",
+      "type": "\"all\"|\"one-at-a-time\"",
+      "status": "todo"
+    },
+    {
+      "key": "externalEditor",
+      "type": "string",
+      "status": "inert",
+      "note": "Line mode has no editor keybinding."
+    },
+    {
+      "key": "doubleEscapeAction",
+      "type": "\"tree\"|\"fork\"|\"none\"",
+      "status": "inert"
+    },
+    {
+      "key": "treeFilterMode",
+      "type": "\"default\"|\"no-tools\"|\"user-only\"|\"labeled-only\"|\"all\"",
+      "status": "inert",
+      "note": "Until `/tree` exists (REQ-SESS-002)."
+    },
+    {
+      "key": "defaultProjectTrust",
+      "type": "\"ask\"|\"always\"|\"never\"",
+      "status": "todo",
+      "scope": "global",
+      "note": "CLI-32. Trust is explicit today (`--trust`, `/trust`, KOINE_TRUST)."
+    },
+    {
+      "key": "defaultTools",
+      "type": "string[]",
+      "status": "verified",
+      "test": "TestSettingsSessionDirAndDefaultTools",
+      "note": "Plain names set the base selection; `+name` and `-name` adjust it; `[]` removes the built-in tools. `-t`, `-nt` override."
+    },
+    {
+      "key": "codemode.mode",
+      "type": "\"on\"|\"only\"",
+      "status": "todo"
+    },
+    {
+      "key": "codemode.inlineBudget",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "sessionDir",
+      "type": "string",
+      "status": "verified",
+      "test": "TestSettingsSessionDirAndDefaultTools",
+      "note": "Used as given (relative to the project). `--session-dir` and `$KOINE_SESSION_DIR` override it."
+    },
+    {
+      "key": "sessionShareDestination",
+      "type": "\"auto\"|\"gist\"|\"radius\"",
+      "status": "by-design",
+      "note": "Koine does not upload sessions to third parties."
+    },
+    {
+      "key": "compaction.enabled",
+      "type": "boolean",
+      "status": "verified",
+      "test": "TestCompactCommandIsSavedAndSurvivesResume"
+    },
+    {
+      "key": "compaction.reserveTokens",
+      "type": "number",
+      "status": "verified",
+      "test": "TestCompactCommandIsSavedAndSurvivesResume"
+    },
+    {
+      "key": "compaction.keepRecentTokens",
+      "type": "number",
+      "status": "verified",
+      "test": "TestCompactCommandIsSavedAndSurvivesResume"
+    },
+    {
+      "key": "compaction.modelOverrides",
+      "type": "object",
+      "status": "todo",
+      "note": "Needs a model catalog."
+    },
+    {
+      "key": "branchSummary.reserveTokens",
+      "type": "number",
+      "status": "todo",
+      "note": "Needs `/tree` (CMP-06)."
+    },
+    {
+      "key": "branchSummary.skipPrompt",
+      "type": "boolean",
+      "status": "todo"
+    },
+    {
+      "key": "theme",
+      "type": "string",
+      "status": "inert"
+    },
+    {
+      "key": "quietStartup",
+      "type": "boolean|\"header\"",
+      "status": "inert"
+    },
+    {
+      "key": "tuiMode",
+      "type": "\"regular\"|\"fullscreen\"",
+      "status": "inert"
+    },
+    {
+      "key": "fullscreenExitOutput",
+      "type": "\"transcript\"|\"resume-hint\"",
+      "status": "inert"
+    },
+    {
+      "key": "fullscreenScrollbar",
+      "type": "\"auto\"|\"always\"|\"hidden\"",
+      "status": "inert"
+    },
+    {
+      "key": "fullscreenCopyOnSelect",
+      "type": "boolean",
+      "status": "inert"
+    },
+    {
+      "key": "fullscreenWheelScrollLines",
+      "type": "\"auto\"|number",
+      "status": "inert"
+    },
+    {
+      "key": "editorPaddingX",
+      "type": "number",
+      "status": "inert"
+    },
+    {
+      "key": "outputPad",
+      "type": "number",
+      "status": "inert"
+    },
+    {
+      "key": "autocompleteMaxVisible",
+      "type": "number",
+      "status": "inert"
+    },
+    {
+      "key": "showHardwareCursor",
+      "type": "boolean",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.showImages",
+      "type": "boolean",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.imageWidthCells",
+      "type": "number",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.clearOnShrink",
+      "type": "boolean",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.showTerminalProgress",
+      "type": "boolean",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.hyperlinks",
+      "type": "boolean|\"auto\"",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.images",
+      "type": "boolean|\"kitty\"|\"iterm2\"|\"auto\"",
+      "status": "inert"
+    },
+    {
+      "key": "terminal.trueColor",
+      "type": "boolean|\"auto\"",
+      "status": "inert"
+    },
+    {
+      "key": "images.autoResize",
+      "type": "boolean",
+      "status": "todo",
+      "note": "Needs image content blocks (CLI-05)."
+    },
+    {
+      "key": "images.blockImages",
+      "type": "boolean",
+      "status": "todo"
+    },
+    {
+      "key": "markdown.codeBlockIndent",
+      "type": "string",
+      "status": "inert"
+    },
+    {
+      "key": "markdown.mermaid",
+      "type": "\"off\"|\"final\"|\"streaming\"",
+      "status": "inert"
+    },
+    {
+      "key": "transport",
+      "type": "\"auto\"|\"sse\"|\"websocket\"|\"websocket-cached\"",
+      "status": "todo",
+      "note": "Koine streams over SSE only when streaming lands (REQ-LLM-003)."
+    },
+    {
+      "key": "httpProxy",
+      "type": "string",
+      "status": "todo",
+      "scope": "global",
+      "note": "Global only."
+    },
+    {
+      "key": "httpIdleTimeoutMs",
+      "type": "number|\"disabled\"",
+      "status": "todo"
+    },
+    {
+      "key": "websocketConnectTimeoutMs",
+      "type": "number|\"disabled\"",
+      "status": "todo"
+    },
+    {
+      "key": "retry.enabled",
+      "type": "boolean",
+      "status": "todo",
+      "note": "Retry is fixed at 4 attempts for 429 and 5xx (REQ-LLM-002)."
+    },
+    {
+      "key": "retry.maxRetries",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "retry.baseDelayMs",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "retry.maxAgentDelayMs",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "retry.provider.timeoutMs",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "retry.provider.maxRetries",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "retry.provider.maxRetryDelayMs",
+      "type": "number",
+      "status": "todo"
+    },
+    {
+      "key": "shellPath",
+      "type": "string",
+      "status": "todo"
+    },
+    {
+      "key": "shellCommandPrefix",
+      "type": "string",
+      "status": "todo"
+    },
+    {
+      "key": "npmCommand",
+      "type": "string[]",
+      "status": "todo",
+      "note": "Needs package support (REQ-PKG-001)."
+    },
+    {
+      "key": "selfUpdateCommand",
+      "type": "string[]",
+      "status": "by-design",
+      "scope": "global",
+      "note": "A Go binary is updated through its package manager."
+    },
+    {
+      "key": "packages",
+      "type": "array",
+      "status": "todo",
+      "note": "REQ-PKG-001."
+    },
+    {
+      "key": "extensions",
+      "type": "array",
+      "status": "verified",
+      "test": "TestSettingsExtensionsMixedStringsAndObjects",
+      "note": "Strings are extension paths (like `plugin`); objects are Koine extension specs (any language)."
+    },
+    {
+      "key": "skills",
+      "type": "string[]",
+      "status": "todo",
+      "note": "Skills are found by directory convention today."
+    },
+    {
+      "key": "prompts",
+      "type": "string[]",
+      "status": "todo"
+    },
+    {
+      "key": "themes",
+      "type": "string[]",
+      "status": "inert"
+    },
+    {
+      "key": "enableSkillCommands",
+      "type": "boolean",
+      "status": "todo"
+    },
+    {
+      "key": "collapseChangelog",
+      "type": "boolean",
+      "status": "by-design",
+      "note": "Koine shows no changelog after updates."
+    },
+    {
+      "key": "enableInstallTelemetry",
+      "type": "boolean",
+      "status": "by-design",
+      "note": "Koine has no telemetry."
+    },
+    {
+      "key": "enableAnalytics",
+      "type": "boolean",
+      "status": "by-design",
+      "note": "Koine has no analytics."
+    },
+    {
+      "key": "warnings.anthropicExtraUsage",
+      "type": "boolean",
+      "status": "todo"
+    }
+  ],
+  "koine": [
+    {
+      "key": "model",
+      "type": "string",
+      "note": "Alias of defaultProvider/defaultModel (the earlier Koine name); `--model` and KOINE_MODEL override it."
+    },
+    {
+      "key": "maxTurns",
+      "type": "number",
+      "note": "Tool-loop turns per prompt (default 50)."
+    },
+    {
+      "key": "hooks",
+      "type": "object",
+      "note": "Claude-compatible command hooks (REQ-HOOK-001)."
+    },
+    {
+      "key": "plugin",
+      "type": "string[]",
+      "note": "opencode-style plugin paths or npm names."
+    },
+    {
+      "key": "providers",
+      "type": "object",
+      "note": "Extra OpenAI-compatible or Anthropic-type endpoints; project entries need trust."
+    },
+    {
+      "key": "compaction.contextWindow",
+      "type": "number",
+      "note": "Context window in tokens until Koine has a model catalog (default 200000)."
+    },
+    {
+      "key": "$schema",
+      "type": "string",
+      "note": "Accepted for editor validation."
+    }
+  ]
+}

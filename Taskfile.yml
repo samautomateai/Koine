@@ -164,14 +164,19 @@ tasks:
       - node scripts/upstream-check.mjs --sync-surface
 
   upstream:check:
-    desc: Diff the latest published Pi against compat/pi.json (needs network; exit 1 = drift). Pass SRC=<dir> to use a checkout
+    desc: Diff the latest published Pi against compat/pi.json and compat/settings.json (needs network; exit 1 = drift). SRC=<dir> uses a checkout
     cmds:
-      - node scripts/upstream-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} {{.CLI_ARGS}}
+      - |
+        rc=0
+        node scripts/upstream-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} {{.CLI_ARGS}} || rc=1
+        node scripts/settings-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} || rc=1
+        exit $rc
 
   upstream:rebase:
-    desc: Move the baseline to the latest Pi; new surface is recorded as `unsupported` for triage
+    desc: Move the baselines to the latest Pi; new surface and settings are recorded as `unsupported`/`todo` for triage
     cmds:
       - node scripts/upstream-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} --rebase || true
+      - node scripts/settings-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} --rebase || true
       - task: compat:status
 
   deps:check:

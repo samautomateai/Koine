@@ -147,6 +147,13 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Statement: Image `@file` arguments, fuzzy `--model provider/id:thinking`, `-xt`/`-nbt`/`defaultTools`, `SYSTEM.md`/`APPEND_SYSTEM.md`, resource flags (`-e`, `--skill`, `--prompt-template`), extension-registered flags, and Pi's JSON event schema. Gap rows CLI-05, 06, 11, 12, 13, 14, 29, 30, 31.
 - Design: none yet
 
+### REQ-CFG-001 — Settings mirror Pi's schema, mapped and tracked
+
+- Status: implemented
+- Statement: Koine reads `~/.koine/settings.json` and `<project>/.koine/settings.json` (the older `config.json` still loads) using Pi's key names, nesting and merge rules: project overrides user, objects merge, `defaultTools` lists adjust or replace, global-only keys are ignored in a project. `compat/settings.json` lists every Pi key with its type and Koine status (verified, inert, todo, by-design) and the Koine-only keys. At startup each file is checked against it: unknown keys, wrong types, keys not acted on yet and misplaced global-only keys are reported, inert keys are accepted silently. `task upstream:check` diffs Pi's documented settings against the manifest and `task upstream:rebase` records new ones as `todo`. Acted on today: `defaultProvider`/`defaultModel`, `defaultTools`, `sessionDir`, `extensions`, `compaction.{enabled,reserveTokens,keepRecentTokens}`. Gap rows CLI-38..41.
+- Design: DES-013
+- Tests: TestSettingsManifestIsValid; TestSettingsValidateRules; TestSettingsCheck; TestVerifiedSettingsNameRealTests; TestSettingsPiKeysMapToKoine; TestSettingsExtensionsMixedStringsAndObjects; TestSettingsSessionDirAndDefaultTools; TestSettingsDiagnostics; js:parseSettingsDoc; js:diff finds new and vanished keys; js:rebase adds todo keys; js:main: exit codes
+
 ### REQ-LLM-004 — Model catalog, usage and cost, thinking, prompt caching
 
 - Status: planned
