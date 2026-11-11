@@ -17,7 +17,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 task build            # or: go build -o bin/koine ./cmd/koine
 bin/koine              # interactive
 bin/koine -p "summarise this repo"
-bin/koine -serve 127.0.0.1:7777   # HTTP/SSE API (Electron / browser)
+git diff | bin/koine "review this change" > review.txt   # piped stdin + message; answer on stdout, activity on stderr
+bin/koine --mode json @spec.md "list the TODOs" | jq .   # one JSON event per line
+bin/koine --serve 127.0.0.1:7777   # HTTP/SSE API (Electron / browser)
 ```
 
 Drop things where you already keep them and they are picked up — nothing to convert:

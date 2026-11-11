@@ -135,8 +135,15 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 ### REQ-CLI-001 — Scriptable command line
 
+- Status: implemented
+- Statement: `koine [options] [--] [@files] [message]` runs one prompt when a message is given, stdin is piped, or `-p`/`--mode json` is set; otherwise it starts the interactive session. Piped stdin, `@file` blocks and the message are joined in that order. Text mode writes only the final answer to stdout and tool activity, notices and errors to stderr; `--mode json` writes one event per line to stdout. Exit codes are 0 ok, 1 failed, 2 usage. `--model` (must resolve), `--system-prompt`, `--append-system-prompt`, `-t` and `-nt` select model, prompt and tools, and survive `/reload`. Gap rows CLI-01..04, 06 (basic), 10, 12 (basic), 29 (basic), 31 (basic), 48.
+- Design: DES-010
+- Tests: TestParseArgs; TestExpandFiles; TestPipedStdinFilesAndMessageOrder; TestMessageAloneRunsPrintModeEvenOnTerminal; TestJSONModeEmitsOneEventPerLine; TestModelAndSystemPromptFlags; TestToolSelectionFlags; TestNothingToDoAndHelpAndMissingFile; TestEndToEndPrompt; TestBadFlagAndAPIFailure
+
+### REQ-CLI-002 — Command-line parity with Pi's remaining flags
+
 - Status: planned
-- Statement: `koine [options] [@files] [message]` runs one prompt when stdin or stdout is not a terminal, prepends piped stdin, writes only the final answer to stdout and diagnostics to stderr, supports `--mode json`, and selects model, tools and resources by flags. Gap rows CLI-01..06, 12, 29..31, 48.
+- Statement: Image `@file` arguments, fuzzy `--model provider/id:thinking`, `-xt`/`-nbt`/`defaultTools`, `SYSTEM.md`/`APPEND_SYSTEM.md`, resource flags (`-e`, `--skill`, `--prompt-template`), extension-registered flags, and Pi's JSON event schema. Gap rows CLI-05, 06, 11, 12, 13, 14, 29, 30, 31.
 - Design: none yet
 
 ### REQ-LLM-004 — Model catalog, usage and cost, thinking, prompt caching

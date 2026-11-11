@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	"koine/compat"
@@ -22,64 +21,70 @@ var (
 	piBaseline = "1.5.2"
 )
 
-func main() { os.Exit(run(os.Args[1:], os.Stderr)) }
+func main() { os.Exit(run(os.Args[1:], stdStreams())) }
 
 // run is main without the process globals, so it can be tested end to end.
-func run(args []string, stderr io.Writer) int {
-	fs := flag.NewFlagSet("koine", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	prompt := fs.String("p", "", "run one prompt non-interactively and exit")
-	serve := fs.String("serve", "", "serve the HTTP/SSE API on this address (e.g. 127.0.0.1:7777)")
-	dir := fs.String("C", "", "project directory (default: current)")
-	trustFlag := fs.Bool("trust", false, "trust this folder for this run (load its extensions, hooks and providers)")
-	showCompat := fs.Bool("compat", false, "print Pi compatibility status (what is verified, inert, unsupported) and exit")
-	ver := fs.Bool("version", false, "print version and the Pi release it tracks, then exit")
-	if err := fs.Parse(args); err != nil {
+func run(args []string, st streams) int {
+	c, err := parseArgs(args)
+	if err != nil {
+		fmt.Fprintln(st.Err, "koine:", err)
 		return 2
 	}
-	if *ver {
-		fmt.Fprintf(os.Stdout, "koine %s+pi%s\n", version, piBaseline)
+	switch {
+	case c.Help:
+		fmt.Fprint(st.Out, usage)
 		return 0
-	}
-	if *showCompat {
+	case c.Version:
+		fmt.Fprintf(st.Out, "koine %s+pi%s\n", version, piBaseline)
+		return 0
+	case c.Compat:
 		m, err := compat.Load()
 		if err != nil {
-			fmt.Fprintln(stderr, "koine:", err)
+			fmt.Fprintln(st.Err, "koine:", err)
 			return 1
 		}
-		fmt.Fprint(os.Stdout, m.Report())
+		fmt.Fprint(st.Out, m.Report())
 		return 0
 	}
-	cwd := *dir
+	cwd := c.Dir
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	ctx := context.Background()
-	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: *trustFlag})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: c.Trust, RunOptions: app.RunOptions{
+		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools}})
 	if err != nil {
-		fmt.Fprintln(stderr, "koine:", err)
+		fmt.Fprintln(st.Err, "koine:", err)
 		return 1
 	}
 	defer a.Close()
 
-	switch {
-	case *serve != "":
-		fmt.Fprintf(stderr, "koine serving on http://%s\n", *serve)
+	if c.Serve != "" {
+		fmt.Fprintf(st.Err, "koine serving on http://%s\n", c.Serve)
 		s := &server.Server{App: a}
-		srv := &http.Server{Addr: *serve, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second} // no WriteTimeout: SSE streams
+		srv := &http.Server{Addr: c.Serve, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second} // no WriteTimeout: SSE streams
 		if err := srv.ListenAndServe(); err != nil {
-			fmt.Fprintln(stderr, "koine:", err)
+			fmt.Fprintln(st.Err, "koine:", err)
 			return 1
 		}
-	case *prompt != "":
-		if _, err := a.HandleInput(ctx, *prompt, tui.Render); err != nil {
-			return 1
-		}
-	default:
-		if err := tui.Run(ctx, a); err != nil {
-			fmt.Fprintln(stderr, "koine:", err)
-			return 1
-		}
+		return 0
 	}
-	return 0
+	prompt, err := buildPrompt(c, a.Cwd, st)
+	if err != nil {
+		fmt.Fprintln(st.Err, "koine:", err)
+		return 2
+	}
+	if prompt == "" && !c.Print && c.Mode != "json" {
+		if err := tui.Run(ctx, a); err != nil {
+			fmt.Fprintln(st.Err, "koine:", err)
+			return 1
+		}
+		return 0
+	}
+	if prompt == "" {
+		fmt.Fprintln(st.Err, "koine: nothing to do: give a message, pipe text on stdin, or name an @file")
+		return 2
+	}
+	return runPrint(ctx, a, prompt, c.Mode, st)
 }
