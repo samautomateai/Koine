@@ -240,3 +240,26 @@ func TestCompactIsSavedAndReplayedOnResume(t *testing.T) {
 		}
 	}
 }
+
+func TestUsageIsStoredInPiShapeAndRestored(t *testing.T) {
+	s := Create(t.TempDir(), "/p")
+	m := text("assistant", "hi")
+	m.Usage = &llm.Usage{Input: 10, Output: 5, CacheRead: 3, CacheWrite: 2}
+	m.Cost = &llm.Cost{Input: 0.1, Output: 0.2, Total: 0.3}
+	free := text("assistant", "no cost known")
+	free.Usage = &llm.Usage{Input: 1}
+	for _, x := range []llm.Message{text("user", "q"), m, free} {
+		if err := s.AppendMessage(x, "anthropic", "m1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, _ := os.ReadFile(s.Path)
+	if !strings.Contains(string(b), `"usage":{"input":10,"output":5,"cacheRead":3,"cacheWrite":2,"totalTokens":20,"cost":{"input":0.1,"output":0.2,`) {
+		t.Errorf("Pi's usage shape:\n%s", b)
+	}
+	r, _ := Open(s.Path)
+	got := r.Messages()
+	if got[1].Usage == nil || *got[1].Usage != *m.Usage || got[1].Cost == nil || got[1].Cost.Total != 0.3 || got[2].Cost != nil || got[0].Usage != nil {
+		t.Errorf("%+v", got)
+	}
+}

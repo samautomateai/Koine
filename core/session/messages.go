@@ -21,6 +21,48 @@ type piMessage struct {
 	Provider   string          `json:"provider,omitempty"`
 	Model      string          `json:"model,omitempty"`
 	StopReason string          `json:"stopReason,omitempty"`
+	Usage      *piUsage        `json:"usage,omitempty"`
+}
+
+// piUsage is the usage object Pi stores on assistant messages. cost is left out when the model's price was not known.
+type piUsage struct {
+	Input       int     `json:"input"`
+	Output      int     `json:"output"`
+	CacheRead   int     `json:"cacheRead"`
+	CacheWrite  int     `json:"cacheWrite"`
+	TotalTokens int     `json:"totalTokens"`
+	Cost        *piCost `json:"cost,omitempty"`
+}
+
+type piCost struct {
+	Input      float64 `json:"input"`
+	Output     float64 `json:"output"`
+	CacheRead  float64 `json:"cacheRead"`
+	CacheWrite float64 `json:"cacheWrite"`
+	Total      float64 `json:"total"`
+}
+
+func usageToPi(m llm.Message) *piUsage {
+	if m.Usage == nil {
+		return nil
+	}
+	u := &piUsage{Input: m.Usage.Input, Output: m.Usage.Output, CacheRead: m.Usage.CacheRead, CacheWrite: m.Usage.CacheWrite,
+		TotalTokens: m.Usage.Total()}
+	if c := m.Cost; c != nil {
+		u.Cost = &piCost{Input: c.Input, Output: c.Output, CacheRead: c.CacheRead, CacheWrite: c.CacheWrite, Total: c.Total}
+	}
+	return u
+}
+
+func usageFromPi(pm piMessage, m *llm.Message) {
+	u := pm.Usage
+	if u == nil {
+		return
+	}
+	m.Usage = &llm.Usage{Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite}
+	if c := u.Cost; c != nil {
+		m.Cost = &llm.Cost{Input: c.Input, Output: c.Output, CacheRead: c.CacheRead, CacheWrite: c.CacheWrite, Total: c.Total}
+	}
 }
 
 type piBlock struct {
@@ -59,7 +101,8 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 			}
 		}
 		c, _ := json.Marshal(blocks)
-		return put(piMessage{Role: "assistant", Content: c, Timestamp: now, Provider: provider, Model: model, StopReason: stop})
+		return put(piMessage{Role: "assistant", Content: c, Timestamp: now, Provider: provider, Model: model, StopReason: stop,
+			Usage: usageToPi(m)})
 	default:
 		var text []piBlock
 		for _, b := range m.Content {
@@ -159,7 +202,9 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 				}
 			}
 			if len(cb) > 0 {
-				out, ids = append(out, llm.Message{Role: "assistant", Content: cb}), append(ids, e.ID)
+				am := llm.Message{Role: "assistant", Content: cb}
+				usageFromPi(pm, &am)
+				out, ids = append(out, am), append(ids, e.ID)
 			}
 		case "toolResult":
 			r := llm.Block{Type: "tool_result", ToolUseID: pm.ToolCallID, Content: textOf(pm.Content), IsError: pm.IsError}

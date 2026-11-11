@@ -6,6 +6,7 @@ All notable changes. Format follows [Keep a Changelog](https://keepachangelog.co
 
 ### Added
 
+- Model catalog and token accounting: built-in Claude context windows, output limits and prices (override or extend in `~/.koine/model-catalog.json`); usage from Anthropic and OpenAI-compatible responses is saved on each assistant message in Pi's `usage` shape, a `usage` event reports each response, and `/session` shows tokens, cost (or "unknown") and context use. Compaction now works from the provider's reported context size and takes the window from the catalog unless `compaction.contextWindow` is set. Prices come from third-party pages and are not yet verified against Anthropic. (REQ-LLM-004)
 - Settings use Pi's key names in `~/.koine/settings.json` and `.koine/settings.json` (`config.json` still loads). `defaultProvider`, `defaultModel`, `defaultTools`, `sessionDir`, `extensions` and `compaction.*` take effect; every other Pi key is listed in `compat/settings.json` with its status and reported at startup if set. `task upstream:check` now also diffs Pi's settings. `$KOINE_SESSION_DIR` is now the session directory itself, like Pi's. (REQ-CFG-001)
 - `docs/CHECKLIST.md`: documentation and parity-tracker updates are part of every change; CI now requires a `CHANGELOG.md` line plus a docs/tracker update, and a real reason for `Docs-Impact: none`.
 - Compaction: automatic summarising before the context window fills, `/compact [focus]`, and one compact-and-retry on a provider overflow; saved in the session file (REQ-CMP-001). Settings under `compaction` in config.

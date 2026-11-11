@@ -20,12 +20,13 @@ import (
 
 // Event is what frontends render.
 type Event struct {
-	Type    string          `json:"type"` // text | tool_start | tool_end | notice | error | done
+	Type    string          `json:"type"` // text | tool_start | tool_end | notice | error | usage | done
 	Text    string          `json:"text,omitempty"`
 	Tool    string          `json:"tool,omitempty"`
 	CallID  string          `json:"callId,omitempty"`
 	Args    json.RawMessage `json:"args,omitempty"`
 	IsError bool            `json:"isError,omitempty"`
+	Usage   *UsageInfo      `json:"usage,omitempty"` // on "usage" events: one per model response
 }
 
 type Agent struct {
@@ -41,11 +42,18 @@ type Agent struct {
 	MaxTurns     int
 	MaxTokens    int
 	History      []llm.Message
-	// Compaction (zero ContextWindow = off). Sizes are in estimated tokens.
+	// Compaction. Sizes are in tokens. ContextWindow 0 = take it from the Catalog, else DefaultContextWindow.
 	ContextWindow int
-	AutoCompact   bool // compact before a turn would overflow the window (the manual Compact always works)
-	Reserve       int  // room kept free for the answer (default 16384)
-	KeepRecent    int  // recent conversation kept verbatim (default 20000)
+	Catalog       *llm.Catalog // model metadata for prices and context windows (nil = none)
+	// Usage so far in this conversation. CostTotal covers only responses whose model had a price; Unpriced says some did not.
+	Totals      llm.Usage
+	CostTotal   float64
+	Unpriced    bool
+	lastCtx     int  // tokens in the context at the last response (0 = unknown, estimate instead)
+	ctxAt       int  // len(History) after that response
+	AutoCompact bool // compact before a turn would overflow the window (the manual Compact always works)
+	Reserve     int  // room kept free for the answer (default 16384)
+	KeepRecent  int  // recent conversation kept verbatim (default 20000)
 	// OnCompact is told the old history index of the first kept message, the summary and the size before compaction.
 	OnCompact func(firstKept int, summary string, tokensBefore int)
 	Persist   func(llm.Message) // called for every message added to History, in order (nil = none)
@@ -109,7 +117,24 @@ func (a *Agent) ExpandInput(in string) string {
 	return out
 }
 
-func (a *Agent) Reset() { a.History = nil }
+// Reset forgets the conversation and the usage so far.
+func (a *Agent) Reset() { a.SetHistory(nil) }
+
+// SetHistory replaces the conversation, as when a session is loaded, and rebuilds the usage totals from the messages that carry them.
+func (a *Agent) SetHistory(h []llm.Message) {
+	a.History, a.Totals, a.CostTotal, a.Unpriced, a.lastCtx, a.ctxAt = h, llm.Usage{}, 0, false, 0, 0
+	for _, m := range h {
+		if m.Usage == nil {
+			continue
+		}
+		a.Totals.Add(*m.Usage)
+		if m.Cost != nil {
+			a.CostTotal += m.Cost.Total
+		} else {
+			a.Unpriced = true
+		}
+	}
+}
 
 // add appends m to the history and hands it to Persist.
 func (a *Agent) add(m llm.Message) {
@@ -166,7 +191,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 			emit(Event{Type: "error", Text: err.Error()})
 			return err
 		}
-		a.add(llm.Message{Role: "assistant", Content: resp.Content})
+		a.add(a.record(resp, emit))
 		var uses []llm.Block
 		for _, b := range resp.Content {
 			switch b.Type {

@@ -119,6 +119,13 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 			} `json:"message"`
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
+		Usage struct {
+			Prompt  int `json:"prompt_tokens"`
+			Output  int `json:"completion_tokens"`
+			Details struct {
+				Cached int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return nil, err
@@ -128,6 +135,9 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 	}
 	ch := out.Choices[0]
 	resp := &Response{StopReason: ch.FinishReason}
+	if u := out.Usage; u.Prompt > 0 || u.Output > 0 { // OpenAI counts cached tokens inside prompt_tokens; Koine counts them apart
+		resp.Usage = Usage{Input: max(u.Prompt-u.Details.Cached, 0), Output: u.Output, CacheRead: u.Details.Cached}
+	}
 	if ch.Message.Content != nil && *ch.Message.Content != "" {
 		resp.Content = append(resp.Content, Block{Type: "text", Text: *ch.Message.Content})
 	}

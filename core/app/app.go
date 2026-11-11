@@ -71,7 +71,7 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	a := &App{Cwd: cwd, Home: home, opts: opts}
 	a.Trusted = opts.Trust || trust.FromEnv() || trust.Open(home).IsTrusted(cwd)
 
-	a.Agent = &agent.Agent{Cwd: cwd, Provider: lazyProvider{a}}
+	a.Agent = &agent.Agent{Cwd: cwd, Provider: lazyProvider{a}, Catalog: loadCatalog(home)}
 	a.load(ctx)
 
 	model := a.Cfg.Model
@@ -343,4 +343,14 @@ func orNone(s []string) string {
 		return "(none)"
 	}
 	return strings.Join(s, ", ")
+}
+
+// loadCatalog is the built-in model catalog plus the user's own ~/.koine/model-catalog.json, whose entries replace built-in ones with the same id.
+// A broken user file is ignored: prices and windows are conveniences, and the built-in data still applies.
+func loadCatalog(home string) *llm.Catalog {
+	c := llm.DefaultCatalog()
+	if home != "" {
+		_ = c.Merge(filepath.Join(home, ".koine", "model-catalog.json"))
+	}
+	return c
 }
