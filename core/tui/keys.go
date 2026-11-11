@@ -3,6 +3,7 @@ package tui
 import (
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -238,10 +239,10 @@ func kittyName(code, mod int) string {
 	case 57420:
 		base = "down"
 	default:
-		if code < 32 {
+		if code < 32 || code > unicode.MaxRune {
 			return ""
 		}
-		base = strings.ToLower(string(rune(code))) //nolint:gosec // code is a decoded key code; invalid runes become U+FFFD
+		base = strings.ToLower(string(rune(code)))
 	}
 	return modName(mod) + base
 }

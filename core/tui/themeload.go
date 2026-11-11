@@ -2,6 +2,7 @@ package tui
 
 import (
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -150,11 +151,11 @@ func parseHex(s string) (Color, error) {
 	if len(h) != 6 {
 		return Color{}, fmt.Errorf("%q is not #rgb or #rrggbb", s)
 	}
-	v, err := strconv.ParseUint(h, 16, 32)
+	b, err := hex.DecodeString(h)
 	if err != nil {
 		return Color{}, fmt.Errorf("%q is not a hex colour", s)
 	}
-	return Color{Set: true, RGB: true, R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v)}, nil //nolint:gosec // v is at most 24 bits
+	return Color{Set: true, RGB: true, R: b[0], G: b[1], B: b[2]}, nil
 }
 
 func parseOKLCH(s string) (Color, error) {
