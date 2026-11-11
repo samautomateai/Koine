@@ -130,7 +130,7 @@ func (a *App) load(ctx context.Context) {
 	} else {
 		// harmless scalars still apply; code and credential routing do not
 		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction,
-			LLMSettings: proj.LLMSettings, EnabledModels: proj.EnabledModels})
+			LLMSettings: proj.LLMSettings, ImageSettings: proj.ImageSettings, EnabledModels: proj.EnabledModels})
 		skippedCode = proj.codeCount()
 	}
 	a.Cfg = cfg
@@ -260,8 +260,13 @@ func (a *App) CompatReport() []string {
 // HandleInput processes one line: slash commands, templates, or a prompt.
 // It reports quit=true for /exit.
 func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Event)) (quit bool, err error) {
+	return a.HandleInputImages(ctx, line, nil, emit)
+}
+
+// HandleInputImages is HandleInput for a prompt that comes with images (llm.ImageBlock). Images go with a prompt only, not a slash command.
+func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.Block, emit func(agent.Event)) (quit bool, err error) {
 	line = strings.TrimSpace(line)
-	if line == "" {
+	if line == "" && len(images) == 0 {
 		return false, nil
 	}
 	prev := a.emit
@@ -269,7 +274,10 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	defer func() { a.emit = prev }()
 	notice := func(s string) { emit(agent.Event{Type: "notice", Text: s}) }
 	if !strings.HasPrefix(line, "/") || strings.HasPrefix(line, "/skill:") {
-		return false, a.Agent.Run(ctx, line, emit)
+		return false, a.Agent.RunWithImages(ctx, line, images, emit)
+	}
+	if len(images) > 0 {
+		notice("images are only sent with a prompt, not a slash command; " + fmt.Sprint(len(images)) + " dropped")
 	}
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)

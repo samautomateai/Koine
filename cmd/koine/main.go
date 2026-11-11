@@ -106,24 +106,27 @@ func run(args []string, st streams) int {
 		}
 		return 0
 	}
-	prompt, err := buildPrompt(c, a.Cwd, st)
+	prompt, images, notes, err := buildPrompt(c, a, st)
 	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)
 		return 2
 	}
-	if prompt == "" && !c.Print && c.Mode != "json" {
+	if prompt == "" && len(images) == 0 && !c.Print && c.Mode != "json" {
 		if err := tui.Run(ctx, a); err != nil {
 			fmt.Fprintln(st.Err, "koine:", err)
 			return 1
 		}
 		return 0
 	}
-	if prompt == "" {
+	if prompt == "" && len(images) == 0 {
 		fmt.Fprintln(st.Err, "koine: nothing to do: give a message, pipe text on stdin, or name an @file")
 		return 2
 	}
 	warnAll(a, st)
-	return runPrint(ctx, a, prompt, c.Mode, st)
+	for _, n := range notes {
+		fmt.Fprintln(st.Err, "koine: note:", n)
+	}
+	return runPrint(ctx, a, prompt, images, c.Mode, st)
 }
 
 // warnAll prints the startup warnings (untrusted code that was not loaded, unusable -e paths and the like) on stderr for the modes that

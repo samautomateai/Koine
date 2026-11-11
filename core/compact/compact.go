@@ -28,6 +28,9 @@ func SummaryText(m llm.Message) (string, bool) {
 	return "", false
 }
 
+// ImageTokens is what one image counts for in the estimates (Pi counts an image as 4800 characters, about 1200 tokens).
+const ImageTokens = 1200
+
 // EstimateText is a cheap token estimate: about four characters per token.
 func EstimateText(s string) int { return (len(s) + 3) / 4 }
 
@@ -35,6 +38,10 @@ func estimateMessage(m llm.Message) int {
 	n := 4
 	for _, b := range m.Content {
 		n += EstimateText(b.Text) + EstimateText(b.Content) + EstimateText(b.Name) + EstimateText(string(b.Input))
+		if b.Type == "image" {
+			n += ImageTokens
+		}
+		n += ImageTokens * len(b.Images)
 	}
 	return n
 }
@@ -85,6 +92,11 @@ func Transcript(msgs []llm.Message) string {
 					tag = "Tool error"
 				}
 				fmt.Fprintf(&b, "[%s]: %s\n", tag, clip(blk.Content, 1500))
+				if len(blk.Images) > 0 {
+					fmt.Fprintf(&b, "[%s image: %d attached]\n", tag, len(blk.Images))
+				}
+			case "image":
+				fmt.Fprintf(&b, "[User image: %s]\n", blk.MimeType())
 			}
 		}
 	}

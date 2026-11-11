@@ -78,6 +78,34 @@ type piBlock struct {
 	Thinking          *string `json:"thinking,omitempty"`
 	ThinkingSignature string  `json:"thinkingSignature,omitempty"`
 	Redacted          bool    `json:"redacted,omitempty"`
+	// Image blocks, in Pi's ImageContent shape: base64 data and a media type.
+	Data     string `json:"data,omitempty"`
+	MimeType string `json:"mimeType,omitempty"`
+}
+
+// imageToPi and imageFromPi convert between Koine's image block and Pi's {type: "image", data, mimeType}.
+func imageToPi(b llm.Block) piBlock {
+	return piBlock{Type: "image", Data: b.Base64(), MimeType: b.MimeType()}
+}
+
+func imageFromPi(b piBlock) llm.Block { return llm.ImageBlock(b.MimeType, b.Data) }
+
+// contentBlocks reads a user or tool-result content value in order: text blocks (non-empty) and image blocks. hasImages says whether any
+// block was an image; callers without images keep the older behaviour of joining the text (textOf).
+func contentBlocks(raw json.RawMessage) (blocks []llm.Block, hasImages bool) {
+	var pb []piBlock
+	if json.Unmarshal(raw, &pb) != nil {
+		return nil, false
+	}
+	for _, b := range pb {
+		switch {
+		case b.Type == "image" && b.Data != "":
+			blocks, hasImages = append(blocks, imageFromPi(b)), true
+		case b.Type == "text" && b.Text != "":
+			blocks = append(blocks, llm.Block{Type: "text", Text: b.Text})
+		}
+	}
+	return blocks, hasImages
 }
 
 // AppendMessage stores one conversation message. A user message that carries tool results becomes one toolResult entry per result,
@@ -118,13 +146,19 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 		for _, b := range m.Content {
 			switch b.Type {
 			case "tool_result":
-				c, _ := json.Marshal([]piBlock{{Type: "text", Text: b.Content}})
+				body := []piBlock{{Type: "text", Text: b.Content}}
+				for _, im := range b.Images {
+					body = append(body, imageToPi(im))
+				}
+				c, _ := json.Marshal(body)
 				if err := put(piMessage{Role: "toolResult", Content: c, Timestamp: now, ToolCallID: b.ToolUseID, ToolName: s.toolName(b.ToolUseID),
 					IsError: b.IsError}); err != nil {
 					return err
 				}
 			case "text":
 				text = append(text, piBlock{Type: "text", Text: b.Text})
+			case "image":
+				text = append(text, imageToPi(b))
 			}
 		}
 		if len(text) == 0 {
@@ -156,7 +190,7 @@ func (s *Session) toolName(id string) string {
 }
 
 // Messages rebuilds the conversation on the active branch. The latest compaction on the branch replaces everything before its
-// firstKeptEntryId with its summary. Roles and blocks Koine cannot represent (images, custom) are skipped.
+// firstKeptEntryId with its summary. Roles and blocks Koine cannot represent (custom) are skipped.
 func (s *Session) Messages() []llm.Message {
 	msgs, _ := s.messagesWithIDs()
 	return msgs
@@ -197,7 +231,9 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 		}
 		switch pm.Role {
 		case "user":
-			if t := textOf(pm.Content); t != "" {
+			if cb, images := contentBlocks(pm.Content); images {
+				out, ids = append(out, llm.Message{Role: "user", Content: cb}), append(ids, e.ID)
+			} else if t := textOf(pm.Content); t != "" {
 				out, ids = append(out, llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: t}}}), append(ids, e.ID)
 			}
 		case "assistant":
@@ -225,6 +261,13 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 			}
 		case "toolResult":
 			r := llm.Block{Type: "tool_result", ToolUseID: pm.ToolCallID, Content: textOf(pm.Content), IsError: pm.IsError}
+			if cb, images := contentBlocks(pm.Content); images {
+				for _, b := range cb {
+					if b.Type == "image" {
+						r.Images = append(r.Images, b)
+					}
+				}
+			}
 			if n := len(out); n > 0 && out[n-1].Role == "user" && len(out[n-1].Content) > 0 && out[n-1].Content[0].Type == "tool_result" {
 				out[n-1].Content = append(out[n-1].Content, r)
 			} else {
