@@ -24,16 +24,26 @@ type Config struct {
 	Extensions []ext.Spec               `json:"-"` // any-language extensions: the objects of "extensions"
 	// Names Pi uses (see compat/settings.json). DefaultProvider and DefaultModel are folded into Model, and the strings of "extensions" into
 	// Plugin, by normalize.
-	DefaultProvider string            `json:"defaultProvider,omitempty"`
-	DefaultModel    string            `json:"defaultModel,omitempty"`
-	SessionDir      string            `json:"sessionDir,omitempty"`
-	DefaultTools    []string          `json:"defaultTools,omitempty"`
-	ExtensionsRaw   []json.RawMessage `json:"extensions,omitempty"`
-	Plugin          []string          `json:"plugin,omitempty"` // opencode.json style: paths or npm names
+	DefaultProvider string   `json:"defaultProvider,omitempty"`
+	DefaultModel    string   `json:"defaultModel,omitempty"`
+	SessionDir      string   `json:"sessionDir,omitempty"`
+	DefaultTools    []string `json:"defaultTools,omitempty"`
+	// Session tree settings (Pi names). Only the user file and trusted projects set them.
+	BranchSummary      BranchSummaryConfig `json:"branchSummary,omitempty"`
+	TreeFilterMode     string              `json:"treeFilterMode,omitempty"`
+	DoubleEscapeAction string              `json:"doubleEscapeAction,omitempty"`
+	ExtensionsRaw      []json.RawMessage   `json:"extensions,omitempty"`
+	Plugin             []string            `json:"plugin,omitempty"` // opencode.json style: paths or npm names
 	// Providers declares extra OpenAI-compatible (or anthropic-type) endpoints,
 	// addressed as "<name>/<model>". Project-level entries need trust: an
 	// endpoint + key env var from an untrusted repo could exfiltrate your key.
 	Providers map[string]llm.ProviderConfig `json:"providers,omitempty"`
+}
+
+// BranchSummaryConfig is Pi's branchSummary object: tokens kept free when summarising a branch, and whether to skip the question.
+type BranchSummaryConfig struct {
+	ReserveTokens int   `json:"reserveTokens,omitempty"`
+	SkipPrompt    *bool `json:"skipPrompt,omitempty"`
 }
 
 // CompactionConfig tunes automatic compaction. Zero values mean the defaults (a 200000-token window, 16384 reserved, 20000 kept).
@@ -97,6 +107,20 @@ func mergeConfig(dst *Config, src Config) {
 	}
 	if src.SessionDir != "" {
 		dst.SessionDir = src.SessionDir
+	}
+	if src.TreeFilterMode != "" {
+		dst.TreeFilterMode = src.TreeFilterMode
+	}
+	if src.DoubleEscapeAction != "" {
+		dst.DoubleEscapeAction = src.DoubleEscapeAction
+	}
+	if b := src.BranchSummary; b.ReserveTokens != 0 || b.SkipPrompt != nil {
+		if b.ReserveTokens != 0 {
+			dst.BranchSummary.ReserveTokens = b.ReserveTokens
+		}
+		if b.SkipPrompt != nil {
+			dst.BranchSummary.SkipPrompt = b.SkipPrompt
+		}
 	}
 	if src.DefaultTools != nil {
 		if onlyAdjustments(src.DefaultTools) && dst.DefaultTools != nil {

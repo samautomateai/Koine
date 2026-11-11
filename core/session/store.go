@@ -31,7 +31,7 @@ func List(dir string) []Info {
 	files, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	var out []Info
 	for _, f := range files {
-		s, err := Open(f)
+		s, err := openFile(f, false) // listing never rewrites files
 		if err != nil {
 			continue
 		}

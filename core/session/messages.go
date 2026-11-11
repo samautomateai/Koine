@@ -176,6 +176,9 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 	for i := start; i < len(path); i++ {
 		e := path[i]
 		if e.Type != "message" {
+			if m, ok := entryMessage(e); ok { // branch summaries and custom messages carry context (tree.go)
+				out, ids = append(out, m), append(ids, e.ID)
+			}
 			continue
 		}
 		var pm piMessage

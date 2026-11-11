@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"koine/core/agentdir"
 	"os"
@@ -92,7 +93,7 @@ func (a *App) NewSession() {
 }
 
 // sessionCommand handles /new, /session, /name, /resume and /fork. It reports whether line's command was one of them.
-func (a *App) sessionCommand(name, args string, emit func(agent.Event)) bool {
+func (a *App) sessionCommand(ctx context.Context, name, args string, emit func(agent.Event)) bool {
 	notice := func(s string) { emit(agent.Event{Type: "notice", Text: s}) }
 	fail := func(err error) { emit(agent.Event{Type: "error", Text: err.Error()}) }
 	switch name {
@@ -105,6 +106,8 @@ func (a *App) sessionCommand(name, args string, emit func(agent.Event)) bool {
 			break
 		}
 		notice(fmt.Sprintf("id %s · %d messages · name %q · file %s", a.Session.ID, len(a.Agent.History), a.Session.Name(), a.Session.Path))
+		n, leaves, labels := a.Session.Stats()
+		notice(fmt.Sprintf("%d entries · %d branches · %d labels · position %s", n, leaves, labels, a.Session.Leaf()))
 		notice(a.Agent.UsageSummary())
 	case "name":
 		if a.Session == nil {
@@ -118,8 +121,13 @@ func (a *App) sessionCommand(name, args string, emit func(agent.Event)) bool {
 		}
 	case "resume":
 		if args == "" {
-			notice(ListSessions(a.SessionDir()))
-			break
+			args = a.chooseSession(notice)
+			if args == "" {
+				break
+			}
+		}
+		if p, ok := pickByNumber(a.SessionDir(), args); ok {
+			args = p
 		}
 		s, err := session.Resolve(a.SessionDir(), args)
 		if err != nil {
@@ -129,6 +137,9 @@ func (a *App) sessionCommand(name, args string, emit func(agent.Event)) bool {
 		a.useSession(s)
 		notice(fmt.Sprintf("resumed %s (%d messages)", shortID(s.ID), len(a.Agent.History)))
 	case "fork":
+		if args != "" { // /fork <entry>: from an earlier user message (tree.go)
+			return a.treeCommand(ctx, name, args, emit)
+		}
 		if a.Session == nil {
 			notice("sessions are off (--no-session)")
 			break
@@ -141,9 +152,23 @@ func (a *App) sessionCommand(name, args string, emit func(agent.Event)) bool {
 		a.Session = f
 		notice("forked into " + shortID(f.ID))
 	default:
-		return false
+		return a.treeCommand(ctx, name, args, emit)
 	}
 	return true
+}
+
+// chooseSession lets the user pick a session for /resume: through the frontend's Choose when it has one, otherwise by printing the numbered
+// list. It returns the path to resume, or "" when nothing was chosen.
+func (a *App) chooseSession(notice func(string)) string {
+	l := session.List(a.SessionDir())
+	if a.Choose == nil || len(l) == 0 {
+		notice(ListSessions(a.SessionDir()) + "\n(/resume <number|id|name>)")
+		return ""
+	}
+	if i := a.Choose("Resume which session?", sessionLines(l)); i >= 0 && i < len(l) {
+		return l[i].Path
+	}
+	return ""
 }
 
 // ListSessions renders the sessions in dir, newest first, for /resume and --resume.
@@ -153,12 +178,8 @@ func ListSessions(dir string) string {
 		return "no sessions yet"
 	}
 	var b strings.Builder
-	for _, i := range l {
-		name := i.Name
-		if name == "" {
-			name = i.Preview
-		}
-		fmt.Fprintf(&b, "%s  %s  %3d msgs  %s\n", shortID(i.ID), i.Modified.Format("2006-01-02 15:04"), i.Messages, name)
+	for i, line := range sessionLines(l) {
+		fmt.Fprintf(&b, "%2d  %s\n", i+1, line)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

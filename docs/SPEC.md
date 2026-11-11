@@ -243,11 +243,22 @@ and `Describe()`. `emit` receives `agent.Event`:
   `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options.
 - **Sessions** (REQ-SESS-001): every run writes `~/.koine/sessions/--<cwd with / as ->--/<timestamp>_<uuid>.jsonl` in Pi's v3 format.
   `-c` continues the latest, `--session ID|PATH|NAME` resumes, `--fork` copies, `-n NAME` names, `--no-session` writes nothing, `-r` lists.
-  Slash commands: `/new` (also `/clear`), `/session`, `/name [text]`, `/resume [ref]`, `/fork`.
+  Slash commands: `/new` (also `/clear`), `/session`, `/name [text]`, `/resume [number|ref]`, `/fork`.
+- **Session tree** (REQ-SESS-002): sessions are trees of entries; new entries attach to the current position (the leaf). `/tree [filter]` lists
+  entries (`id`, `*` on the active branch, `[label]`, `<- current`); filters are `default`, `no-tools`, `user-only`, `labeled-only`, `all`, starting
+  from `treeFilterMode`. `/tree <id|label> [--summary|--no-summary] [focus]` moves there: a user message moves to its parent and its text is
+  printed so it can be sent again as a new branch. With `--summary` (or "Summarise" from a frontend's `Choose`) the abandoned branch is summarised
+  into a `branch_summary` entry (`branchSummary.reserveTokens`, default 16384, is kept free of the context window); `branchSummary.skipPrompt` removes
+  the question and the hint. `/label [@id] <text>` labels an entry (default: the current position; `-` clears; no argument lists labels), `/clone`
+  copies the current branch to a new session whose header names the old one as `parentSession`, `/fork <id>` does so from before an earlier user
+  message, `/export [file]` writes `.jsonl` (the file as stored) or HTML (default `koine-session-<id>.html`; never overwrites; may contain prompts, tool
+  output and file contents). `-r` on a terminal shows the sessions numbered and reads a choice (piped, it only lists). Files with `version` 1 or 2 are
+  migrated on open (ids and parents added, `firstKeptEntryIndex` becomes `firstKeptEntryId`, role `hookMessage` becomes `custom`) after saving
+  `<file>.v<N>.bak`. `branch_summary` and `custom_message` entries reach the model as user messages; `custom`, `label` and unknown entries do not.
 - **Settings** (REQ-CFG-001): `~/.koine/settings.json` and `<project>/.koine/settings.json`, Pi's key names. The status of every Pi key is
-  in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `sessionDir`, `extensions`, `compaction.*`. Koine-only:
+  in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `sessionDir`, `extensions`, `compaction.*`, `branchSummary.*`, `treeFilterMode`. Koine-only:
   `model`, `maxTurns`, `hooks`, `plugin`, `providers`, `compaction.contextWindow`. Project values override user values; global-only keys are
-  ignored in a project; an untrusted project applies only `model`, `maxTurns` and `compaction`. Problems are listed at startup (`/reload` re-checks).
+  ignored in a project; an untrusted project applies only `model`, `maxTurns` and `compaction` (not the tree settings). Problems are listed at startup (`/reload` re-checks).
 - **Agent directory and prompt files** (REQ-CFG-002): the user directory is `~/.koine`, or `$KOINE_AGENT_DIR`. `SYSTEM.md` (replaces the system prompt) and `APPEND_SYSTEM.md` (added after the context files) are read from a trusted project's `.koine/` or `.pi/`, else from the user directory or `~/.pi/agent`; the first non-blank file wins and files are never combined. `--system-prompt` and `--append-system-prompt` override them.
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.

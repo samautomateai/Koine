@@ -84,13 +84,15 @@
     {
       "key": "doubleEscapeAction",
       "type": "\"tree\"|\"fork\"|\"none\"",
-      "status": "inert"
+      "status": "inert",
+      "note": "Line mode has no Escape key. The value is read and validated, and `App.DoubleEscapeAction()` hands it to frontends that have one (REQ-SESS-002)."
     },
     {
       "key": "treeFilterMode",
       "type": "\"default\"|\"no-tools\"|\"user-only\"|\"labeled-only\"|\"all\"",
-      "status": "inert",
-      "note": "Until `/tree` exists (REQ-SESS-002)."
+      "status": "verified",
+      "test": "TestTreeCommandsWithoutSessionAndSettings",
+      "note": "The filter `/tree` starts with; `/tree <mode>` overrides it. Which entries each mode hides is read from Pi's one-line description, not from its source."
     },
     {
       "key": "defaultProjectTrust",
@@ -156,13 +158,16 @@
     {
       "key": "branchSummary.reserveTokens",
       "type": "number",
-      "status": "todo",
-      "note": "Needs `/tree` (CMP-06)."
+      "status": "verified",
+      "test": "TestBranchSummaryBudgetKeepsNewestMessages",
+      "note": "Tokens kept free of the context window when `/tree` summarises the branch it leaves; the oldest messages are dropped first."
     },
     {
       "key": "branchSummary.skipPrompt",
       "type": "boolean",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestTreeSummaryPromptAndSettings",
+      "note": "No summary question (frontends with `Choose`) and no hint (line mode); `/tree <id> --summary` still summarises."
     },
     {
       "key": "theme",

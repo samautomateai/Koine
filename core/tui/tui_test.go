@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -92,4 +93,20 @@ func TestRunLoop(t *testing.T) {
 			t.Error(err)
 		}
 	})
+}
+
+func TestChoose(t *testing.T) {
+	opts := []string{"a", "b", "c"}
+	for _, c := range []struct {
+		in   string
+		want int
+	}{{"2\n", 1}, {"\n", -1}, {"x\n", -1}, {"9\n", -1}, {"0\n", -1}, {"", -1}} {
+		var out bytes.Buffer
+		if got := choose(bufio.NewReader(strings.NewReader(c.in)), &out, "pick", opts); got != c.want {
+			t.Errorf("%q: got %d want %d", c.in, got, c.want)
+		}
+		if !strings.Contains(out.String(), "pick") || !strings.Contains(out.String(), " 3  c") {
+			t.Errorf("menu: %q", out.String())
+		}
+	}
 }

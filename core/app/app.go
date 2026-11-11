@@ -46,6 +46,9 @@ type App struct {
 	Trusted  bool
 	Info     []string // startup info lines
 	Warnings []string
+	// Choose lets an interactive frontend ask the user to pick one of options (for /resume and the /tree summary question). It returns the
+	// index, or -1 to cancel. Nil in print, JSON and server runs, where those commands fall back to listing and flags.
+	Choose func(title string, options []string) int
 
 	opts   Options
 	router *llm.Router
@@ -259,7 +262,7 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	}
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)
-	if a.sessionCommand(name, args, emit) {
+	if a.sessionCommand(ctx, name, args, emit) {
 		return false, nil
 	}
 	info := a.Describe()
@@ -267,8 +270,8 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	case "exit", "quit":
 		return true, nil
 	case "help":
-		notice("/help /new /session /name /resume /fork /exit /tools /skills /agents /commands /model [id] /compact [focus] /trust /reload /compat " +
-			"/skill:<name> /<command> <args>")
+		notice("/help /new /session /name /resume /fork [id] /clone /tree [id] /label /export [file] /exit /tools /skills /agents /commands " +
+			"/model [id] /compact [focus] /trust /reload /compat /skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
 		notice(strings.Join(info.Tools, ", "))

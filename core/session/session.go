@@ -4,6 +4,7 @@ package session
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -39,6 +40,13 @@ type Entry struct {
 	TokensBefore     int             `json:"tokensBefore,omitempty"`
 	Provider         string          `json:"provider,omitempty"`
 	ModelID          string          `json:"modelId,omitempty"`
+	TargetID         string          `json:"targetId,omitempty"` // label: the entry being labelled
+	Label            string          `json:"label,omitempty"`    // label: empty (absent) clears the label
+	FromID           string          `json:"fromId,omitempty"`   // branch_summary: the leaf the summary was written from
+	CustomType       string          `json:"customType,omitempty"`
+	Content          json.RawMessage `json:"content,omitempty"` // custom_message
+
+	raw []byte // the line as read, so copies keep fields Koine does not know
 }
 
 // Session is an open session file. The zero file is created lazily on the first Append, so empty sessions leave nothing behind.
@@ -74,15 +82,20 @@ func Create(dir, cwd string) *Session {
 	return &Session{Path: filepath.Join(dir, ts+"_"+id+".jsonl"), ID: id, Cwd: cwd}
 }
 
-// Open reads a session file. Unknown entry types are kept out of the model's context but never rewritten.
-func Open(path string) (*Session, error) {
-	f, err := os.Open(path)
+// Open reads a session file, migrating a version 1 or 2 file to version 3 first (the original is kept as <file>.v<N>.bak). Unknown entry
+// types are kept out of the model's context but never rewritten.
+func Open(path string) (*Session, error) { return openFile(path, true) }
+
+func openFile(path string, persistMigration bool) (*Session, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = f.Close() }()
+	if data, err = migrateData(path, data, persistMigration); err != nil {
+		return nil, err
+	}
 	s := &Session{Path: path, started: true}
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 1<<20), 64<<20)
 	for n := 0; sc.Scan(); n++ {
 		line := strings.TrimSpace(sc.Text())
@@ -104,6 +117,7 @@ func Open(path string) (*Session, error) {
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			return nil, fmt.Errorf("%s:%d: %w", path, n+1, err)
 		}
+		e.raw = []byte(line)
 		s.entries = append(s.entries, e)
 		s.leaf = e.ID
 	}
@@ -116,31 +130,48 @@ func Open(path string) (*Session, error) {
 	return s, nil
 }
 
-// Fork copies the active branch of s into a new session in dir whose header names s as its parent.
-func (s *Session) Fork(dir, cwd string) (*Session, error) {
-	n := Create(dir, cwd)
-	n.Parent = s.Path
-	for _, e := range s.path() {
-		if e.Type == "session_info" {
-			continue
-		}
-		if err := n.appendEntry(e.Type, func(x *Entry) { id, parent := x.ID, x.ParentID; *x = e; x.ID, x.ParentID = id, parent }); err != nil {
-			return nil, err
-		}
+// Fork copies the active branch of s into a new session in dir whose header names s as its parent. The session name is not copied.
+func (s *Session) Fork(dir, cwd string) (*Session, error) { return s.copyBranch(dir, cwd, s.leaf) }
+
+// rawLine is a line written as is.
+type rawLine string
+
+func lineBytes(l any) ([]byte, error) {
+	if r, ok := l.(rawLine); ok {
+		return []byte(r), nil
 	}
-	return n, nil
+	return json.Marshal(l)
+}
+
+func endsWithNewline(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return true
+	}
+	defer func() { _ = f.Close() }()
+	fi, err := f.Stat()
+	if err != nil || fi.Size() == 0 {
+		return true
+	}
+	b := make([]byte, 1)
+	_, err = f.ReadAt(b, fi.Size()-1)
+	return err != nil || b[0] == '\n'
 }
 
 func (s *Session) write(lines ...any) error {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
 		return err
 	}
+	pre := !endsWithNewline(s.Path) // a hand-edited Pi file may lack its final newline; never glue our line onto its last one
 	f, err := os.OpenFile(s.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
+	if pre {
+		lines = append([]any{rawLine("")}, lines...)
+	}
 	for _, l := range lines {
-		b, err := json.Marshal(l)
+		b, err := lineBytes(l)
 		if err != nil {
 			_ = f.Close()
 			return err
