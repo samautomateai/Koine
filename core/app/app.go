@@ -50,8 +50,9 @@ type App struct {
 	// index, or -1 to cancel. Nil in print, JSON and server runs, where those commands fall back to listing and flags.
 	Choose func(title string, options []string) int
 
-	opts   Options
-	router *llm.Router
+	opts     Options
+	router   *llm.Router
+	thinking string // the explicit thinking level (--thinking, a model suffix or /thinking); "" = from settings
 }
 
 type Info struct {
@@ -88,6 +89,7 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	if model == "" {
 		model = DefaultModel
 	}
+	model = a.chooseThinking(model)
 	if opts.Model != "" {
 		if _, _, err := a.router.Resolve(model); err != nil {
 			a.Close()
@@ -127,7 +129,7 @@ func (a *App) load(ctx context.Context) {
 		mergeConfig(&cfg, proj)
 	} else {
 		// harmless scalars still apply; code and credential routing do not
-		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction})
+		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction, LLMSettings: proj.LLMSettings})
 		skippedCode = proj.codeCount()
 	}
 	a.Cfg = cfg
@@ -190,6 +192,7 @@ func (a *App) load(ctx context.Context) {
 	a.Agent.ContextFiles = agent.LoadContextFiles(a.Cwd, a.Home)
 	a.Agent.MaxTurns = cfg.MaxTurns
 	a.configureCompaction(cfg.Compaction)
+	a.applyLLMSettings()
 	if len(defs) > 0 {
 		a.Tools.Register(a.Agent.TaskTool())
 	}
@@ -262,7 +265,7 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	}
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)
-	if a.sessionCommand(ctx, name, args, emit) {
+	if a.sessionCommand(ctx, name, args, emit) || a.thinkingCommand(name, args, emit) {
 		return false, nil
 	}
 	info := a.Describe()
@@ -271,7 +274,7 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 		return true, nil
 	case "help":
 		notice("/help /new /session /name /resume /fork [id] /clone /tree [id] /label /export [file] /exit /tools /skills /agents /commands " +
-			"/model [id] /compact [focus] /trust /reload /compat /skill:<name> /<command> <args>")
+			"/model [id[:level]] /thinking [level] /compact [focus] /trust /reload /compat /skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
 		notice(strings.Join(info.Tools, ", "))
@@ -288,12 +291,18 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	case "model":
 		if args == "" {
 			notice(a.Agent.Model)
-		} else if _, _, rerr := a.router.Resolve(args); rerr != nil {
-			emit(agent.Event{Type: "error", Text: rerr.Error()})
-		} else {
-			a.Agent.Model = args
-			notice("model: " + args)
+			return false, nil
 		}
+		id, level := llm.SplitThinkingSuffix(args)
+		if _, _, rerr := a.router.Resolve(id); rerr != nil {
+			emit(agent.Event{Type: "error", Text: rerr.Error()})
+			return false, nil
+		}
+		a.Agent.Model = id
+		if level != "" {
+			a.thinking, a.Agent.Thinking.Level = level, level
+		}
+		notice("model: " + id)
 		return false, nil
 	case "compact":
 		r, cerr := a.Agent.Compact(ctx, args)

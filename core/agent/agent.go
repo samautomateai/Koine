@@ -22,7 +22,7 @@ import (
 
 // Event is what frontends render.
 type Event struct {
-	Type    string          `json:"type"` // text | tool_start | tool_end | notice | error | usage | done
+	Type    string          `json:"type"` // text | thinking | tool_start | tool_end | notice | error | usage | done
 	Text    string          `json:"text,omitempty"`
 	Tool    string          `json:"tool,omitempty"`
 	CallID  string          `json:"callId,omitempty"`
@@ -59,6 +59,9 @@ type Agent struct {
 	// OnCompact is told the old history index of the first kept message, the summary and the size before compaction.
 	OnCompact func(firstKept int, summary string, tokensBefore int)
 	Persist   func(llm.Message) // called for every message added to History, in order (nil = none)
+	// Thinking chooses the thinking level per model; HideThinking keeps thinking text out of the events (the blocks stay in the history).
+	Thinking     llm.ThinkingSettings
+	HideThinking bool
 
 	depth int
 }
@@ -178,25 +181,35 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		if a.needsCompaction(sys) {
 			a.autoCompact(ctx, emit)
 		}
-		req := llm.Request{Model: a.Model, System: sys, Messages: a.History, MaxTokens: a.MaxTokens}
+		thinking, maxTokens := a.thinkingFor()
+		level := ""
+		if thinking != nil {
+			level = thinking.Level
+		}
+		req := llm.Request{Model: a.Model, System: sys, Messages: a.History, MaxTokens: maxTokens, Thinking: thinking}
+		pctx := retryNotices(ctx, emit)
 		for _, n := range a.Tools.Names() {
 			t, _ := a.Tools.Get(n)
 			req.Tools = append(req.Tools, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
 		}
-		resp, err := a.Provider.Complete(ctx, req)
+		resp, err := a.Provider.Complete(pctx, req)
 		if err != nil && compact.IsOverflow(err) && !overflowed && a.autoCompact(ctx, emit) {
 			overflowed = true // one recovery per prompt
 			req.Messages = a.History
-			resp, err = a.Provider.Complete(ctx, req)
+			resp, err = a.Provider.Complete(pctx, req)
 		}
 		if err != nil {
 			emit(Event{Type: "error", Text: err.Error()})
 			return err
 		}
-		a.add(a.record(resp, emit))
+		msg := a.record(resp, emit)
+		msg.ThinkingLevel = level
+		a.add(msg)
 		var uses []llm.Block
 		for _, b := range resp.Content {
 			switch b.Type {
+			case "thinking":
+				a.showThinking(b, emit)
 			case "text":
 				if b.Text != "" {
 					emit(Event{Type: "text", Text: b.Text})
@@ -291,7 +304,7 @@ func (a *Agent) TaskTool() tools.Tool {
 			}
 			sub := &Agent{Provider: a.Provider, Model: model, Cwd: a.Cwd, Tools: reg, Dispatch: a.Dispatch,
 				Skills: a.Skills, ContextFiles: a.ContextFiles, Base: orDefault(def.Prompt, defaultBase),
-				MaxTurns: a.MaxTurns, MaxTokens: a.MaxTokens, depth: a.depth + 1}
+				MaxTurns: a.MaxTurns, MaxTokens: a.MaxTokens, depth: a.depth + 1, Catalog: a.Catalog, Thinking: a.Thinking, HideThinking: true}
 			var last strings.Builder
 			err := sub.Run(ctx, p.Prompt, func(e Event) {
 				if e.Type == "text" {

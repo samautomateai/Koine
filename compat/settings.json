@@ -27,18 +27,23 @@
     {
       "key": "defaultThinkingLevel",
       "type": "\"off\"|\"minimal\"|\"low\"|\"medium\"|\"high\"|\"xhigh\"|\"max\"",
-      "status": "todo",
-      "note": "Needs thinking support in core/llm (LLM-25)."
+      "status": "verified",
+      "test": "TestThinkingSettingsDecideTheLevelPerModel",
+      "note": "Default medium. Applies to models the catalog marks as thinking; an unknown model gets thinking only when a level is chosen for it."
     },
     {
       "key": "modelThinkingLevels",
       "type": "object",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestThinkingSettingsDecideTheLevelPerModel",
+      "note": "Keys are `provider/modelId`; a bare catalog id also matches. Counts as an explicit choice, so it also applies to unknown models."
     },
     {
       "key": "thinkingBudgets",
       "type": "object",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestThinkingResolve",
+      "note": "Used for budget_tokens in budget mode (minimal 1024, low 2048, medium 8192, high 16384 by default; Koine's values). Levels above high use high's."
     },
     {
       "key": "enabledModels",
@@ -49,8 +54,9 @@
     {
       "key": "hideThinkingBlock",
       "type": "boolean",
-      "status": "inert",
-      "note": "No thinking blocks are shown yet."
+      "status": "verified",
+      "test": "TestHideThinkingBlockSetting",
+      "note": "Thinking text is not shown or emitted as an event; the blocks stay in the history and the session file."
     },
     {
       "key": "showCacheMissNotices",
@@ -296,7 +302,9 @@
     {
       "key": "httpIdleTimeoutMs",
       "type": "number|\"disabled\"",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
+      "note": "Bounds one provider response, as there is no streaming yet; with none set Koine waits (Pi defaults to 300000). 0 or \"disabled\" turns it off."
     },
     {
       "key": "websocketConnectTimeoutMs",
@@ -306,38 +314,49 @@
     {
       "key": "retry.enabled",
       "type": "boolean",
-      "status": "todo",
-      "note": "Retry is fixed at 4 attempts for 429 and 5xx (REQ-LLM-002)."
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy"
     },
     {
       "key": "retry.maxRetries",
       "type": "number",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
+      "note": "Retries after the first attempt (default 3); 0 means no retry."
     },
     {
       "key": "retry.baseDelayMs",
       "type": "number",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
+      "note": "Exponential: the delay doubles for each retry (default 2000)."
     },
     {
       "key": "retry.maxAgentDelayMs",
       "type": "number",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
+      "note": "Longest backoff wait (default 60000)."
     },
     {
       "key": "retry.provider.timeoutMs",
       "type": "number",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
+      "note": "Wins over httpIdleTimeoutMs for one provider response."
     },
     {
       "key": "retry.provider.maxRetries",
       "type": "number",
-      "status": "todo"
+      "status": "inert",
+      "note": "Koine has one retry loop, set by retry.maxRetries; this provider-level count is accepted and not used."
     },
     {
       "key": "retry.provider.maxRetryDelayMs",
       "type": "number",
-      "status": "todo"
+      "status": "verified",
+      "test": "TestRetryAndTimeoutSettingsMapToThePolicy",
+      "note": "A longer Retry-After ends the retries with an error; 0 removes the limit (default 60000)."
     },
     {
       "key": "shellPath",

@@ -99,7 +99,7 @@ func TestEndToEndPrompt(t *testing.T) {
 		t.Errorf("stdout/stderr split wrong:\nstdout=%q\nstderr=%q", out, errs)
 	}
 	// the system prompt carried the skill and the sub-agent
-	sys, _ := seen[0]["system"].(string)
+	sys := systemText(seen[0]["system"])
 	if !strings.Contains(sys, "<name>greeter</name>") || !strings.Contains(sys, "reviewer") {
 		t.Errorf("system prompt: %s", sys)
 	}

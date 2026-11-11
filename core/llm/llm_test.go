@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCompleteSuccessAndRequestShape(t *testing.T) {
@@ -38,7 +39,7 @@ func TestCompleteSuccessAndRequestShape(t *testing.T) {
 	if key != "k" || ver != "2023-06-01" {
 		t.Errorf("headers %q %q", key, ver)
 	}
-	if got["model"] != "m" || got["system"] != "sys" || got["max_tokens"].(float64) != 8192 {
+	if got["model"] != "m" || systemText(got["system"]) != "sys" || got["max_tokens"].(float64) != 8192 {
 		t.Errorf("body %v", got)
 	}
 	msgs := got["messages"].([]any)
@@ -64,7 +65,7 @@ func TestRetriesOn429ThenSucceeds(t *testing.T) {
 		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"ok"}]}`))
 	}))
 	defer srv.Close()
-	a := &Anthropic{APIKey: "k", BaseURL: srv.URL}
+	a := &Anthropic{APIKey: "k", BaseURL: srv.URL, Retry: RetryPolicy{BaseDelay: time.Millisecond}}
 	resp, err := a.Complete(context.Background(), Request{Model: "m", MaxTokens: 5})
 	if err != nil || resp.Content[0].Text != "ok" || n.Load() != 2 {
 		t.Fatalf("%v %v calls=%d", resp, err, n.Load())

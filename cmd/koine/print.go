@@ -72,6 +72,8 @@ func runPrint(ctx context.Context, a *app.App, prompt, mode string, st streams) 
 		switch e.Type {
 		case "text":
 			final.WriteString(e.Text)
+		case "thinking":
+			fmt.Fprintln(st.Err, strings.TrimSpace(e.Text))
 		case "tool_start":
 			if final.Len() > 0 {
 				fmt.Fprintln(st.Err, strings.TrimSpace(final.String()))

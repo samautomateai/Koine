@@ -53,7 +53,7 @@ func run(args []string, st streams) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: c.Trust, RunOptions: app.RunOptions{
-		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools,
+		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools, Thinking: c.Thinking,
 		SessionDir: c.SessionDir, NoSession: c.NoSession, Continue: c.Continue, SessionRef: c.Session, Fork: c.Fork, Name: c.Name}})
 	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)

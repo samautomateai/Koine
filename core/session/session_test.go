@@ -91,7 +91,8 @@ func TestReadsPiSessionsAndSkipsWhatItCannotRepresent(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := s.Messages()
-	if len(got) != 3 || got[0].Content[0].Text != "first question" || got[1].Content[0].Text != "first answer" || got[2].Content[0].Text != "second question" {
+	if len(got) != 3 || got[0].Content[0].Text != "first question" || got[1].Content[1].Text != "first answer" || got[1].Content[0].Type != "thinking" ||
+		got[2].Content[0].Text != "second question" {
 		t.Fatalf("%+v", got)
 	}
 	// appending to a Pi file chains from its last entry and keeps the original lines

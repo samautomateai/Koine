@@ -37,6 +37,8 @@ func Render(e agent.Event) {
 	switch e.Type {
 	case "text":
 		fmt.Println(e.Text)
+	case "thinking":
+		fmt.Printf("%s%s%s\n", dim, e.Text, reset)
 	case "tool_start":
 		var args map[string]any
 		_ = json.Unmarshal(e.Args, &args)

@@ -222,7 +222,7 @@ exactly once unless `replaceAll`. `bash` defaults to a 120 s timeout. `glob` and
 
 ## 7. Slash commands
 
-`/help /clear /exit /quit /tools /skills /agents /commands`,
+`/help /clear /exit /quit /tools /skills /agents /commands /model [id[:level]] /thinking [level]`,
 `/skill:<name> [args]`, extension commands (§3.3), then prompt templates (§1).
 Anything else is a prompt to the model. Slash commands never reach the model
 unless they expand to a prompt or skill.
@@ -233,12 +233,12 @@ Every frontend is a thin consumer of `app.App.HandleInput(ctx, line, emit)`
 and `Describe()`. `emit` receives `agent.Event`:
 
 ```json
-{ "type": "text|tool_start|tool_end|notice|error|done", "text": "", "tool": "", "callId": "", "args": {}, "isError": false }
+{ "type": "text|thinking|tool_start|tool_end|notice|error|usage|done", "text": "", "tool": "", "callId": "", "args": {}, "isError": false }
 ```
 
 - **Command line** (`koine [options] [--] [@files] [message]`, REQ-CLI-001): with a message, piped stdin, `-p` or `--mode json` it runs one
   prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines.
-  Text mode prints only the text after the last tool call to stdout; tool names, notices and errors go to stderr. `--mode json` prints one
+  Text mode prints only the text after the last tool call to stdout; tool names, thinking, notices and errors go to stderr. `--mode json` prints one
   `agent.Event` per line on stdout. Exit codes: 0 ok, 1 failed (provider, tool-loop or unknown `--model`), 2 usage (bad option, missing
   `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options.
 - **Sessions** (REQ-SESS-001): every run writes `~/.koine/sessions/--<cwd with / as ->--/<timestamp>_<uuid>.jsonl` in Pi's v3 format.
@@ -256,13 +256,33 @@ and `Describe()`. `emit` receives `agent.Event`:
   migrated on open (ids and parents added, `firstKeptEntryIndex` becomes `firstKeptEntryId`, role `hookMessage` becomes `custom`) after saving
   `<file>.v<N>.bak`. `branch_summary` and `custom_message` entries reach the model as user messages; `custom`, `label` and unknown entries do not.
 - **Settings** (REQ-CFG-001): `~/.koine/settings.json` and `<project>/.koine/settings.json`, Pi's key names. The status of every Pi key is
-  in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `sessionDir`, `extensions`, `compaction.*`, `branchSummary.*`, `treeFilterMode`. Koine-only:
+  in `compat/settings.json`. Acted on: `defaultProvider`, `defaultModel`, `defaultTools`, `sessionDir`, `extensions`, `compaction.*`, `branchSummary.*`, `treeFilterMode`, the thinking settings, `retry.*`, `httpIdleTimeoutMs` (see below). Koine-only:
   `model`, `maxTurns`, `hooks`, `plugin`, `providers`, `compaction.contextWindow`. Project values override user values; global-only keys are
-  ignored in a project; an untrusted project applies only `model`, `maxTurns` and `compaction` (not the tree settings). Problems are listed at startup (`/reload` re-checks).
+  ignored in a project; an untrusted project applies only `model`, `maxTurns`, `compaction`, the thinking settings and the retry settings (not the tree settings). Problems are listed at startup (`/reload` re-checks).
 - **Agent directory and prompt files** (REQ-CFG-002): the user directory is `~/.koine`, or `$KOINE_AGENT_DIR`. `SYSTEM.md` (replaces the system prompt) and `APPEND_SYSTEM.md` (added after the context files) are read from a trusted project's `.koine/` or `.pi/`, else from the user directory or `~/.pi/agent`; the first non-blank file wins and files are never combined. `--system-prompt` and `--append-system-prompt` override them.
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.
 - **Usage and cost** (REQ-LLM-004): the model catalog is built in; `~/.koine/model-catalog.json` (`{"models":[{"id","contextWindow","maxOutput","cost":{"input","output","cacheRead","cacheWrite"},"longContext":{"threshold","multiplier"}}]}`, USD per million tokens) adds or replaces entries by id. Each response emits an event `{"type":"usage","usage":{input,output,cacheRead,cacheWrite,cost?,contextTokens,contextWindow,contextPercent}}`; `cost` is absent when the model has no known price. Assistant messages in the session file carry Pi's `usage` object. `/session` prints totals, cost and context use. `compaction.contextWindow` overrides the catalog's window.
+- **Thinking** (REQ-LLM-005): levels `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. The level for a request is, first match wins:
+  `--thinking LEVEL`, a `:LEVEL` suffix on `--model` or `/model` (only a trailing level name counts, so `llama3:8b` is a model id), `/thinking LEVEL`,
+  `modelThinkingLevels["provider/modelId"]`, `defaultThinkingLevel`, then `medium`. `--thinking` with a bad level exits 2. Only models the catalog
+  marks `reasoning`, or any model when a level was chosen for it explicitly, are sent thinking parameters; others are sent none. A level above the
+  model's maximum is lowered. Anthropic: catalog mode `adaptive` sends `thinking: {"type":"adaptive"}` and `output_config.effort` (`minimal` as `low`);
+  `budget` sends `thinking: {"type":"enabled","budget_tokens":N}` with N from `thinkingBudgets` (`minimal`, `low`, `medium`, `high`; defaults 1024, 2048,
+  8192, 16384; levels above `high` use `high`'s) and raises `max_tokens` to fit. `off` sends `thinking: {"type":"disabled"}` unless the catalog entry's
+  `reasoning.off` says otherwise (`omit`, or another `thinking.type`). OpenAI-compatible: `reasoning_effort` (`max` is sent as `xhigh`, `off` sends nothing)
+  and `max_completion_tokens` in place of `max_tokens`; `reasoning_content` or `reasoning` in the answer becomes a thinking block. Thinking blocks
+  are events `{"type":"thinking","text":…}` (not emitted when `hideThinkingBlock` is true, nor for redacted blocks), stay in the history, and are
+  saved in the session file as `{"type":"thinking","thinking":…,"thinkingSignature":…,"redacted":true}` with `thinkingLevel` on the assistant
+  message, as Pi documents them. A catalog file may say `"reasoning": true` or `{"mode":"adaptive|budget|effort","max":"<level>","off":"<type>"}`.
+- **Prompt caching** (REQ-LLM-005): Anthropic requests mark `cache_control: {"type":"ephemeral"}` on the system prompt, the last tool and the last
+  block of the last user message. Cache reads and writes arrive in `Usage` (`cacheRead`, `cacheWrite`). No long retention and no cache warming.
+- **Retry and timeouts** (REQ-LLM-002, REQ-LLM-005): network errors, timeouts, 429 and 5xx are retried. `retry.maxRetries` (default 3, so four attempts;
+  0 or `retry.enabled: false` turns retries off), `retry.baseDelayMs` (2000, doubled each time) and `retry.maxAgentDelayMs` (60000, the longest backoff).
+  A `Retry-After` header is waited for, but one longer than `retry.provider.maxRetryDelayMs` (60000; 0 = no limit) ends the retries with an error.
+  A 429 that reports an exhausted quota or credit is not retried. `retry.provider.timeoutMs`, else `httpIdleTimeoutMs` (a number, 0 or `"disabled"`),
+  bounds one response; with neither set there is no timeout. `retry.provider.maxRetries` is accepted and ignored. Each retry emits a `notice`.
+  A provider answer that does not fit the context window (HTTP 413, or the provider's own wording) triggers one compaction and one retry per prompt.
 - **HTTP/SSE** (`koine --serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.
@@ -290,7 +310,7 @@ Config merge order (later wins for scalars, hooks/plugins/extensions append):
 
 ## 10. Known limits (v1)
 
-- Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, up to 4 attempts on 429/5xx/network errors.
+- Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, retried as configured (four attempts by default).
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
 - No permission prompts yet.
 - The `bubbletea` and `wails` frontends are written against the same API but are

@@ -153,11 +153,11 @@ func TestSettingsDiagnostics(t *testing.T) {
 	writeFile(t, filepath.Join(home, ".koine", "config.json"), `{"maxTurns":3}`)
 	writeFile(t, filepath.Join(home, ".koine", "settings.json"), `{"defaultProjectTrust":"ask","theme":"dark"}`)
 	writeFile(t, filepath.Join(proj, ".koine", "settings.json"),
-		`{"defaultProjectTrust":"always","retry":{"enabled":false},"enableAnalytics":true,"bogus":1,"compaction":{"enabled":"yes"}}`)
+		`{"defaultProjectTrust":"always","warnings":{"anthropicExtraUsage":true},"enableAnalytics":true,"bogus":1,"compaction":{"enabled":"yes"}}`)
 	a := startIn(t, proj, Options{})
 	got := strings.Join(a.Warnings, "\n")
 	for _, want := range []string{"config.json is the old name", "defaultProjectTrust can only be set in the user settings",
-		"retry.enabled is not supported yet", "enableAnalytics is not used by Koine by design", "unknown setting bogus",
+		"warnings.anthropicExtraUsage is not supported yet", "enableAnalytics is not used by Koine by design", "unknown setting bogus",
 		"compaction.enabled should be boolean"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)

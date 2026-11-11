@@ -16,14 +16,14 @@ priorities and efforts are judgement calls.
 
 | Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
 | ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
-| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 3      | 11      | 32      | 5         | 10      | 18      |
-| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 8      | 27      | 42      | 0         | 11      | 33      |
-| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 0      | 13      | 36      | 0         | 15      | 13      |
+| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 4      | 11      | 31      | 5         | 10      | 17      |
+| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 8      | 28      | 41      | 0         | 11      | 33      |
+| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 1      | 16      | 32      | 0         | 14      | 13      |
 | Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 4      | 19      | 20      | 2         | 10      | 19      |
-| **Total**                                |                          | **15** | **70**  | **130** | **7**     | **46**  | **83**  |
+| **Total**                                |                          | **17** | **74**  | **124** | **7**     | **45**  | **82**  |
 
 Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
-coding agent it is far from Pi. About 7% of behaviours match, and the 46 open P0 items cluster in a few places.
+coding agent it is far from Pi. About 8% of behaviours match, and the 45 open P0 items cluster in a few places.
 
 ## What the P0 gaps have in common
 

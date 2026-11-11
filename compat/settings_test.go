@@ -50,7 +50,8 @@ func TestSettingsCheck(t *testing.T) {
 	doc := map[string]any{
 		"defaultModel": "m", "theme": "dark", // fine; theme is inert
 		"compaction":                 map[string]any{"enabled": true, "reserveTokens": "lots", "modelOverrides": map[string]any{}, "bogus": 1},
-		"retry":                      map[string]any{"enabled": true, "provider": map[string]any{"maxRetries": 1.0}},
+		"warnings":                   map[string]any{"anthropicExtraUsage": true},
+		"codemode":                   map[string]any{"inlineBudget": 1.0},
 		"enableAnalytics":            true,
 		"defaultProjectTrust":        "always",
 		"quietStartup":               "header",
@@ -66,8 +67,8 @@ func TestSettingsCheck(t *testing.T) {
 		"compaction.reserveTokens should be number",
 		"compaction.modelOverrides is not supported yet",
 		"unknown setting compaction.bogus",
-		"retry.enabled is not supported yet",
-		"retry.provider.maxRetries is not supported yet",
+		"warnings.anthropicExtraUsage is not supported yet",
+		"codemode.inlineBudget is not supported yet",
 		"enableAnalytics is not used by Koine by design",
 		"defaultProjectTrust can only be set in the user settings",
 		"markdown should be an object",

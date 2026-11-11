@@ -37,6 +37,7 @@ var builtins = map[string]builtin{
 type Router struct {
 	Custom map[string]ProviderConfig
 	HTTP   *http.Client
+	Retry  RetryPolicy         // applied to every provider the router builds
 	Getenv func(string) string // defaults to os.Getenv
 }
 
@@ -114,7 +115,7 @@ func (r *Router) anthropic(pc ProviderConfig) Provider {
 	if base == "" {
 		base = "https://api.anthropic.com"
 	}
-	return &Anthropic{APIKey: key, BaseURL: base, HTTP: r.HTTP}
+	return &Anthropic{APIKey: key, BaseURL: base, HTTP: r.HTTP, Retry: r.Retry}
 }
 
 func (r *Router) openai(name string, pc ProviderConfig) Provider {
@@ -124,7 +125,7 @@ func (r *Router) openai(name string, pc ProviderConfig) Provider {
 			return Missing{Reason: pc.APIKeyEnv + " is not set — export it to use " + name + " models"}
 		}
 	}
-	return &OpenAICompat{Name: name, APIKey: key, BaseURL: pc.BaseURL, HTTP: r.HTTP}
+	return &OpenAICompat{Name: name, APIKey: key, BaseURL: pc.BaseURL, HTTP: r.HTTP, Retry: r.Retry}
 }
 
 // Complete implements Provider by resolving req.Model per call.

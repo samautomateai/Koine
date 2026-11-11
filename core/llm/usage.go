@@ -53,6 +53,7 @@ type Model struct {
 	MaxOutput     int          `json:"maxOutput,omitempty"`
 	Cost          *Price       `json:"cost,omitempty"`
 	LongContext   *LongContext `json:"longContext,omitempty"`
+	Reasoning     *Reasoning   `json:"reasoning,omitempty"` // present when the model thinks (see Reasoning)
 }
 
 // Cost is a price breakdown in dollars.

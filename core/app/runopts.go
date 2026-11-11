@@ -14,6 +14,7 @@ type RunOptions struct {
 	AppendSystem string   // --append-system-prompt: added after the context files (text, or the path of a file)
 	Tools        []string // -t: only these tools are offered (empty = all)
 	NoTools      bool     // -nt: offer no tools at all
+	Thinking     string   // --thinking: the thinking level (off, minimal, low, medium, high, xhigh, max)
 
 	SessionDir string // --session-dir: where session files live (default ~/.koine/sessions/--<cwd>--)
 	NoSession  bool   // --no-session: keep nothing on disk

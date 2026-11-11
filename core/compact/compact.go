@@ -189,19 +189,5 @@ func Summarize(ctx context.Context, p llm.Provider, model, prev string, msgs []l
 	return s, nil
 }
 
-var overflowHints = []string{"prompt is too long", "context_length_exceeded", "maximum context length", "context window", "too many tokens",
-	"request too large", "http 413", "input is too long", "exceeds the maximum"}
-
-// IsOverflow reports whether err is a provider's "the conversation does not fit" failure.
-func IsOverflow(err error) bool {
-	if err == nil {
-		return false
-	}
-	s := strings.ToLower(err.Error())
-	for _, h := range overflowHints {
-		if strings.Contains(s, h) {
-			return true
-		}
-	}
-	return false
-}
+// IsOverflow reports whether err is a provider's "the conversation does not fit" failure (see llm.IsOverflow for the per-provider wording).
+func IsOverflow(err error) bool { return llm.IsOverflow(err) }
