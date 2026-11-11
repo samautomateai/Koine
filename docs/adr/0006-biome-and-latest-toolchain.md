@@ -6,11 +6,11 @@
 
 ## Context
 
-ESLint with typescript-eslint trails new TypeScript releases, and Prettier plus ESLint is two tools and two configs for a small JS surface. CI also read its Go version from `go.mod`, which pinned it to an old release.
+ESLint with typescript-eslint trails new TypeScript releases, and Prettier plus ESLint is two tools and two configs for a small JS surface. `go.mod` and the CI pin had drifted apart, with `go.mod` on an old release.
 
 ## Decision
 
-Biome formats and lints JS/JSON (and TS if we add it) from one config, installed as a pinned dev dependency. Type checking, if needed, is `tsc --noEmit`. CI pins the latest stable Go patch and a golangci-lint built with at least that Go; `go.mod` keeps the minimum language version.
+Biome formats and lints JS/JSON (and TS if we add it) from one config, installed as a pinned dev dependency. Type checking, if needed, is `tsc --noEmit`. `go.mod` pins the latest stable Go (1.27.4) in all three modules and CI reads the version from it, with a golangci-lint built with at least that Go.
 
 ## Consequences
 

@@ -12,7 +12,6 @@ env:
   GOLANGCI_LINT_VERSION: v2.15.0
   GOVULNCHECK_VERSION: v1.9.0
   TASK_VERSION: 3.x
-  GO_VERSION: "1.27.4" # latest stable at the time of writing; Dependabot-style bumps are manual (docs/ENGINEERING.md §2)
 
 jobs:
   go:
@@ -21,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "${{ env.GO_VERSION }}", cache: false }
+        with: { go-version-file: go.mod, cache: false }
       - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - uses: arduino/setup-task@v3
@@ -76,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "${{ env.GO_VERSION }}", cache: false }
+        with: { go-version-file: go.mod, cache: false }
       - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - name: Go modules verify and tidy
@@ -99,7 +98,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "${{ env.GO_VERSION }}", cache: false }
+        with: { go-version-file: go.mod, cache: false }
       - name: govulncheck (reachable vulnerabilities in code and stdlib)
         run: go run golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }} ./...
       - name: Trivy filesystem scan (all ecosystems)

@@ -43,7 +43,7 @@ for line in sys.stdin:
     elif meth == "shutdown": break
 `
 
-func start(t *testing.T) (*Host, *tools.Registry, *[]string, *[]string) {
+func start(t *testing.T) (*Host, *tools.Registry, func() []string, func() []string) {
 	t.Helper()
 	dir := t.TempDir()
 	script := filepath.Join(dir, "e.py")
@@ -60,11 +60,14 @@ func start(t *testing.T) (*Host, *tools.Registry, *[]string, *[]string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
-	return h, reg, &logs, &msgs
+	snap := func(p *[]string) func() []string {
+		return func() []string { mu.Lock(); defer mu.Unlock(); return append([]string(nil), *p...) }
+	}
+	return h, reg, snap(&logs), snap(&msgs)
 }
 
 func TestProtocolRoundTrip(t *testing.T) {
-	h, reg, logs, msgs := start(t)
+	h, reg, getLogs, getMsgs := start(t)
 	tl, ok := reg.Get("echo")
 	if !ok || !strings.Contains(string(tl.Schema()), "object") || tl.Description() != "d" || tl.Name() != "echo" {
 		t.Fatal("tool not registered with default schema")
@@ -103,12 +106,13 @@ func TestProtocolRoundTrip(t *testing.T) {
 	}
 
 	time.Sleep(100 * time.Millisecond) // notifications are async
-	if len(*msgs) != 1 || (*msgs)[0] != "injected" {
-		t.Errorf("send_user_message: %v", *msgs)
+	if msgs := getMsgs(); len(msgs) != 1 || msgs[0] != "injected" {
+		t.Errorf("send_user_message: %v", msgs)
 	}
-	joined := strings.Join(*logs, "|")
+	logs := getLogs()
+	joined := strings.Join(logs, "|")
 	if !strings.Contains(joined, "non-protocol") || !strings.Contains(joined, "%s") {
-		t.Errorf("logs: %v", *logs)
+		t.Errorf("logs: %v", logs)
 	}
 }
 

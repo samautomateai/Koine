@@ -21,7 +21,7 @@ These rules apply to people and to coding agents. Each one is either enforced by
 6. Comments say why, not what. Exported identifiers have doc comments. _review_
 7. No invisible Unicode in sources; use escapes. _review_
 
-8. Toolchain: build and CI on the latest stable Go (pinned patch in `.github/workflows`), golangci-lint built with at least that Go, Biome pinned in `package.json`. TypeScript, if we add first-party TS, is type-checked with `tsc --noEmit`; Biome parses it without depending on the TypeScript package (ADR 0006).
+8. Toolchain: build and CI on the latest stable Go, pinned once in the `go` line of `go.mod` (CI reads it from there; bump it by hand when a new Go ships), golangci-lint built with at least that Go, Biome pinned in `package.json`. TypeScript, if we add first-party TS, is type-checked with `tsc --noEmit`; Biome parses it without depending on the TypeScript package (ADR 0006).
 
 ## 3. Tests
 
@@ -52,3 +52,9 @@ Only upstream Pi is tracked. Follow `docs/UPSTREAM.md`; the baseline in the bina
 ## 7. Agent workflow
 
 `AGENTS.md` is the entry point for every coding agent. Skills in `.agents/skills/` carry the procedures (`spec-driven-change`, `quality-gates`, `upstream-pi-sync`). An agent must not lower a threshold, add an exclusion, or mark a requirement implemented without tests in order to get green.
+
+## Keeping dependencies current
+
+- `task deps:check` lists outdated pins (Go toolchain, golangci-lint, govulncheck, Biome, GitHub Action refs), Go modules in all three modules and npm packages.
+- `task deps:update` upgrades all of them and runs `task check:fast`. The weekly `dependency-updates` workflow does the same and opens a PR; Dependabot still raises security updates.
+- Never pin a version by hand in only one place: `scripts/deps.mjs` knows every location. There is no Dockerfile; if one is added, teach `scripts/deps.mjs` its base-image tag.
