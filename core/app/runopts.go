@@ -9,6 +9,13 @@ type RunOptions struct {
 	AppendSystem string   // --append-system-prompt: added after the context files (text, or the path of a file)
 	Tools        []string // -t: only these tools are offered (empty = all)
 	NoTools      bool     // -nt: offer no tools at all
+
+	SessionDir string // --session-dir: where session files live (default ~/.koine/sessions/--<cwd>--)
+	NoSession  bool   // --no-session: keep nothing on disk
+	Continue   bool   // -c: continue the most recent session in this project
+	SessionRef string // --session: resume this session (file path, id, id prefix or name)
+	Fork       string // --fork: start a new session from a copy of this one
+	Name       string // -n: display name for the session
 }
 
 // textOrFile returns the contents of the file named by s when there is one, otherwise s itself.

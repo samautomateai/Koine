@@ -17,6 +17,7 @@ import (
 	"koine/core/hooks"
 	"koine/core/llm"
 	"koine/core/prompts"
+	"koine/core/session"
 	"koine/core/skills"
 	"koine/core/tools"
 	"koine/core/trust"
@@ -36,6 +37,7 @@ type App struct {
 	Home     string
 	Cfg      Config
 	Agent    *agent.Agent
+	Session  *session.Session // nil with --no-session
 	Host     *ext.Host
 	Hooks    *hooks.Runner
 	Prompts  []prompts.Prompt
@@ -89,6 +91,10 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 		}
 	}
 	a.Agent.Model = model
+	if err := a.initSession(); err != nil {
+		a.Close()
+		return nil, err
+	}
 	a.Agent.Dispatch.Emit(ctx, events.SessionStart, map[string]any{"cwd": cwd, "reason": "startup"})
 	return a, nil
 }
@@ -250,16 +256,16 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	}
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)
+	if a.sessionCommand(name, args, emit) {
+		return false, nil
+	}
 	info := a.Describe()
 	switch name {
 	case "exit", "quit":
 		return true, nil
-	case "clear":
-		a.Agent.Reset()
-		notice("history cleared")
-		return false, nil
 	case "help":
-		notice("/help /clear /exit /tools /skills /agents /commands /model [id] /trust /reload /compat /skill:<name> /<command> <args>")
+		notice("/help /new /session /name /resume /fork /exit /tools /skills /agents /commands /model [id] /trust /reload /compat " +
+			"/skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
 		notice(strings.Join(info.Tools, ", "))

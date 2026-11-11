@@ -21,6 +21,13 @@ type cliArgs struct {
 	AppendSystem string
 	Tools        []string
 	NoTools      bool
+	Continue     bool
+	Resume       bool // list sessions and exit (line-mode stand-in for Pi's picker)
+	Session      string
+	SessionDir   string
+	NoSession    bool
+	Fork         string
+	Name         string
 	Files        []string // @file arguments, in order
 	Message      []string // everything else
 }
@@ -53,6 +60,13 @@ var flagSpecs = []flagSpec{
 	{"append-system-prompt", "", valueFlag},
 	{"tools", "t", valueFlag},
 	{"no-tools", "nt", boolFlag},
+	{"continue", "c", boolFlag},
+	{"resume", "r", boolFlag},
+	{"session", "", valueFlag},
+	{"session-dir", "", valueFlag},
+	{"no-session", "", boolFlag},
+	{"fork", "", valueFlag},
+	{"name", "n", valueFlag},
 }
 
 func lookup(name string) (flagSpec, bool) {
@@ -137,6 +151,20 @@ func (c *cliArgs) set(long, val string) {
 		}
 	case "no-tools":
 		c.NoTools = true
+	case "continue":
+		c.Continue = true
+	case "resume":
+		c.Resume = true
+	case "session":
+		c.Session = val
+	case "session-dir":
+		c.SessionDir = val
+	case "no-session":
+		c.NoSession = true
+	case "fork":
+		c.Fork = val
+	case "name":
+		c.Name = val
 	}
 }
 
@@ -179,6 +207,13 @@ Piped stdin is put before the message. @file arguments are included as <file> bl
       --append-system-prompt T add to the system prompt (text, or a file path)
   -t, --tools a,b              offer only these tools
   -nt, --no-tools              offer no tools
+  -c, --continue               continue the most recent session in this project
+  -r, --resume                 list this project's sessions (resume one with --session ID, or /resume ID in the session)
+      --session ID|PATH|NAME   resume that session
+      --fork ID|PATH|NAME      start a new session from a copy of that one
+  -n, --name NAME              name the session
+      --no-session             do not save the conversation
+      --session-dir DIR        keep sessions here (default ~/.koine/sessions, or $KOINE_SESSION_DIR)
   -C, --cwd DIR                project directory (default: current)
   -a, --trust                  trust this folder for this run
       --serve ADDR             serve the HTTP/SSE API (e.g. 127.0.0.1:7777)

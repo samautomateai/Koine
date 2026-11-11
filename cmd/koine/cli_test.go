@@ -23,6 +23,8 @@ func TestParseArgs(t *testing.T) {
 		{"tools list", []string{"-t", "read, bash,,grep", "--system-prompt", "S", "--append-system-prompt", "A"},
 			cliArgs{Tools: []string{"read", "bash", "grep"}, System: "S", AppendSystem: "A"}},
 		{"no tools, mode, help", []string{"-nt", "--mode", "json", "-h"}, cliArgs{NoTools: true, Mode: "json", Help: true}},
+		{"session flags", []string{"-c", "--session", "abc", "--fork=def", "-n", "nm", "--no-session", "--session-dir", "/d", "-r"},
+			cliArgs{Continue: true, Session: "abc", Fork: "def", Name: "nm", NoSession: true, SessionDir: "/d", Resume: true}},
 		{"lone dash is a message", []string{"-"}, cliArgs{Message: []string{"-"}}},
 	}
 	for _, c := range good {
@@ -179,5 +181,35 @@ func TestNothingToDoAndHelpAndMissingFile(t *testing.T) {
 	}
 	if code, _, errs := cli("", "-C", t.TempDir(), "@nope.txt", "x"); code != 2 || !strings.Contains(errs, "@nope.txt") {
 		t.Errorf("missing file: %d %q", code, errs)
+	}
+}
+
+func TestSessionsPersistContinueAndList(t *testing.T) {
+	var seen []map[string]any
+	api := fakeAnthropic(t, &seen)
+	defer api.Close()
+	isolate(t, api.URL)
+	dir := t.TempDir()
+	if code, _, errs := cli("", "-C", dir, "-n", "alpha", "remember the number 7"); code != 0 {
+		t.Fatalf("%d %s", code, errs)
+	}
+	seen = nil
+	if code, _, errs := cli("", "-C", dir, "-c", "what number?"); code != 0 {
+		t.Fatalf("%d %s", code, errs)
+	}
+	if first := firstUserText(seen); first != "remember the number 7" {
+		t.Errorf("-c should replay the earlier conversation first, got %q", first)
+	}
+	code, out, _ := cli("", "-C", dir, "-r")
+	if code != 0 || !strings.Contains(out, "alpha") || !strings.Contains(out, "msgs") {
+		t.Errorf("-r listing: %d %q", code, out)
+	}
+	seen = nil
+	cli("", "-C", dir, "--no-session", "fresh start")
+	if firstUserText(seen) != "fresh start" {
+		t.Errorf("--no-session run must not see history")
+	}
+	if code, _, _ := cli("", "-C", dir, "--session", "no-such"); code != 1 {
+		t.Errorf("unknown --session: %d", code)
 	}
 }

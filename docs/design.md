@@ -63,3 +63,9 @@ Living document. Each design section has an ID, the requirements it satisfies, a
 - Satisfies: REQ-CLI-001
 - Code: cmd/koine/args.go; cmd/koine/print.go; cmd/koine/main.go; core/app/runopts.go
 - Notes: `parseArgs` is a small hand-written parser (the standard `flag` package stops at the first positional and has no `--name=value` plus `@file` handling). `run` takes injected `streams` so the whole command line is testable without touching the process's stdio. `buildPrompt` reads stdin only when it is not a terminal. Per-run overrides travel in `app.RunOptions` inside `app.Options`, and are re-applied by `load`, so `/reload` does not drop them. Text mode keeps only the text after the last tool call as the answer, which makes `koine ... | tool` safe to pipe; JSON mode forwards `agent.Event` unchanged.
+
+## DES-011 — Sessions: Pi v3 files, written as the conversation happens
+
+- Satisfies: REQ-SESS-001
+- Code: core/session; core/app/session.go; core/agent/agent.go
+- Notes: `core/session` reads and writes Pi's tree format: a header line, then entries linked by `parentId`; the active branch is found from the last entry. `agent.Agent.Persist` is called for every message added to the history, so a crash loses at most the call in flight. A user message of tool results is stored as one `toolResult` entry per result (as Pi does) and merged back on load. The file is created on the first entry, so runs that say nothing leave nothing behind. Unknown entry types and blocks (thinking, images, custom, labels) stay in the file but are not sent to the model. Files go to `~/.koine/sessions`, not Pi's directory, so the two tools never write the same file by accident; `--session PATH` opens a Pi file directly. Sub-agents get no `Persist`, so their messages stay out of the parent's file.
