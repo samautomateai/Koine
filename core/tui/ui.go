@@ -54,7 +54,6 @@ type UI struct {
 	flashUntil   time.Time
 	armedC       time.Time
 	armedEsc     time.Time
-	rebuild      bool
 	lastRun      string
 
 	width, height int
@@ -64,7 +63,6 @@ type UI struct {
 	themeDirs     []string
 	themeWarns    []string
 	scoped        []string
-	scopeIdx      int
 }
 
 type labelEdit struct {

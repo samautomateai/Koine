@@ -47,7 +47,6 @@ type (
 	inputMsg   []byte
 	eventMsg   agent.Event
 	escMsg     struct{}
-	tickMsg    struct{}
 	resizeMsg  struct{}
 	inputEnd   struct{}
 	prefillMsg string

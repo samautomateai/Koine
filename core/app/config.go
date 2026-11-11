@@ -147,7 +147,7 @@ func mergeConfig(dst *Config, src Config) {
 	}
 	dst.merge(src.LLMSettings)
 	dst.mergeImages(src.ImageSettings)
-	dst.TUISettings.mergeTUI(src.TUISettings)
+	dst.mergeTUI(src.TUISettings)
 	c := src.Compaction
 	if c.Enabled != nil {
 		dst.Compaction.Enabled = c.Enabled

@@ -134,9 +134,6 @@ func TestMarkdownTables(t *testing.T) {
 	if len(lines) != 8 || !strings.HasPrefix(lines[0], "┌") || !strings.HasPrefix(lines[3], "│ apple") || lines[7] != "after" && lines[6] != "after" {
 		t.Fatalf("shape:\n%s", got)
 	}
-	if !strings.Contains(got, "│ Name  │ Qty │ Note  │") && !strings.Contains(got, "│ Name  │ Qty │ Note  │") {
-		t.Logf("table:\n%s", got)
-	}
 	if !strings.Contains(got, "│ kiwi  │  12 │") || !strings.Contains(got, "a | b") {
 		t.Errorf("right alignment and escaped pipes:\n%s", got)
 	}

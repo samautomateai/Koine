@@ -154,7 +154,7 @@ func parseHex(s string) (Color, error) {
 	if err != nil {
 		return Color{}, fmt.Errorf("%q is not a hex colour", s)
 	}
-	return Color{Set: true, RGB: true, R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v)}, nil
+	return Color{Set: true, RGB: true, R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v)}, nil //nolint:gosec // v is at most 24 bits
 }
 
 func parseOKLCH(s string) (Color, error) {
