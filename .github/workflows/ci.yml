@@ -24,7 +24,7 @@ jobs:
         with: { go-version: "${{ env.GO_VERSION }}", cache: false }
       - uses: actions/setup-node@v7
         with: { node-version: 22 }
-      - uses: arduino/setup-task@v2
+      - uses: arduino/setup-task@v3
         with: { version: "${{ env.TASK_VERSION }}", repo-token: "${{ secrets.GITHUB_TOKEN }}" }
       - name: Format (gofmt -s)
         run: task fmt:check
@@ -90,7 +90,7 @@ jobs:
       # Needs "Dependency graph" enabled in Settings → Security. Set the repository variable DEPENDENCY_REVIEW=true once it is.
       - name: Review new dependencies in PRs (licenses and known advisories)
         if: github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW == 'true'
-        uses: actions/dependency-review-action@v3
+        uses: actions/dependency-review-action@v5
         with: { fail-on-severity: high }
 
   vulnerability-scan:
