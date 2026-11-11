@@ -71,31 +71,32 @@ func isolate(t *testing.T, api string) {
 	t.Setenv("KOINE_TRUST", "") // trust must be explicit (-trust)
 }
 
+// cli runs the command line with non-terminal standard streams and returns the exit code, stdout and stderr.
+func cli(stdin string, args ...string) (int, string, string) {
+	var o, e bytes.Buffer
+	code := run(args, streams{In: strings.NewReader(stdin), Out: &o, Err: &e})
+	return code, o.String(), e.String()
+}
+
 func TestEndToEndPrompt(t *testing.T) {
 	var seen []map[string]any
 	api := fakeAnthropic(t, &seen)
 	defer api.Close()
 	isolate(t, api.URL)
 
-	// capture stdout (tui.Render prints there)
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	var stderr bytes.Buffer
-	code := run([]string{"-C", project(t), "-trust", "-p", "do everything"}, &stderr)
-	_ = w.Close()
-	os.Stdout = old
-	outB, _ := io.ReadAll(r)
-	out := string(outB)
-
+	code, out, errs := cli("", "-C", project(t), "--trust", "-p", "do everything")
 	if code != 0 {
-		t.Fatalf("exit %d: %s", code, stderr.String())
+		t.Fatalf("exit %d: %s", code, errs)
 	}
 	// Pi tool, opencode tool, Python tool and a built-in all ran through the real provider
 	for _, want := range []string{"pi:hey", "YO@", "42", "hi from bash", "RESULTS:"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
+	}
+	// stdout is the final answer only; tool activity is on stderr
+	if strings.Contains(out, "⏺") || !strings.Contains(errs, "⏺ pi_echo") {
+		t.Errorf("stdout/stderr split wrong:\nstdout=%q\nstderr=%q", out, errs)
 	}
 	// the system prompt carried the skill and the sub-agent
 	sys, _ := seen[0]["system"].(string)
@@ -117,8 +118,7 @@ func TestServeMode(t *testing.T) {
 	addr := ln.Addr().String()
 	_ = ln.Close()
 	done := make(chan int, 1)
-	var stderr bytes.Buffer
-	go func() { done <- run([]string{"-C", t.TempDir(), "-serve", addr}, &stderr) }()
+	go func() { c, _, _ := cli("", "-C", t.TempDir(), "--serve", addr); done <- c }()
 	var resp *http.Response
 	var err error
 	for i := 0; i < 100; i++ {
@@ -136,7 +136,7 @@ func TestServeMode(t *testing.T) {
 		t.Fatalf("%s", b)
 	}
 	// occupy-port failure path
-	if code := run([]string{"-C", t.TempDir(), "-serve", addr}, &stderr); code != 1 {
+	if code, _, _ := cli("", "-C", t.TempDir(), "-serve", addr); code != 1 {
 		t.Errorf("second server on same port should fail, got %d", code)
 	}
 }
@@ -151,50 +151,37 @@ func TestInteractiveFallsThroughToTUI(t *testing.T) {
 	os.Stdout = devnull
 	defer func() { os.Stdin, os.Stdout = oldIn, oldOut }()
 	var stderr bytes.Buffer
-	if code := run([]string{"-C", t.TempDir()}, &stderr); code != 0 {
+	st := stdStreams()
+	st.Err = &stderr
+	if code := run([]string{"-C", t.TempDir()}, st); code != 0 {
 		t.Fatalf("%d %s", code, stderr.String())
 	}
 }
 
 func TestBadFlagAndAPIFailure(t *testing.T) {
-	var stderr bytes.Buffer
-	if code := run([]string{"-nope"}, &stderr); code != 2 {
+	if code, _, _ := cli("", "-nope"); code != 2 {
 		t.Fatalf("bad flag: %d", code)
 	}
 	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(400) }))
 	defer bad.Close()
 	isolate(t, bad.URL) // 4xx is not retried: provider error -> non-zero exit
-	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-	old := os.Stdout
-	os.Stdout = devnull
-	defer func() { os.Stdout = old }()
-	if code := run([]string{"-C", t.TempDir(), "-p", "hi"}, &stderr); code != 1 {
-		t.Fatalf("api failure should exit 1, got %d", code)
+	code, out, errs := cli("", "-C", t.TempDir(), "-p", "hi")
+	if code != 1 || out != "" || !strings.Contains(errs, "error") {
+		t.Fatalf("api failure should exit 1 with nothing on stdout, got %d %q %q", code, out, errs)
 	}
 }
 
 func TestVersionAndUntrustedByDefault(t *testing.T) {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	var stderr bytes.Buffer
-	code := run([]string{"-version"}, &stderr)
-	_ = w.Close()
-	os.Stdout = old
-	b, _ := io.ReadAll(r)
-	if code != 0 || strings.TrimSpace(string(b)) != "koine dev+pi"+piBaseline {
-		t.Fatalf("%d %q", code, b)
+	code, out, _ := cli("", "-v")
+	if code != 0 || strings.TrimSpace(out) != "koine dev+pi"+piBaseline {
+		t.Fatalf("%d %q", code, out)
 	}
 
 	var seen []map[string]any
 	api := fakeAnthropic(t, &seen)
 	defer api.Close()
 	isolate(t, api.URL)
-	t.Setenv("KOINE_TRUST", "")
-	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-	os.Stdout = devnull
-	defer func() { os.Stdout = old }()
-	run([]string{"-C", project(t), "-p", "go"}, &stderr)
+	cli("", "-C", project(t), "-p", "go")
 	for _, td := range seen[0]["tools"].([]any) {
 		if n := td.(map[string]any)["name"]; n == "pi_echo" || n == "oc_upper" || n == "py_add" {
 			t.Errorf("untrusted project tool %v was advertised to the model", n)
@@ -214,15 +201,8 @@ func TestPiBaselineMatchesManifest(t *testing.T) {
 }
 
 func TestCompatFlagPrintsReport(t *testing.T) {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	var stderr bytes.Buffer
-	code := run([]string{"-compat"}, &stderr)
-	_ = w.Close()
-	os.Stdout = old
-	b, _ := io.ReadAll(r)
-	if code != 0 || !strings.Contains(string(b), "pinned to") || !strings.Contains(string(b), piBaseline) {
-		t.Fatalf("%d %q %s", code, b, stderr.String())
+	code, out, errs := cli("", "--compat")
+	if code != 0 || !strings.Contains(out, "pinned to") || !strings.Contains(out, piBaseline) {
+		t.Fatalf("%d %q %s", code, out, errs)
 	}
 }

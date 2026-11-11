@@ -28,6 +28,7 @@ const DefaultModel = "claude-sonnet-5-5"
 // until the folder is trusted.
 type Options struct {
 	Trust bool // trust this project for this run (the -trust flag)
+	RunOptions
 }
 
 type App struct {
@@ -75,8 +76,17 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	if m := os.Getenv("KOINE_MODEL"); m != "" {
 		model = m
 	}
+	if opts.Model != "" {
+		model = opts.Model
+	}
 	if model == "" {
 		model = DefaultModel
+	}
+	if opts.Model != "" {
+		if _, _, err := a.router.Resolve(model); err != nil {
+			a.Close()
+			return nil, err
+		}
 	}
 	a.Agent.Model = model
 	a.Agent.Dispatch.Emit(ctx, events.SessionStart, map[string]any{"cwd": cwd, "reason": "startup"})
@@ -171,6 +181,7 @@ func (a *App) load(ctx context.Context) {
 	if len(defs) > 0 {
 		a.Tools.Register(a.Agent.TaskTool())
 	}
+	a.applyRunOptions()
 }
 
 func plural(n int) string {

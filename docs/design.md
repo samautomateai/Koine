@@ -57,3 +57,9 @@ Living document. Each design section has an ID, the requirements it satisfies, a
 - Satisfies: REQ-QA-001; REQ-DOC-001; REQ-AGENTDEV-001
 - Code: scripts/sizecheck.mjs; scripts/docscheck.mjs; scripts/covergate.sh; .github/workflows/ci.yml; Taskfile.yml; AGENTS.md
 - Notes: `task check` is the local mirror of CI. Rules live in `docs/ENGINEERING.md`; agents read `AGENTS.md`, which points to them. Docs are checked, not trusted (ADR 0005).
+
+## DES-010 — Command line: parse, build one prompt, run print mode
+
+- Satisfies: REQ-CLI-001
+- Code: cmd/koine/args.go; cmd/koine/print.go; cmd/koine/main.go; core/app/runopts.go
+- Notes: `parseArgs` is a small hand-written parser (the standard `flag` package stops at the first positional and has no `--name=value` plus `@file` handling). `run` takes injected `streams` so the whole command line is testable without touching the process's stdio. `buildPrompt` reads stdin only when it is not a terminal. Per-run overrides travel in `app.RunOptions` inside `app.Options`, and are re-applied by `load`, so `/reload` does not drop them. Text mode keeps only the text after the last tool call as the answer, which makes `koine ... | tool` safe to pipe; JSON mode forwards `agent.Event` unchanged.

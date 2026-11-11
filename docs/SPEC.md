@@ -236,7 +236,12 @@ and `Describe()`. `emit` receives `agent.Event`:
 { "type": "text|tool_start|tool_end|notice|error|done", "text": "", "tool": "", "callId": "", "args": {}, "isError": false }
 ```
 
-- **HTTP/SSE** (`koine -serve ADDR`): `GET /api/info` → `app.Info`;
+- **Command line** (`koine [options] [--] [@files] [message]`, REQ-CLI-001): with a message, piped stdin, `-p` or `--mode json` it runs one
+  prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines.
+  Text mode prints only the text after the last tool call to stdout; tool names, notices and errors go to stderr. `--mode json` prints one
+  `agent.Event` per line on stdout. Exit codes: 0 ok, 1 failed (provider, tool-loop or unknown `--model`), 2 usage (bad option, missing
+  `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options.
+- **HTTP/SSE** (`koine --serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.
   This is the integration point for an Electron UI.
