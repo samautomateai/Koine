@@ -40,7 +40,11 @@ func clip(s string) string {
 }
 
 // RegisterBuiltins adds read, write, edit, bash, ls, glob and grep rooted at cwd.
-func RegisterBuiltins(r *Registry, cwd string) {
+func RegisterBuiltins(r *Registry, cwd string) { RegisterBuiltinsEnv(r, cwd, nil) }
+
+// RegisterBuiltinsEnv is RegisterBuiltins with extra environment for the bash tool. shellEnv is called for every command, so it can report
+// the current session and model; the entries are "NAME=value" and come after the process environment.
+func RegisterBuiltinsEnv(r *Registry, cwd string, shellEnv func() []string) {
 	abs := func(p string) string {
 		if filepath.IsAbs(p) {
 			return p
@@ -152,6 +156,9 @@ func RegisterBuiltins(r *Registry, cwd string) {
 			defer cancel()
 			cmd := exec.CommandContext(cctx, "bash", "-c", p.Command)
 			cmd.Dir = cwd
+			if shellEnv != nil {
+				cmd.Env = append(os.Environ(), shellEnv()...)
+			}
 			var buf bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &buf, &buf
 			err := cmd.Run()

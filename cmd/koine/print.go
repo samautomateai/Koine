@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -56,17 +55,29 @@ func buildPrompt(c cliArgs, dir string, st streams) (string, error) {
 }
 
 // runPrint runs one prompt and returns the exit code. In text mode only the final answer (the text after the last tool call) goes to
-// stdout; tool activity, notices and errors go to stderr. In json mode every event is one line on stdout.
+// stdout; tool activity, notices and errors go to stderr. In json mode stdout carries only Pi's JSON event stream (jsonmode.go).
 func runPrint(ctx context.Context, a *app.App, prompt, mode string, st streams) int {
 	failed := false
 	var final strings.Builder
-	enc := json.NewEncoder(st.Out)
+	var js *jsonStream
+	if mode == "json" {
+		js = newJSONStream(st.Out, a)
+		a.OnMessage = js.Message
+		defer func() { a.OnMessage = nil }()
+		js.Start()
+	}
 	emit := func(e agent.Event) {
 		if e.Type == "error" {
 			failed = true
 		}
-		if mode == "json" {
-			_ = enc.Encode(e)
+		if js != nil {
+			js.Event(e)
+			switch e.Type {
+			case "notice":
+				fmt.Fprintln(st.Err, e.Text)
+			case "error":
+				fmt.Fprintln(st.Err, "koine: error:", e.Text)
+			}
 			return
 		}
 		switch e.Type {
@@ -90,11 +101,15 @@ func runPrint(ctx context.Context, a *app.App, prompt, mode string, st streams) 
 			fmt.Fprintln(st.Err, "koine: error:", e.Text)
 		}
 	}
-	if _, err := a.HandleInput(ctx, prompt, emit); err != nil {
+	_, err := a.HandleInput(ctx, prompt, emit)
+	if js != nil {
+		js.Finish(ctx.Err() != nil)
+	}
+	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)
 		return 1
 	}
-	if mode != "json" && final.Len() > 0 {
+	if js == nil && final.Len() > 0 {
 		fmt.Fprintln(st.Out, strings.TrimRight(final.String(), "\n"))
 	}
 	if failed {

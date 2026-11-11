@@ -64,6 +64,12 @@ function rpc(target, steps, { runtime }) {
     let id = 0;
     const results = [];
     for (const [method, params] of steps) {
+      if (method.startsWith("!")) {
+        // a notification (no id, no answer), such as the host's "flags"
+        child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: method.slice(1), params }) + "\n");
+        results.push(undefined);
+        continue;
+      }
       const my = ++id;
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: my, method, params }) + "\n");
       for (let n = 0; n < 200 && !out.some((m) => m.id === my); n++) await new Promise((r) => setTimeout(r, 25));
@@ -186,6 +192,39 @@ for (const rt of runtimes) {
       properties: { t: { type: "string", description: "T" }, n: { type: "number" } },
       required: ["t"],
     });
+  });
+
+  test(`runner: registerFlag and getFlag (${rt.runtime})`, async () => {
+    const f = tmp(
+      "flags.mjs",
+      `
+      export default function (pi) {
+        pi.registerFlag("plan", { description: "Plan first", type: "boolean", default: false });
+        pi.registerFlag("label", { description: "A label", type: "string", default: "none" });
+        pi.registerFlag("bare");
+        pi.registerFlag();
+        pi.registerCommand("show", { description: "s", handler: async (a, ctx) => ctx.ui.notify(JSON.stringify([pi.getFlag("plan"), pi.getFlag("label"), pi.getFlag("bare"), pi.getFlag("zzz")])) });
+      }`,
+    );
+    const { results: r, notes } = await rpc(
+      f,
+      [
+        ["initialize", {}],
+        ["command.execute", { name: "show", args: "" }],
+        ["!flags", { values: { plan: true, label: "x" } }],
+        ["command.execute", { name: "show", args: "" }],
+      ],
+      rt,
+    );
+    const reg = notes.filter((n) => n.method === "register_flag").map((n) => n.params);
+    assert.deepEqual(reg, [
+      { name: "plan", type: "boolean", description: "Plan first", default: false },
+      { name: "label", type: "string", description: "A label", default: "none" },
+      { name: "bare", type: "boolean", description: "" },
+    ]);
+    assert.equal(r[1].result.output, JSON.stringify([false, "none", null, null]));
+    assert.equal(r[3].result.output, JSON.stringify([true, "x", null, null]));
+    assert.ok(!notes.some((n) => n.method === "compat"), "registerFlag and getFlag are not reported as inert");
   });
 
   test(`runner: bad module reports error on initialize (${rt.runtime})`, async () => {

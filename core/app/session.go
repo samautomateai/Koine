@@ -68,6 +68,9 @@ func (a *App) useSession(s *session.Session) {
 }
 
 func (a *App) persist(m llm.Message) {
+	if a.OnMessage != nil {
+		a.OnMessage(m)
+	}
 	if a.Session == nil {
 		return
 	}

@@ -4,6 +4,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -96,4 +97,15 @@ func Canon(name string) string {
 		return a
 	}
 	return n
+}
+
+// Match reports whether a tool name is named by an allow or deny entry: a plain name (Claude and opencode spellings accepted, as in Canon)
+// or a case-insensitive glob where * and ? stand for any characters, such as "mcp__radius__*".
+func Match(entry, name string) bool {
+	e := strings.ToLower(strings.TrimSpace(entry))
+	if strings.ContainsAny(e, "*?[") {
+		ok, err := path.Match(e, strings.ToLower(name))
+		return err == nil && ok
+	}
+	return Canon(e) == name
 }

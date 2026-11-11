@@ -111,6 +111,8 @@ const state = {
   oc: [], // opencode hook objects
   tools: new Map(), // name -> {style, def}
   commands: new Map(),
+  flags: new Map(), // name -> {type, description, default}, from pi.registerFlag
+  flagValues: {}, // command-line values, sent by the host once every extension has loaded
   target: process.argv[2] || "",
 };
 
@@ -298,11 +300,16 @@ function makeApi() {
       notify("register_command", { name, description: opts.description ?? "" });
     },
     registerShortcut: inert("pi.registerShortcut"),
-    registerFlag: inert("pi.registerFlag"),
+    registerFlag(name, opts = {}) {
+      if (typeof name !== "string" || !name) return;
+      const def = { type: opts?.type === "string" ? "string" : "boolean", description: String(opts?.description ?? ""), default: opts?.default };
+      state.flags.set(name, def);
+      notify("register_flag", { name, ...def });
+    },
     registerMessageRenderer: inert("pi.registerMessageRenderer"),
     registerProvider: inert("pi.registerProvider"),
     unregisterProvider: inert("pi.unregisterProvider"),
-    getFlag: inert("pi.getFlag"),
+    getFlag: (name) => (name in state.flagValues ? state.flagValues[name] : state.flags.get(name)?.default),
     sendMessage: (m) => {
       report("inert", "pi.sendMessage");
       log(typeof m === "string" ? m : (m?.content ?? JSON.stringify(m)));
@@ -549,6 +556,10 @@ rl.on("line", async (line) => {
     return;
   }
   if (m.method === "shutdown") process.exit(0);
+  if (m.method === "flags") {
+    Object.assign(state.flagValues, m.params?.values ?? {});
+    return;
+  }
   const fn = methods[m.method];
   if (m.id === undefined) return;
   if (!fn) return write({ id: m.id, error: { code: -32601, message: `method not found: ${m.method}` } });

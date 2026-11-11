@@ -224,14 +224,14 @@
   {
    "kind": "api",
    "name": "pi.registerFlag",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
    "test": "conformance"
   },
   {
    "kind": "api",
    "name": "pi.getFlag",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
    "test": "conformance"
   },

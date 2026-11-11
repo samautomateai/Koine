@@ -141,10 +141,31 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Design: DES-010
 - Tests: TestParseArgs; TestExpandFiles; TestPipedStdinFilesAndMessageOrder; TestMessageAloneRunsPrintModeEvenOnTerminal; TestJSONModeEmitsOneEventPerLine; TestModelAndSystemPromptFlags; TestToolSelectionFlags; TestNothingToDoAndHelpAndMissingFile; TestEndToEndPrompt; TestBadFlagAndAPIFailure
 
-### REQ-CLI-002 — Command-line parity with Pi's remaining flags
+### REQ-CLI-002 — Tool, resource, model and extension-flag options
 
 - Status: planned
-- Statement: Image `@file` arguments, fuzzy `--model provider/id:thinking`, `-xt`/`-nbt`/`defaultTools`, `SYSTEM.md`/`APPEND_SYSTEM.md`, resource flags (`-e`, `--skill`, `--prompt-template`), extension-registered flags, and Pi's JSON event schema. Gap rows CLI-05, 06, 11, 12, 13, 14, 29, 30, 31.
+- Statement: Tools can be allow-listed with names or `*` patterns (`-t`), adjusted with `+name`/`-name` entries, switched off in part (`-nbt`, which keeps extension and custom tools) or by pattern (`-xt`, applied last). Resources can be added per run (`-e`, `--skill`, `--prompt-template`, all repeatable) or switched off (`-ne`, `-ns`, `-np`, `-nc`); explicit paths load even with discovery off. `--theme`, `--use-theme` and `--no-themes` are accepted and reported as unused. `--model` matches an exact id, `provider/id` or a fuzzy id/name (preferring a provider with credentials), `--provider` narrows it, `--models` and `enabledModels` give the startup scope (first match when no model is configured), `--api-key` overrides the key for the run and `--list-models [search]` prints the catalog. Long options that an extension registered with `pi.registerFlag` are accepted, handed to `pi.getFlag`, and listed by `--help`; any other unknown option is a usage error. The `:thinking` suffix and `--thinking` belong to REQ-CLI-005. Gap rows CLI-10 (extension flags in help), CLI-11, CLI-12 (fuzzy), CLI-13, CLI-29, CLI-30.
+- Design: none yet
+- Tests: none yet
+
+### REQ-CLI-003 — Pi's JSON event stream
+
+- Status: planned
+- Statement: `--mode json` writes Pi's JSONL stream: a `session` header, then `agent_start`, `turn_start`, `message_start`/`message_end` for the user message, an assistant message with `message_update` records (`text_start`/`text_delta`/`text_end`, `toolcall_start`/`toolcall_delta`/`toolcall_end`), `tool_execution_start`/`tool_execution_end`, tool-result messages, `turn_end`, `agent_end` and `agent_settled`. Stdout carries only these records; notices and errors go to stderr. Koine does not stream from providers yet, so each content block arrives as one delta. Gap row CLI-06.
+- Design: none yet
+- Tests: none yet
+
+### REQ-CLI-004 — Process markers, shell session variables and the environment-variable map
+
+- Status: planned
+- Statement: The CLI sets `AI_AGENT=koine` and `KOINE_CODING_AGENT=true` for itself and its children. The `bash` tool also gets `KOINE_SESSION_ID`, `KOINE_SESSION_FILE`, `KOINE_SESSION_PROVIDER` and `KOINE_SESSION_MODEL` for the current session and model. Every `PI_*` variable on Pi's environment-variables page is mapped to a `KOINE_*` name or recorded as not applicable in `compat/DIVERGENCES.md`. Gap rows CLI-42, CLI-43, CLI-54.
+- Design: none yet
+- Tests: none yet
+
+### REQ-CLI-005 — Remaining command-line parity (thinking level, images)
+
+- Status: planned
+- Statement: Image `@file` arguments, the `:thinking` suffix of `--model` and `--models`, `--thinking` and `defaultThinkingLevel`. Gap rows CLI-05, CLI-12 (suffix), CLI-14.
 - Design: none yet
 
 ### REQ-CFG-001 — Settings mirror Pi's schema, mapped and tracked

@@ -31,6 +31,7 @@ const DefaultModel = "claude-sonnet-5-5"
 type Options struct {
 	Trust bool // trust this project for this run (the -trust flag)
 	RunOptions
+	Load LoadOptions // tools, resources and models chosen on the command line
 }
 
 type App struct {
@@ -50,9 +51,15 @@ type App struct {
 	// index, or -1 to cancel. Nil in print, JSON and server runs, where those commands fall back to listing and flags.
 	Choose func(title string, options []string) int
 
-	opts     Options
-	router   *llm.Router
-	thinking string // the explicit thinking level (--thinking, a model suffix or /thinking); "" = from settings
+	// OnMessage, when set, is told of every message added to the conversation, in order, before it is saved (--mode json uses it).
+	OnMessage   func(llm.Message)
+	Scope       []string // models of --models / enabledModels, in order: the startup choice when nothing else names a model
+	opts        Options
+	thinking    string // the explicit thinking level (--thinking, a model suffix or /thinking); "" = from settings
+	router      *llm.Router
+	apiKey      string // --api-key
+	apiKeyEnv   string // the variable the key stands in for
+	ephemeralID string // session id reported to the shell when sessions are off
 }
 
 type Info struct {
@@ -79,24 +86,16 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	a.Agent = &agent.Agent{Cwd: cwd, Provider: lazyProvider{a}, Catalog: loadCatalog(home)}
 	a.load(ctx)
 
-	model := a.Cfg.Model
-	if m := os.Getenv("KOINE_MODEL"); m != "" {
-		model = m
-	}
-	if opts.Model != "" {
-		model = opts.Model
-	}
-	if model == "" {
-		model = DefaultModel
+	model, err := a.startupModel()
+	if err != nil {
+		a.Close()
+		return nil, err
 	}
 	model = a.chooseThinking(model)
-	if opts.Model != "" {
-		if _, _, err := a.router.Resolve(model); err != nil {
-			a.Close()
-			return nil, err
-		}
-	}
 	a.Agent.Model = model
+	if opts.Load.APIKey != "" {
+		a.apiKey, a.apiKeyEnv = opts.Load.APIKey, a.keyEnvOf(model)
+	}
 	if err := a.initSession(); err != nil {
 		a.Close()
 		return nil, err
@@ -129,25 +128,24 @@ func (a *App) load(ctx context.Context) {
 		mergeConfig(&cfg, proj)
 	} else {
 		// harmless scalars still apply; code and credential routing do not
-		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction, LLMSettings: proj.LLMSettings})
+		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction, LLMSettings: proj.LLMSettings, EnabledModels: proj.EnabledModels})
 		skippedCode = proj.codeCount()
 	}
 	a.Cfg = cfg
 	a.Warnings = append(a.Warnings, SettingsDiagnostics(a.Cwd, a.Home)...)
-	a.router = &llm.Router{Custom: cfg.Providers}
+	a.router = &llm.Router{Custom: cfg.Providers, Getenv: a.getenv}
+	a.loadScope()
 
 	a.Tools = tools.NewRegistry()
-	tools.RegisterBuiltins(a.Tools, a.Cwd)
+	tools.RegisterBuiltinsEnv(a.Tools, a.Cwd, a.shellEnv)
 
-	sk, bad := skills.DiscoverReport(a.Cwd, a.Home)
-	for _, b := range bad {
-		a.Warnings = append(a.Warnings, fmt.Sprintf("skill %s refused: %s", b.Path, b.Reason))
-	}
+	sk := a.loadSkills()
 	if len(sk) > 0 {
 		a.Tools.Register(skills.Tool(sk))
 	}
 	defs := agents.Discover(a.Cwd, a.Home)
-	a.Prompts = prompts.Discover(a.Cwd, a.Home)
+	a.Prompts = a.loadPrompts()
+	a.themeWarnings()
 
 	a.Hooks = &hooks.Runner{Cwd: a.Cwd, SessionID: "koine", ByEvent: cfg.Hooks,
 		Logf: func(f string, args ...any) { a.Warnings = append(a.Warnings, fmt.Sprintf(f, args...)) }}
@@ -159,7 +157,7 @@ func (a *App) load(ctx context.Context) {
 			fmt.Fprintf(os.Stderr, f+"\n", args...)
 		}
 	}
-	targets, skippedDirs := discoverExtensions(a.Cwd, a.Home, cfg, a.Trusted)
+	targets, skippedDirs := a.extensionTargets()
 	skippedCode += skippedDirs
 	for _, t := range targets {
 		var spec ext.Spec
@@ -179,6 +177,7 @@ func (a *App) load(ctx context.Context) {
 			a.Warnings = append(a.Warnings, fmt.Sprintf("extension %s: %v", t.name, err))
 		}
 	}
+	a.Host.SetFlags(a.opts.Load.ExtFlags)
 	if skippedCode > 0 {
 		a.Warnings = append(a.Warnings, fmt.Sprintf(
 			"untrusted folder: %d project extension/hook/provider entr%s NOT loaded — run /trust to enable them (or start with -trust)",
@@ -189,7 +188,10 @@ func (a *App) load(ctx context.Context) {
 	a.Agent.Dispatch = events.Multi{a.Hooks, a.Host}
 	a.Agent.Skills = sk
 	a.Agent.Defs = defs
-	a.Agent.ContextFiles = agent.LoadContextFiles(a.Cwd, a.Home)
+	a.Agent.ContextFiles = nil
+	if !a.opts.Load.NoContextFiles {
+		a.Agent.ContextFiles = agent.LoadContextFiles(a.Cwd, a.Home)
+	}
 	a.Agent.MaxTurns = cfg.MaxTurns
 	a.configureCompaction(cfg.Compaction)
 	a.applyLLMSettings()

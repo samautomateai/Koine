@@ -98,58 +98,113 @@ func Discover(cwd, home string) []Skill {
 
 // DiscoverReport is Discover plus the skills that failed the hidden-text audit.
 func DiscoverReport(cwd, home string) ([]Skill, []Skipped) {
-	seen := map[string]bool{}
-	var out []Skill
-	var skipped []Skipped
-	add := func(path string) {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return
-		}
-		if why := Audit(string(data)); why != "" {
-			skipped = append(skipped, Skipped{path, why})
-			return
-		}
-		meta, body := frontmatter.Parse(string(data))
-		name := meta["name"]
-		if name == "" {
-			if strings.EqualFold(filepath.Base(path), "SKILL.md") {
-				name = filepath.Base(filepath.Dir(path))
-			} else {
-				name = strings.TrimSuffix(filepath.Base(path), ".md")
-			}
-		}
-		if meta["description"] == "" || seen[name] {
-			return
-		}
-		seen[name] = true
-		out = append(out, Skill{Name: name, Description: meta["description"], Location: path, Dir: filepath.Dir(path), Body: strings.TrimSpace(body)})
-	}
+	c := &collector{seen: map[string]bool{}}
 	for _, r := range roots(cwd, home) {
-		if st, err := os.Stat(r.dir); err != nil || !st.IsDir() {
-			continue
+		c.walk(r)
+	}
+	return c.out, c.skipped
+}
+
+// LoadPaths loads the skills named on the command line: a SKILL.md or other markdown file, or a directory that holds SKILL.md files (and,
+// at its top level, loose .md files). It reports each path that could not be used, so a typo is not silent. The same audit applies.
+func LoadPaths(paths []string) (out []Skill, skipped []Skipped, problems []string) {
+	c := &collector{seen: map[string]bool{}}
+	for _, p := range paths {
+		st, err := os.Stat(p)
+		switch {
+		case err != nil:
+			problems = append(problems, fmt.Sprintf("skill %s: %v", p, err))
+		case st.IsDir():
+			before := len(c.out) + len(c.skipped)
+			c.walk(root{p, true})
+			if len(c.out)+len(c.skipped) == before {
+				problems = append(problems, "skill "+p+": no SKILL.md found")
+			}
+		default:
+			n := len(c.skipped)
+			if why := c.add(p); why != "" && len(c.skipped) == n { // a refused file is already reported through skipped
+				problems = append(problems, "skill "+p+": "+why)
+			}
 		}
-		base := strings.Count(r.dir, string(filepath.Separator))
-		_ = filepath.WalkDir(r.dir, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return nil
-			}
-			if d.IsDir() {
-				if d.Name() == "node_modules" || strings.Count(p, string(filepath.Separator))-base > 3 {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			switch {
-			case d.Name() == "SKILL.md":
-				add(p)
-			case r.rootMD && filepath.Dir(p) == r.dir && strings.HasSuffix(d.Name(), ".md"):
-				add(p)
+	}
+	return c.out, c.skipped, problems
+}
+
+// Merge returns first followed by the skills of rest whose names first does not already use.
+func Merge(first, rest []Skill) []Skill {
+	seen := map[string]bool{}
+	for _, s := range first {
+		seen[s.Name] = true
+	}
+	out := append([]Skill(nil), first...)
+	for _, s := range rest {
+		if !seen[s.Name] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// collector gathers skills from one or more roots; the first skill of a name wins.
+type collector struct {
+	seen    map[string]bool
+	out     []Skill
+	skipped []Skipped
+}
+
+// add reads one skill file. A non-empty result says why it was not used (it is recorded in skipped when the audit refused it).
+func (c *collector) add(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err.Error()
+	}
+	if why := Audit(string(data)); why != "" {
+		c.skipped = append(c.skipped, Skipped{path, why})
+		return why
+	}
+	meta, body := frontmatter.Parse(string(data))
+	name := meta["name"]
+	if name == "" {
+		if strings.EqualFold(filepath.Base(path), "SKILL.md") {
+			name = filepath.Base(filepath.Dir(path))
+		} else {
+			name = strings.TrimSuffix(filepath.Base(path), ".md")
+		}
+	}
+	switch {
+	case meta["description"] == "":
+		return "no description in the front matter"
+	case c.seen[name]:
+		return "duplicate name " + name
+	}
+	c.seen[name] = true
+	c.out = append(c.out, Skill{Name: name, Description: meta["description"], Location: path, Dir: filepath.Dir(path), Body: strings.TrimSpace(body)})
+	return ""
+}
+
+func (c *collector) walk(r root) {
+	if st, err := os.Stat(r.dir); err != nil || !st.IsDir() {
+		return
+	}
+	base := strings.Count(r.dir, string(filepath.Separator))
+	_ = filepath.WalkDir(r.dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() == "node_modules" || strings.Count(p, string(filepath.Separator))-base > 3 {
+				return filepath.SkipDir
 			}
 			return nil
-		})
-	}
-	return out, skipped
+		}
+		switch {
+		case d.Name() == "SKILL.md":
+			c.add(p)
+		case r.rootMD && filepath.Dir(p) == r.dir && strings.HasSuffix(d.Name(), ".md"):
+			c.add(p)
+		}
+		return nil
+	})
 }
 
 // PromptSection renders the available-skills block for the system prompt.

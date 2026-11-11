@@ -33,6 +33,7 @@ type cliArgs struct {
 	Name         string
 	Files        []string // @file arguments, in order
 	Message      []string // everything else
+	resourceArgs          // tool, resource and model options (args_resources.go)
 }
 
 type flagKind int
@@ -40,6 +41,7 @@ type flagKind int
 const (
 	boolFlag flagKind = iota
 	valueFlag
+	optionalFlag // takes the next argument as its value only when that does not look like an option or an @file
 )
 
 // flagSpec names a flag by its canonical long name; Short and Aliases are other accepted spellings.
@@ -74,7 +76,7 @@ var flagSpecs = []flagSpec{
 }
 
 func lookup(name string) (flagSpec, bool) {
-	for _, f := range flagSpecs {
+	for _, f := range append(append([]flagSpec(nil), flagSpecs...), resourceFlagSpecs...) {
 		if name == f.Long || (f.Short != "" && name == f.Short) {
 			return f, true
 		}
@@ -84,7 +86,11 @@ func lookup(name string) (flagSpec, bool) {
 
 // parseArgs parses args. Long flags take `--name value` or `--name=value`; the older single-dash spelling (`-trust`, `-serve addr`) still works.
 // `--` ends flag parsing. Arguments starting with @ name files to include; everything else is the message.
-func parseArgs(args []string) (cliArgs, error) {
+func parseArgs(args []string) (cliArgs, error) { return parseArgsWith(args, nil) }
+
+// parseArgsWith is parseArgs knowing the options extensions registered (name -> "boolean" or "string"). With ext == nil, unknown long
+// options are remembered instead of rejected, so the extensions can be started to say what they are (see extOption).
+func parseArgsWith(args []string, ext map[string]string) (cliArgs, error) {
 	var c cliArgs
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -104,6 +110,11 @@ func parseArgs(args []string) (cliArgs, error) {
 		}
 		f, ok := lookup(name)
 		if !ok {
+			if handled, err := c.extOption(a, name, val, hasVal, args, &i, ext); err != nil {
+				return c, err
+			} else if handled {
+				continue
+			}
 			return c, fmt.Errorf("unknown option %q (try --help)", a)
 		}
 		if f.Kind == valueFlag && !hasVal {
@@ -113,6 +124,9 @@ func parseArgs(args []string) (cliArgs, error) {
 			}
 			val = rest[0]
 			i++
+		} else if f.Kind == optionalFlag && !hasVal && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") && !strings.HasPrefix(args[i+1], "@") {
+			i++
+			val = args[i]
 		} else if f.Kind == boolFlag && hasVal {
 			return c, fmt.Errorf("option %s does not take a value", a)
 		}
@@ -124,7 +138,7 @@ func parseArgs(args []string) (cliArgs, error) {
 	if c.Thinking != "" && !llm.ValidLevel(c.Thinking) {
 		return c, fmt.Errorf("--thinking must be one of %s (got %q)", strings.Join(llm.ThinkingLevels, ", "), c.Thinking)
 	}
-	return c, nil
+	return c, c.validateResources()
 }
 
 func (c *cliArgs) set(long, val string) {
@@ -175,6 +189,8 @@ func (c *cliArgs) set(long, val string) {
 		c.Fork = val
 	case "name":
 		c.Name = val
+	default:
+		c.setResource(long, val)
 	}
 }
 
@@ -212,12 +228,26 @@ Piped stdin is put before the message. @file arguments are included as <file> bl
 
   -p, --print                  run non-interactively (default when stdin or stdout is not a terminal)
       --mode text|json         text: final answer on stdout (default); json: one event per line on stdout
-      --model ID[:LEVEL]       model to use (must resolve to a configured provider); :LEVEL sets the thinking level
+      --model PATTERN[:LEVEL] model: an id, provider/id or part of an id or name; :LEVEL sets the thinking level
       --thinking LEVEL         thinking level: off, minimal, low, medium, high, xhigh or max (beats a :LEVEL suffix and the settings)
+      --provider NAME          look --model up in this provider only (needs --model)
+      --models P1,P2           models to start with: ids, fuzzy names or globs; the first is used when no model is set (or enabledModels)
+      --api-key KEY            API key for this run only (needs --model or --models)
+      --list-models [SEARCH]   list the known models, optionally filtered, then exit
       --system-prompt TEXT     replace the base system prompt (text, or a file path)
       --append-system-prompt T add to the system prompt (text, or a file path)
-  -t, --tools a,b              offer only these tools
+  -t, --tools a,b              offer only these tools (names or * patterns), or adjust the defaults with +name,-name
+  -xt, --exclude-tools a,b     remove these tools (names or * patterns) after everything else
+  -nbt, --no-builtin-tools     drop the built-in tools but keep extension and custom tools
   -nt, --no-tools              offer no tools
+  -e, --extension PATH         load an extension file or directory (repeatable; loads even with -ne)
+  -ne, --no-extensions         do not load discovered or configured extensions
+      --skill PATH             load a skill file or directory (repeatable)
+  -ns, --no-skills             do not load discovered skills
+      --prompt-template PATH   load a prompt template file or directory (repeatable)
+  -np, --no-prompt-templates   do not load discovered prompt templates
+  -nc, --no-context-files      do not read AGENTS.md or CLAUDE.md
+      --theme PATH, --use-theme NAME, --no-themes   accepted; Koine has no themes yet
   -c, --continue               continue the most recent session in this project
   -r, --resume                 list this project's sessions (resume one with --session ID, or /resume ID in the session)
       --session ID|PATH|NAME   resume that session
@@ -230,7 +260,7 @@ Piped stdin is put before the message. @file arguments are included as <file> bl
       --serve ADDR             serve the HTTP/SSE API (e.g. 127.0.0.1:7777)
       --compat                 print Pi compatibility status
   -v, --version                print version
-  -h, --help                   this text
+  -h, --help                   this text and the options extensions registered
 
 Answers go to stdout; tool activity, notices and errors go to stderr. Exit codes: 0 ok, 1 failed, 2 usage.
 `

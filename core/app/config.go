@@ -28,6 +28,7 @@ type Config struct {
 	DefaultModel    string   `json:"defaultModel,omitempty"`
 	SessionDir      string   `json:"sessionDir,omitempty"`
 	DefaultTools    []string `json:"defaultTools,omitempty"`
+	EnabledModels   []string `json:"enabledModels,omitempty"` // patterns, as for --models
 	// Session tree settings (Pi names). Only the user file and trusted projects set them.
 	BranchSummary      BranchSummaryConfig `json:"branchSummary,omitempty"`
 	TreeFilterMode     string              `json:"treeFilterMode,omitempty"`
@@ -122,6 +123,9 @@ func mergeConfig(dst *Config, src Config) {
 		if b.SkipPrompt != nil {
 			dst.BranchSummary.SkipPrompt = b.SkipPrompt
 		}
+	}
+	if src.EnabledModels != nil {
+		dst.EnabledModels = src.EnabledModels
 	}
 	if src.DefaultTools != nil {
 		if onlyAdjustments(src.DefaultTools) && dst.DefaultTools != nil {
