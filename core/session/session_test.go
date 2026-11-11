@@ -209,3 +209,34 @@ func TestStoreListLatestResolve(t *testing.T) {
 		t.Error("too-short prefix must not match")
 	}
 }
+
+func TestCompactIsSavedAndReplayedOnResume(t *testing.T) {
+	s := Create(t.TempDir(), "/p")
+	for i := 0; i < 3; i++ {
+		_ = s.AppendMessage(text("user", "q"+string(rune('0'+i))), "", "")
+		_ = s.AppendMessage(text("assistant", "a"+string(rune('0'+i))), "", "")
+	}
+	before := s.Messages() // q0 a0 q1 a1 q2 a2
+	if err := s.Compact(4, "SUM", 123); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := Open(s.Path)
+	got := r.Messages()
+	keptOK := got[1].Content[0].Text == before[4].Content[0].Text && got[2].Content[0].Text == "a2"
+	if len(got) != 3 || !strings.Contains(got[0].Content[0].Text, "SUM") || !keptOK {
+		t.Fatalf("%+v", got)
+	}
+	// a second compaction indexes into the already-compacted view (index 0 is the summary)
+	if err := s.Compact(2, "SUM2", 50); err != nil {
+		t.Fatal(err)
+	}
+	got = s.Messages()
+	if len(got) != 2 || !strings.Contains(got[0].Content[0].Text, "SUM2") || got[1].Content[0].Text != "a2" {
+		t.Fatalf("%+v", got)
+	}
+	for _, bad := range []int{0, -1, 2, 99} {
+		if err := s.Compact(bad, "x", 1); err == nil {
+			t.Errorf("Compact(%d) should fail (the summary at 0 and out-of-range cannot be a cut)", bad)
+		}
+	}
+}

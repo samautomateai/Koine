@@ -16,6 +16,7 @@ import (
 type Config struct {
 	Model      string                   `json:"model,omitempty"`
 	MaxTurns   int                      `json:"maxTurns,omitempty"`
+	Compaction CompactionConfig         `json:"compaction,omitempty"`
 	Hooks      map[string][]hooks.Entry `json:"hooks,omitempty"`
 	Extensions []ext.Spec               `json:"extensions,omitempty"` // any-language extensions
 	Plugin     []string                 `json:"plugin,omitempty"`     // opencode.json style: paths or npm names
@@ -23,6 +24,14 @@ type Config struct {
 	// addressed as "<name>/<model>". Project-level entries need trust: an
 	// endpoint + key env var from an untrusted repo could exfiltrate your key.
 	Providers map[string]llm.ProviderConfig `json:"providers,omitempty"`
+}
+
+// CompactionConfig tunes automatic compaction. Zero values mean the defaults (a 200000-token window, 16384 reserved, 20000 kept).
+type CompactionConfig struct {
+	Enabled          *bool `json:"enabled,omitempty"` // false turns automatic compaction off; /compact still works
+	ContextWindow    int   `json:"contextWindow,omitempty"`
+	ReserveTokens    int   `json:"reserveTokens,omitempty"`
+	KeepRecentTokens int   `json:"keepRecentTokens,omitempty"`
 }
 
 var jsonc = regexp.MustCompile(`(?m)^\s*//.*$|,\s*([}\]])`)
@@ -42,6 +51,19 @@ func mergeConfig(dst *Config, src Config) {
 	}
 	if src.MaxTurns != 0 {
 		dst.MaxTurns = src.MaxTurns
+	}
+	c := src.Compaction
+	if c.Enabled != nil {
+		dst.Compaction.Enabled = c.Enabled
+	}
+	if c.ContextWindow != 0 {
+		dst.Compaction.ContextWindow = c.ContextWindow
+	}
+	if c.ReserveTokens != 0 {
+		dst.Compaction.ReserveTokens = c.ReserveTokens
+	}
+	if c.KeepRecentTokens != 0 {
+		dst.Compaction.KeepRecentTokens = c.KeepRecentTokens
 	}
 	if dst.Hooks == nil {
 		dst.Hooks = map[string][]hooks.Entry{}

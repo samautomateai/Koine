@@ -244,6 +244,8 @@ and `Describe()`. `emit` receives `agent.Event`:
 - **Sessions** (REQ-SESS-001): every run writes `~/.koine/sessions/--<cwd with / as ->--/<timestamp>_<uuid>.jsonl` in Pi's v3 format.
   `-c` continues the latest, `--session ID|PATH|NAME` resumes, `--fork` copies, `-n NAME` names, `--no-session` writes nothing, `-r` lists.
   Slash commands: `/new` (also `/clear`), `/session`, `/name [text]`, `/resume [ref]`, `/fork`.
+- **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
+  Config (`.koine/config.json` or `~/.koine/config.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.
 - **HTTP/SSE** (`koine --serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.

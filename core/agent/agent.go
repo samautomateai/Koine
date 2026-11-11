@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"koine/core/agents"
+	"koine/core/compact"
 	"koine/core/events"
 	"koine/core/llm"
 	"koine/core/skills"
@@ -40,7 +41,14 @@ type Agent struct {
 	MaxTurns     int
 	MaxTokens    int
 	History      []llm.Message
-	Persist      func(llm.Message) // called for every message added to History, in order (nil = none)
+	// Compaction (zero ContextWindow = off). Sizes are in estimated tokens.
+	ContextWindow int
+	AutoCompact   bool // compact before a turn would overflow the window (the manual Compact always works)
+	Reserve       int  // room kept free for the answer (default 16384)
+	KeepRecent    int  // recent conversation kept verbatim (default 20000)
+	// OnCompact is told the old history index of the first kept message, the summary and the size before compaction.
+	OnCompact func(firstKept int, summary string, tokensBefore int)
+	Persist   func(llm.Message) // called for every message added to History, in order (nil = none)
 
 	depth int
 }
@@ -133,17 +141,27 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 	}
 	defer a.dispatch(context.WithoutCancel(ctx), events.AgentEnd, map[string]any{})
 
+	overflowed := false
 	for turn := 0; turn < maxTurns; turn++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		a.dispatch(ctx, events.TurnStart, map[string]any{"turn": turn})
-		req := llm.Request{Model: a.Model, System: a.systemPrompt(ctx), Messages: a.History, MaxTokens: a.MaxTokens}
+		sys := a.systemPrompt(ctx)
+		if a.needsCompaction(sys) {
+			a.autoCompact(ctx, emit)
+		}
+		req := llm.Request{Model: a.Model, System: sys, Messages: a.History, MaxTokens: a.MaxTokens}
 		for _, n := range a.Tools.Names() {
 			t, _ := a.Tools.Get(n)
 			req.Tools = append(req.Tools, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
 		}
 		resp, err := a.Provider.Complete(ctx, req)
+		if err != nil && compact.IsOverflow(err) && !overflowed && a.autoCompact(ctx, emit) {
+			overflowed = true // one recovery per prompt
+			req.Messages = a.History
+			resp, err = a.Provider.Complete(ctx, req)
+		}
 		if err != nil {
 			emit(Event{Type: "error", Text: err.Error()})
 			return err
@@ -272,4 +290,17 @@ func LoadContextFiles(cwd, home string) []string {
 		}
 	}
 	return out
+}
+
+// autoCompact compacts the history and says so. It reports whether the history changed.
+func (a *Agent) autoCompact(ctx context.Context, emit func(Event)) bool {
+	r, err := a.Compact(ctx, "")
+	if err != nil {
+		if !errors.Is(err, ErrNothingToCompact) {
+			emit(Event{Type: "notice", Text: err.Error()})
+		}
+		return false
+	}
+	emit(Event{Type: "notice", Text: compactNotice(r)})
+	return true
 }

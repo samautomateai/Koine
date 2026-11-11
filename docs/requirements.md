@@ -161,9 +161,10 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 ### REQ-CMP-001 — Compaction and overflow recovery
 
-- Status: planned
-- Statement: Context is compacted automatically and on demand with a structured summary, never separating a tool result from its call; a provider overflow triggers one compaction and retry. Gap rows CMP-01..05, LLM-31.
-- Design: none yet
+- Status: implemented
+- Statement: When the estimated context (system prompt plus history) exceeds the window minus a reserve (default 200000 and 16384 tokens, `compaction.*` in config), the older part of the conversation is replaced by a structured summary, keeping about 20000 recent tokens; `/compact [focus]` does it on demand and `compaction.enabled: false` turns the automatic one off. The cut never separates a tool result from its call. Later compactions update the previous summary, and the summary lists files read and modified. A provider "prompt too long" error triggers one compaction and one retry per prompt. Compactions are saved as `compaction` entries, so a resumed session starts from the summary. Gap rows CMP-01..05 (token counts are estimated, not provider-reported).
+- Design: DES-012
+- Tests: TestCutPointNeverSeparatesAResultFromItsCall; TestSummarize; TestIsOverflow; TestManualCompactReplacesOldHistoryAndReportsTheCut; TestCompactErrors; TestAutoCompactsBeforeTheWindowFillsUp; TestOverflowCompactsAndRetriesOnce; TestCompactIsSavedAndReplayedOnResume; TestCompactCommandIsSavedAndSurvivesResume; TestCompactionNotSavedWhenFileAndConversationDisagree
 
 ### REQ-MCP-001 — MCP client
 

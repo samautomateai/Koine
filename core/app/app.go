@@ -123,7 +123,7 @@ func (a *App) load(ctx context.Context) {
 		mergeConfig(&cfg, proj)
 	} else {
 		// harmless scalars still apply; code and credential routing do not
-		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns})
+		mergeConfig(&cfg, Config{Model: proj.Model, MaxTurns: proj.MaxTurns, Compaction: proj.Compaction})
 		skippedCode = proj.codeCount()
 	}
 	a.Cfg = cfg
@@ -184,6 +184,7 @@ func (a *App) load(ctx context.Context) {
 	a.Agent.Defs = defs
 	a.Agent.ContextFiles = agent.LoadContextFiles(a.Cwd, a.Home)
 	a.Agent.MaxTurns = cfg.MaxTurns
+	a.configureCompaction(cfg.Compaction)
 	if len(defs) > 0 {
 		a.Tools.Register(a.Agent.TaskTool())
 	}
@@ -264,7 +265,7 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 	case "exit", "quit":
 		return true, nil
 	case "help":
-		notice("/help /new /session /name /resume /fork /exit /tools /skills /agents /commands /model [id] /trust /reload /compat " +
+		notice("/help /new /session /name /resume /fork /exit /tools /skills /agents /commands /model [id] /compact [focus] /trust /reload /compat " +
 			"/skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
@@ -287,6 +288,14 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 		} else {
 			a.Agent.Model = args
 			notice("model: " + args)
+		}
+		return false, nil
+	case "compact":
+		r, cerr := a.Agent.Compact(ctx, args)
+		if cerr != nil {
+			notice(cerr.Error())
+		} else {
+			notice(fmt.Sprintf("compacted: %d messages summarised, about %dk → %dk tokens", r.Dropped, r.TokensBefore/1000, r.TokensAfter/1000))
 		}
 		return false, nil
 	case "reload":

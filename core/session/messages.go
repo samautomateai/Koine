@@ -2,9 +2,11 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
+	"koine/core/compact"
 	"koine/core/llm"
 )
 
@@ -103,6 +105,12 @@ func (s *Session) toolName(id string) string {
 // Messages rebuilds the conversation on the active branch. The latest compaction on the branch replaces everything before its
 // firstKeptEntryId with its summary. Roles and blocks Koine cannot represent (thinking, images, custom) are skipped.
 func (s *Session) Messages() []llm.Message {
+	msgs, _ := s.messagesWithIDs()
+	return msgs
+}
+
+// messagesWithIDs is Messages plus, for each message, the id of the entry it starts at ("" for a compaction summary).
+func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 	path := s.path()
 	start, summary := 0, ""
 	for i, e := range path {
@@ -118,8 +126,9 @@ func (s *Session) Messages() []llm.Message {
 		}
 	}
 	var out []llm.Message
+	var ids []string
 	if summary != "" {
-		out = append(out, llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: "Summary of the earlier conversation:\n" + summary}}})
+		out, ids = append(out, compact.SummaryMessage(summary)), append(ids, "")
 	}
 	for i := start; i < len(path); i++ {
 		e := path[i]
@@ -133,7 +142,7 @@ func (s *Session) Messages() []llm.Message {
 		switch pm.Role {
 		case "user":
 			if t := textOf(pm.Content); t != "" {
-				out = append(out, llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: t}}})
+				out, ids = append(out, llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: t}}}), append(ids, e.ID)
 			}
 		case "assistant":
 			var blocks []piBlock
@@ -150,18 +159,27 @@ func (s *Session) Messages() []llm.Message {
 				}
 			}
 			if len(cb) > 0 {
-				out = append(out, llm.Message{Role: "assistant", Content: cb})
+				out, ids = append(out, llm.Message{Role: "assistant", Content: cb}), append(ids, e.ID)
 			}
 		case "toolResult":
 			r := llm.Block{Type: "tool_result", ToolUseID: pm.ToolCallID, Content: textOf(pm.Content), IsError: pm.IsError}
 			if n := len(out); n > 0 && out[n-1].Role == "user" && len(out[n-1].Content) > 0 && out[n-1].Content[0].Type == "tool_result" {
 				out[n-1].Content = append(out[n-1].Content, r)
 			} else {
-				out = append(out, llm.Message{Role: "user", Content: []llm.Block{r}})
+				out, ids = append(out, llm.Message{Role: "user", Content: []llm.Block{r}}), append(ids, e.ID)
 			}
 		}
 	}
-	return out
+	return out, ids
+}
+
+// Compact records a compaction: the messages before index firstKept (an index into Messages) are replaced by summary.
+func (s *Session) Compact(firstKept int, summary string, tokensBefore int) error {
+	_, ids := s.messagesWithIDs()
+	if firstKept < 1 || firstKept >= len(ids) || ids[firstKept] == "" {
+		return fmt.Errorf("cannot compact at message %d of %d", firstKept, len(ids))
+	}
+	return s.appendEntry("compaction", func(e *Entry) { e.Summary, e.FirstKeptEntryID, e.TokensBefore = summary, ids[firstKept], tokensBefore })
 }
 
 // textOf joins the text of a content value that is either a string or an array of blocks.

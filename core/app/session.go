@@ -162,3 +162,28 @@ func ListSessions(dir string) string {
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
+
+// configureCompaction applies the compaction settings to the agent and wires compaction into the session file.
+func (a *App) configureCompaction(c CompactionConfig) {
+	w := c.ContextWindow
+	if w <= 0 {
+		w = agent.DefaultContextWindow
+	}
+	a.Agent.ContextWindow, a.Agent.Reserve, a.Agent.KeepRecent = w, c.ReserveTokens, c.KeepRecentTokens
+	a.Agent.AutoCompact = c.Enabled == nil || *c.Enabled
+	a.Agent.OnCompact = a.persistCompaction
+}
+
+// persistCompaction records a compaction in the session file, so a resumed session starts from the summary.
+func (a *App) persistCompaction(firstKept int, summary string, tokensBefore int) {
+	if a.Session == nil {
+		return
+	}
+	if len(a.Session.Messages()) != len(a.Agent.History) { // OnCompact runs before the history is replaced
+		a.Warnings = append(a.Warnings, "compaction not saved to the session: the file and the conversation disagree")
+		return
+	}
+	if err := a.Session.Compact(firstKept, summary, tokensBefore); err != nil {
+		a.Warnings = append(a.Warnings, "compaction not saved to the session: "+err.Error())
+	}
+}

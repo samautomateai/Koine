@@ -36,6 +36,7 @@ type Entry struct {
 	Name             string          `json:"name,omitempty"`
 	Summary          string          `json:"summary,omitempty"`
 	FirstKeptEntryID string          `json:"firstKeptEntryId,omitempty"`
+	TokensBefore     int             `json:"tokensBefore,omitempty"`
 	Provider         string          `json:"provider,omitempty"`
 	ModelID          string          `json:"modelId,omitempty"`
 }
