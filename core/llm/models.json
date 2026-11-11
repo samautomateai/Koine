@@ -1,33 +1,33 @@
 {
- "schema": 1,
- "unit": "USD per million tokens",
- "checked": "2026-11-11",
- "source": "Third-party price pages (cloudinsight.cc, developersdigest.tech), cross-checked for Sonnet 5.5; not Anthropic's own page. Override or extend in ~/.koine/model-catalog.json.",
- "models": [
-  {
-   "id": "claude-opus-5-5",
-   "provider": "anthropic",
-   "name": "Claude Opus 5.5",
-   "contextWindow": 1000000,
-   "maxOutput": 128000,
-   "cost": { "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite": 5 }
-  },
-  {
-   "id": "claude-sonnet-5-5",
-   "provider": "anthropic",
-   "name": "Claude Sonnet 5.5",
-   "contextWindow": 1000000,
-   "maxOutput": 128000,
-   "cost": { "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5 }
-  },
-  {
-   "id": "claude-haiku-5-5",
-   "provider": "anthropic",
-   "name": "Claude Haiku 5.5",
-   "contextWindow": 1000000,
-   "maxOutput": 128000,
-   "cost": { "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125 },
-   "longContext": { "threshold": 100000, "multiplier": 5 }
-  }
- ]
+  "schema": 1,
+  "unit": "USD per million tokens",
+  "checked": "2026-11-11",
+  "source": "Third-party price pages (cloudinsight.cc, developersdigest.tech), cross-checked for Sonnet 5.5; not Anthropic's own page. Override or extend in ~/.koine/model-catalog.json.",
+  "models": [
+    {
+      "id": "claude-opus-5-5",
+      "provider": "anthropic",
+      "name": "Claude Opus 5.5",
+      "contextWindow": 1000000,
+      "maxOutput": 128000,
+      "cost": { "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite": 5 }
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "provider": "anthropic",
+      "name": "Claude Sonnet 5.5",
+      "contextWindow": 1000000,
+      "maxOutput": 128000,
+      "cost": { "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5 }
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "provider": "anthropic",
+      "name": "Claude Haiku 5.5",
+      "contextWindow": 1000000,
+      "maxOutput": 128000,
+      "cost": { "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125 },
+      "longContext": { "threshold": 100000, "multiplier": 5 }
+    }
+  ]
 }
