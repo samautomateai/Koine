@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +20,7 @@ func (a *App) SessionDir() string {
 			return a.resolvePath(d)
 		}
 	}
-	return session.DirFor(filepath.Join(a.Home, ".koine", "sessions"), a.Cwd)
+	return session.DirFor(filepath.Join(agentdir.Of(a.Home), "sessions"), a.Cwd)
 }
 
 // initSession opens, continues, forks or creates the session for this run and loads its history into the agent.

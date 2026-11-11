@@ -8,6 +8,11 @@
 | Providers        | Built-in registry       | Anthropic, OpenAI-compatible, and prefix-routed custom providers; unknown prefixes rejected                        | Avoid sending a prompt to the wrong vendor      |
 | Config dir       | `.pi`                   | `.koine`, with `.pi`, `.opencode`, `.claude`, `.agents` also discovered                                            | Multi-ecosystem                                 |
 
+## Directories and environment
+
+- Pi's agent directory `~/.pi/agent` is Koine's `~/.koine`; `PI_CODING_AGENT_DIR` is `KOINE_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` is `KOINE_SESSION_DIR`. Koine also reads `~/.pi/agent` and a project's `.pi/` for skills, prompts, extensions, agents, `SYSTEM.md` and `APPEND_SYSTEM.md`, so a Pi setup keeps working.
+- `sessionDir` from a project that is not trusted is not applied (Pi reads it before trust).
+
 ## Models and usage
 
 - Pi reads model metadata from its generated registry and a user `models.json`. Koine ships a small embedded catalog (`core/llm/models.json`) and reads `~/.koine/model-catalog.json` instead, because Pi's `models.json` has a different schema (providers, API keys, compat flags) that Koine does not implement. Prices in the embedded catalog come from third-party price pages and have not been checked against the vendor; the file records its source and check date.

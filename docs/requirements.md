@@ -154,6 +154,13 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Design: DES-013
 - Tests: TestSettingsManifestIsValid; TestSettingsValidateRules; TestSettingsCheck; TestVerifiedSettingsNameRealTests; TestSettingsPiKeysMapToKoine; TestSettingsExtensionsMixedStringsAndObjects; TestSettingsSessionDirAndDefaultTools; TestSettingsDiagnostics; js:parseSettingsDoc; js:diff finds new and vanished keys; js:rebase adds todo keys; js:main: exit codes
 
+### REQ-CFG-002 — Agent directory and prompt files
+
+- Status: implemented
+- Statement: Koine's user-level directory is `~/.koine` unless `$KOINE_AGENT_DIR` names another (the counterpart of Pi's `PI_CODING_AGENT_DIR`) and holds settings, sessions, skills, agents, prompts, extensions, trust and context files. `SYSTEM.md` replaces and `APPEND_SYSTEM.md` extends the system prompt: a trusted project's file wins over the user's and the two are never combined; project files are ignored without trust; the command-line options win over both. Gap rows CLI-31, CLI-41, SYS-02, CLI-52 to CLI-54.
+- Design: DES-015
+- Tests: TestOf; TestAgentDirOverrideMovesSettingsSessionsAndPrompts; TestProjectPromptFilesNeedTrustAndOverrideTheUsersWithoutCombining; TestPiAgentDirIsReadAsAFallbackAndBlankFilesAreIgnored
+
 ### REQ-LLM-004 — Model catalog, token usage and cost
 
 - Status: implemented

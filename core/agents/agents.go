@@ -3,6 +3,7 @@
 package agents
 
 import (
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func Discover(cwd, home string) []Def {
 	}
 	if home != "" {
 		dirs = append(dirs,
-			filepath.Join(home, ".koine", "agents"), filepath.Join(home, ".pi", "agent", "agents"),
+			filepath.Join(agentdir.Of(home), "agents"), filepath.Join(home, ".pi", "agent", "agents"),
 			filepath.Join(home, ".config", "opencode", "agent"), filepath.Join(home, ".config", "opencode", "agents"),
 			filepath.Join(home, ".claude", "agents"))
 	}

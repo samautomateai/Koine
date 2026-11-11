@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"koine/core/agentdir"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -305,7 +307,8 @@ func (a *Agent) TaskTool() tools.Tool {
 func LoadContextFiles(cwd, home string) []string {
 	paths := []string{}
 	if home != "" {
-		paths = append(paths, home+"/.koine/AGENTS.md", home+"/.pi/agent/AGENTS.md", home+"/.config/opencode/AGENTS.md", home+"/.claude/CLAUDE.md")
+		paths = append(paths, filepath.Join(agentdir.Of(home), "AGENTS.md"), home+"/.pi/agent/AGENTS.md")
+		paths = append(paths, home+"/.config/opencode/AGENTS.md", home+"/.claude/CLAUDE.md")
 	}
 	paths = append(paths, cwd+"/AGENTS.md", cwd+"/CLAUDE.md", cwd+"/.koine/AGENTS.md")
 	var out []string

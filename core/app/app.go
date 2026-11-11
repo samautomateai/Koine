@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"sort"
@@ -350,7 +351,7 @@ func orNone(s []string) string {
 func loadCatalog(home string) *llm.Catalog {
 	c := llm.DefaultCatalog()
 	if home != "" {
-		_ = c.Merge(filepath.Join(home, ".koine", "model-catalog.json"))
+		_ = c.Merge(filepath.Join(agentdir.Of(home), "model-catalog.json"))
 	}
 	return c
 }

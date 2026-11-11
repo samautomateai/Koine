@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +73,7 @@ func discoverExtensions(cwd, home string, cfg Config, trusted bool) (out []extTa
 	var userDirs []string
 	if home != "" {
 		userDirs = []string{
-			filepath.Join(home, ".koine", "extensions"),
+			filepath.Join(agentdir.Of(home), "extensions"),
 			filepath.Join(home, ".pi", "agent", "extensions"),
 			filepath.Join(home, ".config", "opencode", "plugin"), filepath.Join(home, ".config", "opencode", "plugins"),
 		}

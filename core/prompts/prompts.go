@@ -3,6 +3,7 @@
 package prompts
 
 import (
+	"koine/core/agentdir"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -23,7 +24,7 @@ func Discover(cwd, home string) []Prompt {
 	}
 	if home != "" {
 		dirs = append(dirs,
-			filepath.Join(home, ".koine", "prompts"), filepath.Join(home, ".pi", "agent", "prompts"),
+			filepath.Join(agentdir.Of(home), "prompts"), filepath.Join(home, ".pi", "agent", "prompts"),
 			filepath.Join(home, ".config", "opencode", "command"), filepath.Join(home, ".config", "opencode", "commands"),
 			filepath.Join(home, ".claude", "commands"))
 	}
