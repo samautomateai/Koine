@@ -19,6 +19,7 @@ opencode, Pi, Codex and Koine itself. Keep it short; the detail is in the linked
 | Fix formatting                         | `task fmt` (Go) and `npm run format` (JS)    |
 | Docs, requirement and link consistency | `task docs:check`                            |
 | Pi compatibility / upstream drift      | `task compat:status` / `task upstream:check` |
+| Outdated / update all dependencies     | `task deps:check` / `task deps:update`       |
 
 ## Rules that CI enforces (so do not fight them)
 

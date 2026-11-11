@@ -6,6 +6,7 @@ All notable changes. Format follows [Keep a Changelog](https://keepachangelog.co
 
 ### Added
 
+- `task deps:check` / `task deps:update` and a weekly `dependency-updates` workflow keep the Go toolchain, tool pins, action refs, Go modules and npm packages current (`scripts/deps.mjs`).
 - Core agent with TUI, HTTP/SSE server, language-agnostic extension protocol, JS sidecar for Pi and opencode plugins, Claude-compatible hooks.
 - Project trust gate, skill hidden-text audit, multi-provider routing.
 - Pi compatibility manifest pinned to Pi 1.5.2, `koine -compat`, drift checker.

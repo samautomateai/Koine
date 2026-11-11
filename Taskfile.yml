@@ -116,7 +116,7 @@ tasks:
     cmds:
       - go mod verify
       - go mod tidy -diff
-      - go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   # ---- tests -------------------------------------------------------------
   test:
@@ -173,6 +173,22 @@ tasks:
     cmds:
       - node scripts/upstream-check.mjs {{if .SRC}}--src {{.SRC}}{{end}} --rebase || true
       - task: compat:status
+
+  deps:check:
+    desc: Report outdated Go modules (all three), npm packages and pinned tool/action/toolchain versions (needs network; exit 1 = outdated)
+    cmds:
+      - node scripts/deps.mjs check
+      - for d in . tui-bubbletea desktop; do (cd $d && go list -m -u -f '{{"{{if and .Update (not .Indirect)}}"}}{{"{{.Path}}"}} {{"{{.Version}}"}} -> {{"{{.Update.Version}}"}}{{"{{end}}"}}' all); done
+      - npm outdated || true
+
+  deps:update:
+    desc: Upgrade everything to the latest — pinned versions, Go modules in all three modules, npm packages — then re-verify
+    cmds:
+      - node scripts/deps.mjs update
+      - for d in . tui-bubbletea desktop; do (cd $d && go get -u ./... && go mod tidy); done
+      - npm update --save && npm install
+      - npm run -s format
+      - task: check:fast
 
   # ---- aggregate ---------------------------------------------------------
   check:
