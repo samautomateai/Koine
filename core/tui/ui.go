@@ -319,6 +319,14 @@ func (ui *UI) Event(e agent.Event) {
 		} else {
 			ui.add(Block{Kind: "thinking", Text: e.Text, Final: true})
 		}
+	case "user_message": // a queued steering or follow-up message the agent has now taken up
+		ui.add(Block{Kind: "user", Text: e.Text, Final: true})
+	case "aborted": // keep what streamed so far; RunDone adds the "(interrupted)" line
+		for i := range ui.blocks {
+			if k := ui.blocks[i].Kind; k == "assistant" || k == "thinking" {
+				ui.blocks[i].Final = true
+			}
+		}
 	case "tool_start":
 		ui.add(Block{Kind: "tool", Tool: &ToolCall{ID: e.CallID, Name: e.Tool, Args: e.Args}})
 	case "tool_end":

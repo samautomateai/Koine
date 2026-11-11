@@ -230,3 +230,18 @@ func TestUIEventsBuildBlocks(t *testing.T) {
 		t.Errorf("usage feeds the footer: %+v", ui.foot)
 	}
 }
+
+func TestUIQueuedMessagesAndAbort(t *testing.T) {
+	ui := newTestUI(t, nil)
+	n := len(ui.blocks)
+	for _, e := range []agent.Event{
+		{Type: "text_delta", Text: "partial"}, {Type: "queue_update"}, {Type: "tool_delta", Tool: "bash", CallID: "x", Text: "{"},
+		{Type: "aborted"}, {Type: "user_message", Text: "also do this"},
+	} {
+		ui.Event(e)
+	}
+	got := ui.blocks[n:]
+	if len(got) != 2 || got[0].Kind != "assistant" || !got[0].Final || got[0].Text != "partial" || got[1].Kind != "user" || got[1].Text != "also do this" {
+		t.Errorf("blocks: %+v", got)
+	}
+}
