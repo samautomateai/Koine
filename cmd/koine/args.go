@@ -107,10 +107,11 @@ func parseArgs(args []string) (cliArgs, error) {
 			return c, fmt.Errorf("unknown option %q (try --help)", a)
 		}
 		if f.Kind == valueFlag && !hasVal {
-			if i+1 >= len(args) {
+			rest := args[i+1:]
+			if len(rest) == 0 {
 				return c, fmt.Errorf("option %s needs a value", a)
 			}
-			val = args[i+1]
+			val = rest[0]
 			i++
 		} else if f.Kind == boolFlag && hasVal {
 			return c, fmt.Errorf("option %s does not take a value", a)
