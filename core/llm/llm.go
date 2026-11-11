@@ -47,6 +47,9 @@ type Message struct {
 	Cost  *Cost  `json:"-"` // dollars, when the model's price was known
 	// ThinkingLevel is the level the response was requested with, on assistant messages (sessions store it).
 	ThinkingLevel string `json:"-"`
+	// StopReason is "aborted" on an assistant message that was cut short by the user. Such a message is kept and saved but never sent
+	// to a provider.
+	StopReason string `json:"-"`
 }
 
 type ToolDef struct {

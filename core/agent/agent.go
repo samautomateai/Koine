@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"koine/core/agents"
-	"koine/core/compact"
 	"koine/core/events"
 	"koine/core/llm"
 	"koine/core/skills"
@@ -21,8 +20,11 @@ import (
 
 // Event is what frontends render.
 type Event struct {
-	Type    string          `json:"type"` // text | thinking | tool_start | tool_end | notice | error | usage | done
-	Text    string          `json:"text,omitempty"`
+	// Type is one of: text | thinking | text_delta | thinking_delta | tool_delta | tool_start | tool_end | user_message | queue_update |
+	// aborted | notice | error | usage | done. The *_delta events stream a response as it is generated; "text" and "thinking" still
+	// carry the whole block once the response is complete.
+	Type    string          `json:"type"`
+	Text    string          `json:"text,omitempty"` // text, thinking, a delta, a tool result, a notice, an error, a queued message
 	Tool    string          `json:"tool,omitempty"`
 	CallID  string          `json:"callId,omitempty"`
 	Args    json.RawMessage `json:"args,omitempty"`
@@ -69,9 +71,18 @@ type Agent struct {
 	imageNotice   string
 	// KeptEntryID tells, right after OnCompact ran, the id of the first session entry the compaction kept ("" = no session).
 	KeptEntryID func() string
+	// SteeringMode and FollowUpMode say how queued messages are delivered: "one-at-a-time" (default, as in Pi) hands over one per
+	// delivery point, "all" hands over every queued message at once. See Steer and FollowUp.
+	SteeringMode, FollowUpMode string
+	// ToolExecution is "parallel" (default) or "sequential"; see execTools.
+	ToolExecution string
+	// TransformContext, when set, may rewrite the messages sent with each request (the history itself is not changed).
+	TransformContext func(ctx context.Context, msgs []llm.Message) []llm.Message
+	// PrepareNextTurn, when set, is called before every model request and may switch the model and the thinking level from then on.
+	PrepareNextTurn func(ctx context.Context, t TurnInfo) TurnPlan
 
-	q     queues
 	depth int
+	queue queue
 }
 
 const defaultBase = `You are koine, a coding agent working in the user's project through tools.
@@ -146,146 +157,6 @@ func (a *Agent) add(m llm.Message) {
 	}
 }
 
-// Run executes one user prompt to completion, streaming events through emit.
-func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error {
-	if emit == nil {
-		emit = func(Event) {}
-	}
-	images := a.pendingImages
-	a.pendingImages = nil
-	d := a.dispatch(ctx, events.Input, map[string]any{"text": prompt})
-	if d.Block {
-		emit(Event{Type: "notice", Text: "input blocked: " + d.Reason})
-		return nil
-	}
-	if d.Text != nil {
-		prompt = *d.Text
-	}
-	prompt = a.ExpandInput(prompt)
-	var user []llm.Block
-	if prompt != "" {
-		user = textBlocks([]string{prompt})
-	}
-	user = append(user, images...)
-	a.add(llm.Message{Role: "user", Content: user})
-
-	maxTurns := a.MaxTurns
-	if maxTurns <= 0 {
-		maxTurns = 50
-	}
-	defer a.dispatch(context.WithoutCancel(ctx), events.AgentEnd, map[string]any{})
-
-	overflowed := false
-	for turn := 0; turn < maxTurns; turn++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		a.reportQueues(emit)
-		a.dispatch(ctx, events.TurnStart, map[string]any{"turn": turn})
-		sys := a.systemPrompt(ctx)
-		if a.needsCompaction(sys) {
-			a.autoCompact(ctx, emit, ReasonThreshold)
-		}
-		thinking, maxTokens := a.thinkingFor()
-		level := ""
-		if thinking != nil {
-			level = thinking.Level
-		}
-		req := llm.Request{Model: a.Model, System: sys, Messages: a.forModel(emit), MaxTokens: maxTokens, Thinking: thinking}
-		for _, n := range a.Tools.Names() {
-			t, _ := a.Tools.Get(n)
-			req.Tools = append(req.Tools, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
-		}
-		resp, err := a.complete(ctx, req, emit)
-		if err != nil && compact.IsOverflow(err) && !overflowed && a.autoCompact(ctx, emit, ReasonOverflow) {
-			overflowed = true // one recovery per prompt
-			req.Messages = a.forModel(emit)
-			resp, err = a.complete(ctx, req, emit)
-		}
-		if err != nil {
-			emit(Event{Type: "error", Text: err.Error()})
-			return err
-		}
-		msg := a.record(resp, emit)
-		msg.ThinkingLevel = level
-		a.add(msg)
-		var uses []llm.Block
-		for _, b := range resp.Content {
-			switch b.Type {
-			case "thinking":
-				a.showThinking(b, emit)
-			case "text":
-				if b.Text != "" {
-					emit(Event{Type: "text", Text: b.Text})
-				}
-			case "tool_use":
-				uses = append(uses, b)
-			}
-		}
-		a.dispatch(ctx, events.TurnEnd, map[string]any{"turn": turn})
-		if len(uses) == 0 {
-			if queued := a.drain(true); len(queued) > 0 { // messages that waited for the agent to finish
-				a.reportQueues(emit)
-				a.add(llm.Message{Role: "user", Content: textBlocks(queued)})
-				continue
-			}
-			a.reportQueues(emit)
-			emit(Event{Type: "done"})
-			return nil
-		}
-		var results []llm.Block
-		for _, u := range uses {
-			results = append(results, a.execTool(ctx, u, emit))
-		}
-		results = append(results, textBlocks(a.drain(false))...) // steering goes with the tool results, before the next request
-		a.add(llm.Message{Role: "user", Content: results})
-	}
-	emit(Event{Type: "notice", Text: fmt.Sprintf("stopped after %d turns", maxTurns)})
-	emit(Event{Type: "done"})
-	return nil
-}
-
-func (a *Agent) execTool(ctx context.Context, u llm.Block, emit func(Event)) llm.Block {
-	args := u.Input
-	if len(args) == 0 {
-		args = json.RawMessage("{}")
-	}
-	res := llm.Block{Type: "tool_result", ToolUseID: u.ID}
-	d := a.dispatch(ctx, events.ToolCall, map[string]any{"toolName": u.Name, "callId": u.ID, "input": args})
-	if d.Block {
-		res.Content, res.IsError = "Blocked: "+orDefault(d.Reason, "denied by extension"), true
-		emit(Event{Type: "tool_start", Tool: u.Name, CallID: u.ID, Args: args})
-		emit(Event{Type: "tool_end", Tool: u.Name, CallID: u.ID, Text: res.Content, IsError: true})
-		return res
-	}
-	if len(d.Args) > 0 {
-		args = d.Args
-	}
-	emit(Event{Type: "tool_start", Tool: u.Name, CallID: u.ID, Args: args})
-
-	var out string
-	var err error
-	if t, ok := a.Tools.Get(u.Name); !ok {
-		err = fmt.Errorf("unknown tool %q", u.Name)
-	} else {
-		tctx := tools.WithUpdates(ctx, func(partial string) {
-			emit(Event{Type: EvToolUpdate, Tool: u.Name, CallID: u.ID, Args: args, Text: partial})
-		})
-		out, err = t.Run(tools.WithImages(tctx, a.imageSink(&res.Images)), args)
-	}
-	isErr := err != nil
-	if isErr && out == "" {
-		out = err.Error()
-	}
-	d = a.dispatch(ctx, events.ToolResult, map[string]any{"toolName": u.Name, "callId": u.ID, "input": args, "output": out, "isError": isErr})
-	if d.Output != nil {
-		out = *d.Output
-	}
-	res.Content, res.IsError = out, isErr
-	emit(Event{Type: "tool_end", Tool: u.Name, CallID: u.ID, Text: out, IsError: isErr})
-	return res
-}
-
 func orDefault(s, d string) string {
 	if s == "" {
 		return d
@@ -343,14 +214,6 @@ func LoadContextFiles(cwd, home string) []string {
 		if b, err := os.ReadFile(p); err == nil && strings.TrimSpace(string(b)) != "" {
 			out = append(out, fmt.Sprintf("<context file=%q>\n%s\n</context>", p, strings.TrimSpace(string(b))))
 		}
-	}
-	return out
-}
-
-func textBlocks(texts []string) []llm.Block {
-	var out []llm.Block
-	for _, t := range texts {
-		out = append(out, llm.Block{Type: "text", Text: t})
 	}
 	return out
 }

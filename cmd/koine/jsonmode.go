@@ -50,9 +50,10 @@ func rec(typ string, fields ...any) record {
 	return r
 }
 
-// jsonStream writes `--mode json`: Pi's JSON event stream (https://pi.dev/docs/latest/json). Koine's agent reports whole messages, not
-// token deltas, so each content block of an assistant message is one start/delta/end triple. The conversation arrives through Message
-// (every message added to the history, in order) and tool progress through Event.
+// jsonStream writes `--mode json`: Pi's JSON event stream (https://pi.dev/docs/latest/json). When the provider streams, the agent's
+// text_delta, thinking_delta and tool_delta events become message_update records as they arrive (jsondeltas.go); otherwise each content
+// block of an assistant message is one start/delta/end triple. The conversation arrives through Message (every message added to the
+// history, in order) and tool progress through Event.
 type jsonStream struct {
 	enc      *json.Encoder
 	app      *app.App
@@ -63,6 +64,7 @@ type jsonStream struct {
 	messages []any          // every message of the run, for agent_end
 	started  map[string]time.Time
 	names    map[string]string
+	live     deltaState // the assistant message being streamed
 }
 
 func newJSONStream(w io.Writer, a *app.App) *jsonStream {
@@ -186,10 +188,16 @@ func (j *jsonStream) assistant(m llm.Message, now int64) {
 	provider, model := j.app.ProviderAndModel()
 	usage := usageOf(m)
 	stop := "stop"
+	if m.StopReason != "" {
+		stop = m.StopReason // "aborted"
+	}
+	streamed := j.finishLive() // the deltas were reported already
 	blocks := []any{}
 	var updates []record
 	upd := func(ev record) {
-		updates = append(updates, rec("message_update", "usage", usage, "assistantMessageEvent", ev))
+		if !streamed {
+			updates = append(updates, rec("message_update", "usage", usage, "assistantMessageEvent", ev))
+		}
 	}
 	for _, b := range m.Content {
 		i := len(blocks)
@@ -225,7 +233,9 @@ func (j *jsonStream) assistant(m llm.Message, now int64) {
 	if m.ThinkingLevel != "" {
 		msg["thinkingLevel"], start["thinkingLevel"] = m.ThinkingLevel, m.ThinkingLevel
 	}
-	j.put(rec("message_start", "message", start))
+	if !streamed {
+		j.put(rec("message_start", "message", start))
+	}
 	for _, u := range updates {
 		j.put(u)
 	}
@@ -273,6 +283,8 @@ func (j *jsonStream) Event(e agent.Event) {
 			fields = append(fields, "durationMs", time.Since(t).Milliseconds())
 		}
 		j.put(rec("tool_execution_end", fields...))
+	case "text_delta", "thinking_delta", "tool_delta":
+		j.delta(e)
 	case agent.EvToolUpdate:
 		args := e.Args
 		if len(args) == 0 {
@@ -289,7 +301,12 @@ func (j *jsonStream) Event(e agent.Event) {
 		provider, model := j.app.ProviderAndModel()
 		msg := map[string]any{"role": "assistant", "content": []any{}, "api": apiOf(provider), "provider": provider, "model": model,
 			"usage": usageOf(llm.Message{}), "stopReason": "error", "errorMessage": e.Text, "timestamp": time.Now().UnixMilli()}
-		j.both(msg)
+		if j.finishLive() { // a stream that failed midway already opened its message
+			j.put(rec("message_end", "message", msg))
+			j.messages = append(j.messages, msg)
+		} else {
+			j.both(msg)
+		}
 		j.last = msg
 	}
 }

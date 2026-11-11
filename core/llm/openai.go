@@ -106,7 +106,14 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 	return out
 }
 
-func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, error) {
+func (o *OpenAICompat) label() string {
+	if o.Name == "" {
+		return "openai"
+	}
+	return o.Name
+}
+
+func (o *OpenAICompat) request(req Request, stream bool) (url string, headers map[string]string, payload []byte, err error) {
 	body := map[string]any{"model": req.Model, "messages": toOpenAI(req.System, req.Messages)}
 	effort := openAIEffort(req.Thinking)
 	if effort != "" {
@@ -127,22 +134,57 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 		}
 		body["tools"] = tools
 	}
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
+	if stream {
+		body["stream"] = true
+		body["stream_options"] = map[string]any{"include_usage": true}
 	}
-	headers := map[string]string{}
+	payload, err = json.Marshal(body)
+	headers = map[string]string{}
 	if o.APIKey != "" {
 		headers["authorization"] = "Bearer " + o.APIKey
 	}
-	label := o.Name
-	if label == "" {
-		label = "openai"
-	}
-	data, err := postJSON(ctx, o.HTTP, label, strings.TrimRight(o.BaseURL, "/")+"/chat/completions", headers, payload, o.Retry)
+	return strings.TrimRight(o.BaseURL, "/") + "/chat/completions", headers, payload, err
+}
+
+func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, error) {
+	url, headers, payload, err := o.request(req, false)
 	if err != nil {
 		return nil, err
 	}
+	data, err := postJSON(ctx, o.HTTP, o.label(), url, headers, payload, o.Retry)
+	if err != nil {
+		return nil, err
+	}
+	return parseOpenAI(o.label(), data)
+}
+
+// oaUsage is Chat Completions' usage object. OpenAI counts cached tokens inside prompt_tokens; Koine counts them apart.
+type oaUsage struct {
+	Prompt  int `json:"prompt_tokens"`
+	Output  int `json:"completion_tokens"`
+	Details struct {
+		Cached int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+}
+
+func (u oaUsage) usage() Usage {
+	if u.Prompt == 0 && u.Output == 0 {
+		return Usage{}
+	}
+	return Usage{Input: max(u.Prompt-u.Details.Cached, 0), Output: u.Output, CacheRead: u.Details.Cached}
+}
+
+// oaToolInput is the arguments of a call: some local models emit broken JSON, which is surfaced to the model as an empty call.
+func oaToolInput(args string) json.RawMessage {
+	in := json.RawMessage(args)
+	if !json.Valid(in) {
+		return json.RawMessage("{}")
+	}
+	return in
+}
+
+// parseOpenAI reads a complete (not streamed) Chat Completions answer.
+func parseOpenAI(label string, data []byte) (*Response, error) {
 	var out struct {
 		Choices []struct {
 			Message struct {
@@ -153,13 +195,7 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 			} `json:"message"`
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
-		Usage struct {
-			Prompt  int `json:"prompt_tokens"`
-			Output  int `json:"completion_tokens"`
-			Details struct {
-				Cached int `json:"cached_tokens"`
-			} `json:"prompt_tokens_details"`
-		} `json:"usage"`
+		Usage oaUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return nil, err
@@ -168,10 +204,7 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 		return nil, errors.New(label + ": response had no choices")
 	}
 	ch := out.Choices[0]
-	resp := &Response{StopReason: ch.FinishReason}
-	if u := out.Usage; u.Prompt > 0 || u.Output > 0 { // OpenAI counts cached tokens inside prompt_tokens; Koine counts them apart
-		resp.Usage = Usage{Input: max(u.Prompt-u.Details.Cached, 0), Output: u.Output, CacheRead: u.Details.Cached}
-	}
+	resp := &Response{StopReason: ch.FinishReason, Usage: out.Usage.usage()}
 	if r := cmp.Or(ch.Message.ReasoningContent, ch.Message.Reasoning); r != "" {
 		resp.Content = append(resp.Content, Block{Type: "thinking", Thinking: r}) // no signature: shown and kept, never sent back
 	}
@@ -179,11 +212,7 @@ func (o *OpenAICompat) Complete(ctx context.Context, req Request) (*Response, er
 		resp.Content = append(resp.Content, Block{Type: "text", Text: *ch.Message.Content})
 	}
 	for _, c := range ch.Message.ToolCalls {
-		in := json.RawMessage(c.Function.Arguments)
-		if !json.Valid(in) { // some local models emit broken JSON; surface it to the model, don't crash
-			in = json.RawMessage("{}")
-		}
-		resp.Content = append(resp.Content, Block{Type: "tool_use", ID: c.ID, Name: c.Function.Name, Input: in})
+		resp.Content = append(resp.Content, Block{Type: "tool_use", ID: c.ID, Name: c.Function.Name, Input: oaToolInput(c.Function.Arguments)})
 	}
 	return resp, nil
 }

@@ -50,6 +50,8 @@ type LLMSettings struct {
 	ModelThinkingLevels  opt[map[string]string] `json:"modelThinkingLevels"`
 	ThinkingBudgets      opt[map[string]int]    `json:"thinkingBudgets"`
 	HideThinkingBlock    opt[bool]              `json:"hideThinkingBlock"`
+	SteeringMode         opt[string]            `json:"steeringMode"` // "all" | "one-at-a-time" (default)
+	FollowUpMode         opt[string]            `json:"followUpMode"` // "all" | "one-at-a-time" (default)
 	HTTPIdleTimeoutMs    timeoutMs              `json:"httpIdleTimeoutMs"`
 	Retry                struct {
 		Enabled         opt[bool]    `json:"enabled"`
@@ -95,6 +97,12 @@ func (s *LLMSettings) merge(o LLMSettings) {
 	if o.HTTPIdleTimeoutMs.Set {
 		s.HTTPIdleTimeoutMs = o.HTTPIdleTimeoutMs
 	}
+	if o.SteeringMode.Set {
+		s.SteeringMode = o.SteeringMode
+	}
+	if o.FollowUpMode.Set {
+		s.FollowUpMode = o.FollowUpMode
+	}
 	r, or := &s.Retry, o.Retry
 	for _, p := range []struct{ d, s *opt[float64] }{
 		{&r.MaxRetries, &or.MaxRetries}, {&r.BaseDelayMs, &or.BaseDelayMs}, {&r.MaxAgentDelayMs, &or.MaxAgentDelayMs},
@@ -139,13 +147,26 @@ func (s LLMSettings) retryPolicy() llm.RetryPolicy {
 			p.MaxServerDelay = -1
 		}
 	}
+	// 0 and "disabled" turn the timeout off (a negative Timeout); unset leaves it to the provider, which applies Pi's default 300 s only
+	// to a streamed response.
 	switch {
 	case r.Provider.TimeoutMs.Set:
-		p.Timeout = max(ms(r.Provider.TimeoutMs.V), 0)
+		p.Timeout = ms(r.Provider.TimeoutMs.V)
 	case s.HTTPIdleTimeoutMs.Set:
 		p.Timeout = s.HTTPIdleTimeoutMs.D
 	}
+	if (r.Provider.TimeoutMs.Set || s.HTTPIdleTimeoutMs.Set) && p.Timeout <= 0 {
+		p.Timeout = -1
+	}
 	return p
+}
+
+// queueMode reads steeringMode or followUpMode: only Pi's two values count, anything else leaves the default.
+func queueMode(o opt[string]) string {
+	if o.V == agent.ModeAll || o.V == agent.ModeOneAtATime {
+		return o.V
+	}
+	return ""
 }
 
 // thinkingSettings are the thinking choices for the agent: the explicit level, then the settings.
@@ -159,6 +180,8 @@ func (a *App) applyLLMSettings() {
 	a.Agent.Thinking = a.Cfg.thinkingSettings(a.thinking)
 	a.Agent.HideThinking = a.Cfg.HideThinkingBlock.V
 	a.Agent.Images = a.Cfg.imageOptions()
+	a.Agent.SteeringMode = queueMode(a.Cfg.SteeringMode)
+	a.Agent.FollowUpMode = queueMode(a.Cfg.FollowUpMode)
 }
 
 // chooseThinking takes a ":level" suffix off model and settles the explicit thinking level: --thinking beats the suffix. It returns the

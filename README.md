@@ -57,13 +57,13 @@ Without Task installed, `scripts/covergate.sh`, `go test ./...` and
 
 ### Status
 
-| Area                                                     | State                                                                                                     |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean        |
-| `tui-bubbletea/`, `desktop/` (Wails v2)                  | **written, not compiled** — they need `go mod tidy` with network access (`task tui`, `task desktop:dev`)  |
-| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing (`core/llm`)                         |
-| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                       |
-| Not yet                                                  | streaming, context compaction, session persistence, permission prompts, Pi/opencode UI APIs (inert shims) |
+| Area                                                     | State                                                                                                    |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean       |
+| `tui-bubbletea/`, `desktop/` (Wails v2)                  | **written, not compiled** — they need `go mod tidy` with network access (`task tui`, `task desktop:dev`) |
+| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing, streamed (`core/llm`)              |
+| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                      |
+| Not yet                                                  | frontends that render streamed text, permission prompts, Pi/opencode UI APIs (inert shims)               |
 
 ## Layout
 

@@ -237,11 +237,10 @@ func TestQueuedMessagesAreDeliveredAndReported(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// steering rode along with the tool results, before the second request
-	second := s.reqs[1].Messages
-	last := second[len(second)-1].Content
-	if last[0].Type != "tool_result" || last[len(last)-1].Text != "change course" {
-		t.Errorf("steering not delivered with the tool results: %+v", last)
+	// steering typed before the run goes out with the prompt, as its own user message
+	first := s.reqs[0].Messages
+	if len(first) != 2 || first[1].Content[0].Text != "change course" {
+		t.Errorf("steering not delivered with the prompt: %+v", first)
 	}
 	// the follow-up came after the first answer and produced a third request
 	third := s.reqs[2].Messages

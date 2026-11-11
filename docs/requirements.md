@@ -87,15 +87,16 @@ tests, a named test that does not exist, a missing design reference, and duplica
 ### REQ-LLM-002 — Retry transient provider failures only
 
 - Status: implemented
-- Statement: Network errors, timeouts, 429 and 5xx are retried, by default four attempts with waits of 2, 4 and 8 seconds; other 4xx are not, and neither is a 429 that reports an exhausted quota or credit. A `Retry-After` is waited for, unless it is longer than allowed. `retry.enabled`, `retry.maxRetries`, `retry.baseDelayMs`, `retry.maxAgentDelayMs`, `retry.provider.timeoutMs`, `retry.provider.maxRetryDelayMs` and `httpIdleTimeoutMs` tune this (REQ-LLM-005), and each retry is reported as a notice.
+- Statement: Network errors, timeouts, 429 and 5xx are retried, by default four attempts with waits of 2, 4 and 8 seconds; other 4xx are not, and neither is a 429 that reports an exhausted quota or credit. A `Retry-After` is waited for, unless it is longer than allowed. `retry.enabled`, `retry.maxRetries`, `retry.baseDelayMs`, `retry.maxAgentDelayMs`, `retry.provider.timeoutMs`, `retry.provider.maxRetryDelayMs` and `httpIdleTimeoutMs` tune this (REQ-LLM-005), and each retry is reported as a notice. A stream is retried only until its first byte (REQ-LLM-003).
 - Design: DES-007; DES-016
 - Tests: TestRetriesOn429ThenSucceeds; TestClientErrorIsNotRetried; TestOpenAIErrors; TestRetrySettingsControlAttempts; TestRetryAfterIsHonouredUpToTheLimit; TestQuotaErrorsAreNotRetried; TestRetryNoticesAndCancellation
 
 ### REQ-LLM-003 — Streaming responses
 
-- Status: planned
-- Statement: Provider responses stream token by token to every frontend.
-- Design: none yet
+- Status: implemented
+- Statement: The Anthropic and OpenAI-compatible providers stream: a request asks for server-sent events, and the agent receives text, thinking and tool-call argument increments as they arrive and still gets the complete response at the end. A provider that cannot stream, and a server that answers a streaming request with plain JSON, keep working. A stream may be silent for `retry.provider.timeoutMs`, else `httpIdleTimeoutMs` (default 300000 as in Pi; 0 or `"disabled"` turns it off) before the call fails; a response that is not streamed is bounded by those settings only when they are set. Failed attempts are retried only before the first byte. Rendering the increments is up to each frontend, and none does yet (gap rows LLM-02, LLM-32, AGT-01). Verified against fake servers only, not live APIs.
+- Design: DES-021
+- Tests: TestAnthropicStreamBuildsTheResponseAndReportsDeltas; TestAnthropicStreamErrorsAndPartialContent; TestOpenAIStreamBuildsTextThinkingAndToolCalls; TestOpenAIStreamErrors; TestStreamFallsBackToJSONBodiesAndToCompleteOnlyProviders; TestStreamOpeningIsRetriedAndHTTPErrorsSurface; TestStreamIdleTimeoutAppliesToSilenceNotToTotalTime; TestStreamAbortKeepsPartialTextAndDoesNotCallItAnIdleTimeout; TestReadSSEHandlesCRLFMultilineDataAndTrailingEventsWithoutBlankLine; TestStreamingProviderEmitsDeltasAndStillEmitsTheFinalBlocks; TestAppStreamsThroughTheRouter; TestRetryAndTimeoutSettingsMapToThePolicy
 
 ## Agent and frontends
 
@@ -105,6 +106,13 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Statement: The agent alternates model turns and tool calls until done, honours a turn limit and cancellation, and can delegate to named sub-agents through a `task` tool.
 - Design: DES-001
 - Tests: TestLoopRunsToolsAndStops; TestTaskToolSubAgents; TestMaxTurnsProviderErrorAndCancel
+
+### REQ-AGT-001 — Agent loop parity with Pi: queues, parallel tools, hooks and abort
+
+- Status: implemented
+- Statement: While a run is in progress, `Agent.Steer` queues a message for delivery after the current assistant turn and its tool calls, before the next model request, and `Agent.FollowUp` queues one for when the agent has no more tool calls and no steering message left; each is delivered as a user message with `user_message` and `queue_update` events, one per delivery point (`one-at-a-time`, Pi's default) or all together (`all`), as `steeringMode` and `followUpMode` say. `POST /api/steer` and `/api/follow-up` queue over HTTP. The tool calls of one assistant message are checked in order (the `tool_call` hook may block or rewrite them), then the allowed ones run concurrently; `tool_start` is announced in source order, `tool_end` as each finishes, and the results go to the model in source order. A tool can ask for `sequential` execution for its whole batch (`ExecutionModer`); `write` and `edit` need not, because the per-file mutation queue serializes them. The hooks may block a call, replace the arguments, replace the output, override the error flag and ask to `terminate`; the loop stops after a batch only when every result terminates. Cancelling a run keeps the transcript valid: text received so far is kept as an assistant message with `stopReason` `aborted` that is saved but never sent again, every `tool_use` gets a `tool_result` (calls not run say `aborted`), an `aborted` event is emitted and the context error is returned; calls left without a result by a crash are answered when the history is sent. `Agent.TransformContext`, the `context` event and `Agent.PrepareNextTurn` change the messages, model and thinking level per request. Gap rows AGT-02..07, CLI-27, EXT-14, EXT-21, TOOL-11. Pi does not document `prepareNextTurn`, the shape of its aborted message or `steeringMode: all` beyond one line each, so those follow our reading (compat/DIVERGENCES.md).
+- Design: DES-021
+- Tests: TestRunDeliversQueuedMessagesAsTheLoopGoes; TestQueueModesAll; TestFollowUpsWaitForSteeringAndQueuedTextIsExpanded; TestSteerReportsQueueChangesOfTheRunInProgress; TestToolsRunConcurrentlyAndResultsKeepSourceOrder; TestSequentialModesRunOneAtATime; TestPreflightIsSequentialAndBlockedCallsDoNotRun; TestTerminateStopsTheLoopOnlyWhenEveryResultAsksForIt; TestToolResultHookCanFlipTheErrorFlagAndPanicsAreErrors; TestDecisionMergeCarriesTheNewFields; TestEventsAreSerializedWhileToolsRunInParallel; TestAbortDuringTheResponseKeepsAnAbortedMessageThatIsNotSentAgain; TestAbortDuringToolsAnswersEveryToolCall; TestRequestMessagesAnswersOrphanedToolCalls; TestContextEventTransformContextAndPrepareNextTurn; TestQueueModeSettingsReachTheAgent; TestSteerAndFollowUpQueueMessagesForTheAgent; TestAbortedAssistantMessageIsSavedWithPisStopReasonAndRestored; js:loop:
 
 ### REQ-FE-001 — One core, many frontends over HTTP/SSE
 

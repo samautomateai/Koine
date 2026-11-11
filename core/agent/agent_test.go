@@ -75,7 +75,7 @@ func TestLoopRunsToolsAndStops(t *testing.T) {
 	for _, e := range evs {
 		types = append(types, e.Type)
 	}
-	if got := strings.Join(types, ","); got != "text,tool_start,tool_end,tool_start,tool_end,tool_start,tool_end,text,done" {
+	if got := strings.Join(types, ","); got != "text,tool_start,tool_start,tool_start,tool_end,tool_end,tool_end,text,done" {
 		t.Fatalf("events: %s", got)
 	}
 	// tool results go back to the model as one user message
