@@ -110,8 +110,8 @@ func parseArgs(args []string) (cliArgs, error) {
 			if i+1 >= len(args) {
 				return c, fmt.Errorf("option %s needs a value", a)
 			}
+			val = args[i+1]
 			i++
-			val = args[i]
 		} else if f.Kind == boolFlag && hasVal {
 			return c, fmt.Errorf("option %s does not take a value", a)
 		}
