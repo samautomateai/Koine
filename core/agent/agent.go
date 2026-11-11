@@ -40,6 +40,7 @@ type Agent struct {
 	MaxTurns     int
 	MaxTokens    int
 	History      []llm.Message
+	Persist      func(llm.Message) // called for every message added to History, in order (nil = none)
 
 	depth int
 }
@@ -102,6 +103,14 @@ func (a *Agent) ExpandInput(in string) string {
 
 func (a *Agent) Reset() { a.History = nil }
 
+// add appends m to the history and hands it to Persist.
+func (a *Agent) add(m llm.Message) {
+	a.History = append(a.History, m)
+	if a.Persist != nil {
+		a.Persist(m)
+	}
+}
+
 // Run executes one user prompt to completion, streaming events through emit.
 func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error {
 	if emit == nil {
@@ -116,7 +125,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		prompt = *d.Text
 	}
 	prompt = a.ExpandInput(prompt)
-	a.History = append(a.History, llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: prompt}}})
+	a.add(llm.Message{Role: "user", Content: []llm.Block{{Type: "text", Text: prompt}}})
 
 	maxTurns := a.MaxTurns
 	if maxTurns <= 0 {
@@ -139,7 +148,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 			emit(Event{Type: "error", Text: err.Error()})
 			return err
 		}
-		a.History = append(a.History, llm.Message{Role: "assistant", Content: resp.Content})
+		a.add(llm.Message{Role: "assistant", Content: resp.Content})
 		var uses []llm.Block
 		for _, b := range resp.Content {
 			switch b.Type {
@@ -160,7 +169,7 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		for _, u := range uses {
 			results = append(results, a.execTool(ctx, u, emit))
 		}
-		a.History = append(a.History, llm.Message{Role: "user", Content: results})
+		a.add(llm.Message{Role: "user", Content: results})
 	}
 	emit(Event{Type: "notice", Text: fmt.Sprintf("stopped after %d turns", maxTurns)})
 	emit(Event{Type: "done"})

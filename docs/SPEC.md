@@ -241,6 +241,9 @@ and `Describe()`. `emit` receives `agent.Event`:
   Text mode prints only the text after the last tool call to stdout; tool names, notices and errors go to stderr. `--mode json` prints one
   `agent.Event` per line on stdout. Exit codes: 0 ok, 1 failed (provider, tool-loop or unknown `--model`), 2 usage (bad option, missing
   `@file`, nothing to do). Without a prompt it starts the interactive session. `koine --help` lists the options.
+- **Sessions** (REQ-SESS-001): every run writes `~/.koine/sessions/--<cwd with / as ->--/<timestamp>_<uuid>.jsonl` in Pi's v3 format.
+  `-c` continues the latest, `--session ID|PATH|NAME` resumes, `--fork` copies, `-n NAME` names, `--no-session` writes nothing, `-r` lists.
+  Slash commands: `/new` (also `/clear`), `/session`, `/name [text]`, `/resume [ref]`, `/fork`.
 - **HTTP/SSE** (`koine --serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.

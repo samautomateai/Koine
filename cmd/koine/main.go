@@ -53,13 +53,18 @@ func run(args []string, st streams) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: c.Trust, RunOptions: app.RunOptions{
-		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools}})
+		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools,
+		SessionDir: c.SessionDir, NoSession: c.NoSession, Continue: c.Continue, SessionRef: c.Session, Fork: c.Fork, Name: c.Name}})
 	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)
 		return 1
 	}
 	defer a.Close()
 
+	if c.Resume {
+		fmt.Fprintln(st.Out, app.ListSessions(a.SessionDir()))
+		return 0
+	}
 	if c.Serve != "" {
 		fmt.Fprintf(st.Err, "koine serving on http://%s\n", c.Serve)
 		s := &server.Server{App: a}

@@ -203,7 +203,7 @@ func TestHandleInputCommands(t *testing.T) {
 	}
 	for _, c := range []struct{ in, want string }{
 		{"/help", "/trust"}, {"/tools", "pi_echo"}, {"/skills", "greeter"}, {"/agents", "reviewer"},
-		{"/commands", "fix"}, {"/nope", "unknown command /nope"}, {"/clear", "history cleared"},
+		{"/commands", "fix"}, {"/nope", "unknown command /nope"}, {"/clear", "started a new session"},
 	} {
 		if out, _ := run(c.in); !strings.Contains(out, c.want) {
 			t.Errorf("%s -> %q, want %q", c.in, out, c.want)

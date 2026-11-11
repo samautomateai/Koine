@@ -121,9 +121,10 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 ### REQ-SESS-001 — Persist and resume sessions
 
-- Status: planned
-- Statement: Conversations are saved to disk and can be resumed.
-- Design: none yet
+- Status: implemented
+- Statement: Every conversation is saved as it happens to a Pi v3 JSONL file under `~/.koine/sessions/--<cwd>--/` (or `--session-dir`, `$KOINE_SESSION_DIR`), unless `--no-session`. `-c` continues the latest session of the project, `--session ID|PATH|NAME` resumes one, `--fork` starts a copy, `-n` names it, `-r` lists them. In the session, `/new`, `/session`, `/name`, `/resume [ref]` and `/fork` do the same. Pi session files are readable and appendable; a compaction entry on the branch replaces earlier messages with its summary. Gap rows CLI-15, 16, 17 (without a picker), 18 (`--fork`, `/fork`), 19, 20, SESS-01.
+- Design: DES-011
+- Tests: TestRoundTripKeepsToolCallsAndResultsTogether; TestReadsPiSessionsAndSkipsWhatItCannotRepresent; TestCompactionReplacesEarlierMessagesWithItsSummary; TestOpenRejectsBadFiles; TestNameModelAndFork; TestStoreListLatestResolve; TestSessionIsSavedContinuedAndResumed; TestForkAndNoSession; TestSessionSlashCommands; TestSessionsPersistContinueAndList
 
 ### REQ-SEC-001 — Sandboxed shell execution
 
@@ -152,10 +153,10 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Statement: Each model has known context window, limits and price; usage and cost are tracked per session; thinking levels map to each provider with block replay; prompt caching is on for Anthropic. Gap rows LLM-11, 22, 23, 25, 28.
 - Design: none yet
 
-### REQ-SESS-002 — Pi-compatible session files
+### REQ-SESS-002 — Session tree, labels and full Pi entry fidelity
 
 - Status: planned
-- Statement: Sessions persist as JSONL in Pi's v3 tree format so they can be continued, resumed by id, forked and read by Pi. Extends REQ-SESS-001. Gap rows CLI-15..21, SESS-01.
+- Statement: `/tree` navigation and branch summaries, `/clone`, labels, an interactive resume picker, preserving thinking/image/custom blocks instead of skipping them, migration of v1/v2 files, HTML/JSONL export, usage and cost in `/session`. Extends REQ-SESS-001. Gap rows CLI-17 (picker), 21, 22, 23, 46, SESS-02.
 - Design: none yet
 
 ### REQ-CMP-001 — Compaction and overflow recovery
