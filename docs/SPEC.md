@@ -250,6 +250,7 @@ and `Describe()`. `emit` receives `agent.Event`:
   ignored in a project; an untrusted project applies only `model`, `maxTurns` and `compaction`. Problems are listed at startup (`/reload` re-checks).
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.
+- **Usage and cost** (REQ-LLM-004): the model catalog is built in; `~/.koine/model-catalog.json` (`{"models":[{"id","contextWindow","maxOutput","cost":{"input","output","cacheRead","cacheWrite"},"longContext":{"threshold","multiplier"}}]}`, USD per million tokens) adds or replaces entries by id. Each response emits an event `{"type":"usage","usage":{input,output,cacheRead,cacheWrite,cost?,contextTokens,contextWindow,contextPercent}}`; `cost` is absent when the model has no known price. Assistant messages in the session file carry Pi's `usage` object. `/session` prints totals, cost and context use. `compaction.contextWindow` overrides the catalog's window.
 - **HTTP/SSE** (`koine --serve ADDR`): `GET /api/info` → `app.Info`;
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run.
@@ -279,7 +280,7 @@ Config merge order (later wins for scalars, hooks/plugins/extensions append):
 
 - Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); non-streaming, up to 4 attempts on 429/5xx/network errors.
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
-- No context compaction, session persistence, or permission prompts yet.
+- No permission prompts yet.
 - The `bubbletea` and `wails` frontends are written against the same API but are
   separate Go modules that need network access for `go mod tidy`; they are not
   built or tested by `task check`.

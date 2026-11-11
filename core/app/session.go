@@ -59,7 +59,7 @@ func (a *App) initSession() error {
 
 func (a *App) useSession(s *session.Session) {
 	a.Session = s
-	a.Agent.History = s.Messages()
+	a.Agent.SetHistory(s.Messages())
 	if n := len(a.Agent.History); n > 0 {
 		a.Info = append(a.Info, fmt.Sprintf("session %s: %d messages loaded", shortID(s.ID), n))
 	}
@@ -104,6 +104,7 @@ func (a *App) sessionCommand(name, args string, emit func(agent.Event)) bool {
 			break
 		}
 		notice(fmt.Sprintf("id %s · %d messages · name %q · file %s", a.Session.ID, len(a.Agent.History), a.Session.Name(), a.Session.Path))
+		notice(a.Agent.UsageSummary())
 	case "name":
 		if a.Session == nil {
 			notice("sessions are off (--no-session)")
@@ -163,10 +164,7 @@ func ListSessions(dir string) string {
 
 // configureCompaction applies the compaction settings to the agent and wires compaction into the session file.
 func (a *App) configureCompaction(c CompactionConfig) {
-	w := c.ContextWindow
-	if w <= 0 {
-		w = agent.DefaultContextWindow
-	}
+	w := c.ContextWindow // 0 lets the agent take the window from the model catalog
 	a.Agent.ContextWindow, a.Agent.Reserve, a.Agent.KeepRecent = w, c.ReserveTokens, c.KeepRecentTokens
 	a.Agent.AutoCompact = c.Enabled == nil || *c.Enabled
 	a.Agent.OnCompact = a.persistCompaction

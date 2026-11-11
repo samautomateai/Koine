@@ -30,6 +30,9 @@ type Block struct {
 type Message struct {
 	Role    string  `json:"role"`
 	Content []Block `json:"content"`
+	// Usage is set on assistant messages by the agent (never sent to a provider); sessions store it.
+	Usage *Usage `json:"-"`
+	Cost  *Cost  `json:"-"` // dollars, when the model's price was known
 }
 
 type ToolDef struct {
@@ -49,6 +52,7 @@ type Request struct {
 type Response struct {
 	Content    []Block
 	StopReason string
+	Usage      Usage // zero when the provider reported none
 }
 
 type Provider interface {
@@ -115,11 +119,19 @@ func (a *Anthropic) Complete(ctx context.Context, req Request) (*Response, error
 	var out struct {
 		Content    []Block `json:"content"`
 		StopReason string  `json:"stop_reason"`
+		Usage      struct {
+			Input      int `json:"input_tokens"`
+			Output     int `json:"output_tokens"`
+			CacheRead  int `json:"cache_read_input_tokens"`
+			CacheWrite int `json:"cache_creation_input_tokens"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return nil, err
 	}
-	return &Response{Content: out.Content, StopReason: out.StopReason}, nil
+	u := out.Usage
+	return &Response{Content: out.Content, StopReason: out.StopReason,
+		Usage: Usage{Input: u.Input, Output: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite}}, nil
 }
 
 // postJSON POSTs payload and returns the body of a 200 response. Network errors,

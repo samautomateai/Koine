@@ -154,10 +154,17 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Design: DES-013
 - Tests: TestSettingsManifestIsValid; TestSettingsValidateRules; TestSettingsCheck; TestVerifiedSettingsNameRealTests; TestSettingsPiKeysMapToKoine; TestSettingsExtensionsMixedStringsAndObjects; TestSettingsSessionDirAndDefaultTools; TestSettingsDiagnostics; js:parseSettingsDoc; js:diff finds new and vanished keys; js:rebase adds todo keys; js:main: exit codes
 
-### REQ-LLM-004 — Model catalog, usage and cost, thinking, prompt caching
+### REQ-LLM-004 — Model catalog, token usage and cost
+
+- Status: implemented
+- Statement: Koine knows each model's context window, output limit and price from a built-in catalog that the user can extend or override with `~/.koine/model-catalog.json`. Every model response's token usage (input, output, cache read, cache write) is recorded on the assistant message, saved in the session file in Pi's `usage` shape and rebuilt on resume. Cost is computed when the model's price is known (with long-context pricing); otherwise it is reported as unknown, never as zero. Compaction decides from the provider's reported context size plus an estimate of what was added since, and takes the window from the catalog unless `compaction.contextWindow` is set. A `usage` event reports each response; `/session` prints totals, cost and context use. Gap rows LLM-11, LLM-28, CMP-07, part of LLM-31 and CLI-22.
+- Design: DES-014
+- Tests: TestEmbeddedCatalogIsValid; TestLookupAcceptsProviderPrefixAndDatedSuffix; TestCostOfUsage; TestUsageArithmetic; TestMergeReplacesAddsAndRejects; TestProvidersReportUsage; TestUsageIsRecordedPricedAndReported; TestUnknownModelHasNoCostAndDefaultWindow; TestCompactionUsesTheProvidersCountAndResetClearsIt; TestUsageIsStoredInPiShapeAndRestored; TestSessionShowsUsageAndCatalogFileOverrides
+
+### REQ-LLM-005 — Thinking levels and blocks, prompt caching
 
 - Status: planned
-- Statement: Each model has known context window, limits and price; usage and cost are tracked per session; thinking levels map to each provider with block replay; prompt caching is on for Anthropic. Gap rows LLM-11, 22, 23, 25, 28.
+- Statement: Thinking levels map to each provider with block replay; prompt caching is on for Anthropic. Gap rows LLM-22, 23, 25.
 - Design: none yet
 
 ### REQ-SESS-002 — Session tree, labels and full Pi entry fidelity

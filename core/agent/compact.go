@@ -51,20 +51,21 @@ func (a *Agent) Compact(ctx context.Context, instructions string) (CompactResult
 		a.OnCompact(cut, summary, res.TokensBefore)
 	}
 	a.History = append([]llm.Message{compact.SummaryMessage(summary)}, a.History[cut:]...)
+	a.lastCtx, a.ctxAt = 0, 0 // the provider's count no longer matches the history
 	res.TokensAfter = compact.EstimateTokens(a.History)
 	return res, nil
 }
 
 // needsCompaction reports whether history plus the system prompt no longer leaves Reserve tokens of room in the window.
 func (a *Agent) needsCompaction(system string) bool {
-	if !a.AutoCompact || a.ContextWindow <= 0 {
+	if !a.AutoCompact {
 		return false
 	}
 	reserve := a.Reserve
 	if reserve <= 0 {
 		reserve = DefaultReserve
 	}
-	return compact.EstimateText(system)+compact.EstimateTokens(a.History) > a.ContextWindow-reserve
+	return a.contextTokens(system) > a.window()-reserve
 }
 
 func compactNotice(r CompactResult) string {

@@ -209,3 +209,30 @@ func TestCompactionNotSavedWhenFileAndConversationDisagree(t *testing.T) {
 		t.Error("enabled:false must switch auto-compaction off")
 	}
 }
+
+func TestSessionShowsUsageAndCatalogFileOverrides(t *testing.T) {
+	isolate(t)
+	a := newApp(t, t.TempDir(), RunOptions{})
+	say(t, a, "hello there")
+	if got := say(t, a, "/session"); !strings.Contains(got, "tokens:") || !strings.Contains(got, "context") {
+		t.Errorf("/session must show usage: %q", got)
+	}
+	home := t.TempDir()
+	if m, ok := loadCatalog(home).Lookup("claude-sonnet-5-5"); !ok || m.ContextWindow == 42 {
+		t.Fatalf("built-in entry: %+v", m)
+	}
+	dir := filepath.Join(home, ".koine")
+	_ = os.MkdirAll(dir, 0o755)
+	f := filepath.Join(dir, "model-catalog.json")
+	_ = os.WriteFile(f, []byte(`{"models":[{"id":"claude-sonnet-5-5","contextWindow":42}]}`), 0o600)
+	if m, _ := loadCatalog(home).Lookup("claude-sonnet-5-5"); m.ContextWindow != 42 {
+		t.Errorf("the user's file overrides: %+v", m)
+	}
+	_ = os.WriteFile(f, []byte(`broken`), 0o600)
+	if _, ok := loadCatalog(home).Lookup("claude-sonnet-5-5"); !ok {
+		t.Error("a broken user file must not remove the built-in catalog")
+	}
+	if len(loadCatalog("").Models) == 0 {
+		t.Error("no home: built-in only")
+	}
+}
