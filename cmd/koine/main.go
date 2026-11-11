@@ -62,8 +62,16 @@ func run(args []string, st streams) int {
 	defer a.Close()
 
 	if c.Resume {
-		fmt.Fprintln(st.Out, app.ListSessions(a.SessionDir()))
-		return 0
+		if !st.InTTY { // piped: just list
+			fmt.Fprintln(st.Out, app.ListSessions(a.SessionDir()))
+			return 0
+		}
+		if ok, err := a.PickResume(st.In, st.Out); err != nil {
+			fmt.Fprintln(st.Err, "koine:", err)
+			return 1
+		} else if !ok {
+			return 0
+		}
 	}
 	if c.Serve != "" {
 		fmt.Fprintf(st.Err, "koine serving on http://%s\n", c.Serve)

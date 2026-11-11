@@ -213,3 +213,27 @@ func TestSessionsPersistContinueAndList(t *testing.T) {
 		t.Errorf("unknown --session: %d", code)
 	}
 }
+
+func TestResumePickerOnATerminal(t *testing.T) {
+	var seen []map[string]any
+	api := fakeAnthropic(t, &seen)
+	defer api.Close()
+	isolate(t, api.URL)
+	dir := t.TempDir()
+	if code, _, errs := cli("", "-C", dir, "-n", "alpha", "remember the number 7"); code != 0 {
+		t.Fatalf("%d %s", code, errs)
+	}
+	var o, e strings.Builder
+	tty := func(in string) streams { return streams{In: strings.NewReader(in), Out: &o, Err: &e, InTTY: true} }
+	if code := run([]string{"-C", dir, "-r"}, tty("q\n")); code != 0 || !strings.Contains(o.String(), "alpha") {
+		t.Errorf("cancelled picker: %d %q %q", code, o.String(), e.String())
+	}
+	seen = nil
+	o.Reset()
+	if code := run([]string{"-C", dir, "-r", "-p", "what number?"}, tty("1\n")); code != 0 {
+		t.Fatalf("picked: %d %q", code, e.String())
+	}
+	if first := firstUserText(seen); first != "remember the number 7" {
+		t.Errorf("the chosen session should be replayed first, got %q", first)
+	}
+}

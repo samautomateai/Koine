@@ -122,7 +122,7 @@ tests, a named test that does not exist, a missing design reference, and duplica
 ### REQ-SESS-001 — Persist and resume sessions
 
 - Status: implemented
-- Statement: Every conversation is saved as it happens to a Pi v3 JSONL file under `~/.koine/sessions/--<cwd>--/` (or `--session-dir`, `$KOINE_SESSION_DIR`), unless `--no-session`. `-c` continues the latest session of the project, `--session ID|PATH|NAME` resumes one, `--fork` starts a copy, `-n` names it, `-r` lists them. In the session, `/new`, `/session`, `/name`, `/resume [ref]` and `/fork` do the same. Pi session files are readable and appendable; a compaction entry on the branch replaces earlier messages with its summary. Gap rows CLI-15, 16, 17 (without a picker), 18 (`--fork`, `/fork`), 19, 20, SESS-01.
+- Statement: Every conversation is saved as it happens to a Pi v3 JSONL file under `~/.koine/sessions/--<cwd>--/` (or `--session-dir`, `$KOINE_SESSION_DIR`), unless `--no-session`. `-c` continues the latest session of the project, `--session ID|PATH|NAME` resumes one, `--fork` starts a copy, `-n` names it, `-r` lists them (a picker on a terminal, REQ-SESS-002). In the session, `/new`, `/session`, `/name`, `/resume [ref]` and `/fork` do the same. Pi session files are readable and appendable; a compaction entry on the branch replaces earlier messages with its summary. Gap rows CLI-15, 16, 17 (without a picker), 18 (`--fork`, `/fork`), 19, 20, SESS-01.
 - Design: DES-011
 - Tests: TestRoundTripKeepsToolCallsAndResultsTogether; TestReadsPiSessionsAndSkipsWhatItCannotRepresent; TestCompactionReplacesEarlierMessagesWithItsSummary; TestOpenRejectsBadFiles; TestNameModelAndFork; TestStoreListLatestResolve; TestSessionIsSavedContinuedAndResumed; TestForkAndNoSession; TestSessionSlashCommands; TestSessionsPersistContinueAndList
 
@@ -176,9 +176,10 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 ### REQ-SESS-002 — Session tree, labels and full Pi entry fidelity
 
-- Status: planned
-- Statement: `/tree` navigation and branch summaries, `/clone`, labels, an interactive resume picker, preserving thinking/image/custom blocks instead of skipping them, migration of v1/v2 files, HTML/JSONL export, usage and cost in `/session`. Extends REQ-SESS-001. Gap rows CLI-17 (picker), 21, 22, 23, 46, SESS-02.
-- Design: none yet
+- Status: implemented
+- Statement: `/tree [filter|id]` lists the entry tree and moves the conversation to an earlier entry (a user message is returned for editing and re-sending as a new branch), optionally summarising the branch it leaves with the compaction summariser (`--summary`; settings `branchSummary.reserveTokens`, `branchSummary.skipPrompt`, `treeFilterMode`). `/label` bookmarks entries, `/clone` copies the branch to a new session, `/fork <id>` starts one from an earlier user message, `/export [file]` writes JSONL or a self-contained HTML page. `-r` and `/resume` offer a numbered picker. Version 1 and 2 files are migrated to version 3 on load. Entries Koine does not interpret (custom, custom_message, thinking and image blocks, unknown fields) are never rewritten by appends and are copied byte for byte by `/clone` and `/fork`. Extends REQ-SESS-001. Gap rows CLI-17, 18 (`/clone`), 21, 22, 23 (`/export`; `--export` and `/share` not built), 46, SESS-02, CMP-06. Sending thinking and image blocks to a model is REQ-LLM-003, not this requirement.
+- Design: DES-020
+- Tests: TestAppendKeepsExistingBytesAndAddsMissingNewline; TestBranchingNavigationAndSummary; TestLabelsFindAndRows; TestRowsDescribeAndNoToolsFilter; TestForkAtKeepsRawLinesAndRelinksSkippedNames; TestExportJSONLAndHTML; TestExportHTMLOtherEntriesAndHostileImages; TestOpenMigratesV1ToV3; TestOpenMigratesV2HookMessages; TestListMigratesInMemoryOnly; TestMigrationErrors; TestTreeListsAndFilters; TestTreeMoveBranchAndSummary; TestTreeSummaryPromptAndSettings; TestTreeSummaryFailureKeepsPosition; TestBranchSummaryBudgetKeepsNewestMessages; TestLabelCommand; TestCloneAndForkFromMessage; TestExportCommand; TestResumePickerNumbersAndChoose; TestTreeCommandsWithoutSessionAndSettings; TestResumePickerOnATerminal; TestChoose
 
 ### REQ-CMP-001 — Compaction and overflow recovery
 

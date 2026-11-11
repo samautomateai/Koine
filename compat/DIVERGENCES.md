@@ -13,6 +13,13 @@
 - Pi's agent directory `~/.pi/agent` is Koine's `~/.koine`; `PI_CODING_AGENT_DIR` is `KOINE_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` is `KOINE_SESSION_DIR`. Koine also reads `~/.pi/agent` and a project's `.pi/` for skills, prompts, extensions, agents, `SYSTEM.md` and `APPEND_SYSTEM.md`, so a Pi setup keeps working.
 - `sessionDir` from a project that is not trusted is not applied (Pi reads it before trust).
 
+## Sessions
+
+- `/tree` summarises the branch it leaves only when asked (`--summary`) or when a frontend answers its question (`App.Choose`); in line mode without a flag it prints a hint instead of showing Pi's three-way prompt. `branchSummary.skipPrompt` removes the question and the hint.
+- Moving to a user message prints its text instead of putting it in an editor, because line mode has none. `doubleEscapeAction` is read and validated but nothing in line mode presses Escape.
+- `/label`, `/fork <id>`, `/export` and the numbered `-r` picker are text commands standing in for Pi's selectors. `/label` is not documented by Pi (its tree selector sets labels), so it is Koine's own.
+- Opening a v1 or v2 file rewrites it as v3 after saving the original as `<file>.v<N>.bak`; Pi's backup behaviour was not checked. The branch summary prompt is the compaction one with extra instructions, not Pi's branch prompt.
+
 ## Models and usage
 
 - Pi reads model metadata from its generated registry and a user `models.json`. Koine ships a small embedded catalog (`core/llm/models.json`) and reads `~/.koine/model-catalog.json` instead, because Pi's `models.json` has a different schema (providers, API keys, compat flags) that Koine does not implement. Prices in the embedded catalog come from third-party price pages and have not been checked against the vendor; the file records its source and check date.

@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 
 	"koine/core/agent"
@@ -56,6 +58,22 @@ func Render(e agent.Event) {
 	}
 }
 
+// choose prints options as a numbered list and reads a number from in. It returns the zero-based index, or -1 when the answer is empty,
+// not a valid number or the input ended.
+func choose(in *bufio.Reader, out io.Writer, title string, options []string) int {
+	_, _ = fmt.Fprintln(out, title)
+	for i, o := range options {
+		_, _ = fmt.Fprintf(out, "%2d  %s\n", i+1, o)
+	}
+	_, _ = fmt.Fprint(out, "number (empty to cancel): ")
+	line, _ := in.ReadString('\n')
+	n, err := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil || n < 1 || n > len(options) {
+		return -1
+	}
+	return n - 1
+}
+
 // Run starts the interactive loop. Ctrl-C cancels a running turn; at the prompt it exits.
 func Run(ctx context.Context, a *app.App) error {
 	info := a.Describe()
@@ -66,6 +84,7 @@ func Run(ctx context.Context, a *app.App) error {
 		fmt.Printf("%swarning: %s%s\n", red, w, reset)
 	}
 	in := bufio.NewReader(os.Stdin)
+	a.Choose = func(title string, options []string) int { return choose(in, os.Stdout, title, options) }
 	for {
 		fmt.Printf("%s› %s", bold, reset)
 		line, err := in.ReadString('\n')
