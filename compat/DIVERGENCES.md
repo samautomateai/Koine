@@ -35,3 +35,22 @@
 
 - `sessionShareDestination`, `collapseChangelog`, `enableInstallTelemetry`, `enableAnalytics`, `selfUpdateCommand` are `by-design` in `compat/settings.json`: Koine has no gist/Radius sharing, update check, telemetry or self-update. They are reported as ignored if set.
 - Files live under `.koine/`, not `.pi/`. Koine-only keys (`model`, `maxTurns`, `hooks`, `plugin`, `providers`, `compaction.contextWindow`) are listed in the `koine` section of `compat/settings.json`.
+
+## Command line
+
+- `--mode json` writes Pi's event records, but Koine does not stream from providers: each content block is one `text_delta` or one tool-call triple. `queue_update`, `entry_appended`, `session_info_changed`, `thinking_level_changed`, compaction and retry events are not written. The message and usage fields follow Pi's session format; they were not compared with Pi's source.
+- `-e`, `--skill` and `--prompt-template` paths load even when the project is not trusted: they are typed by the user, while the trust gate (ADR 0002) guards what is discovered inside the project. `builtin:*` extensions (mcp, codemode, tool-search, llama.cpp) do not exist; `-e builtin:x` only warns.
+- `--theme`, `--use-theme` and `--no-themes` are accepted and ignored with a warning; Koine has no themes (CLI-50). `--tui-mode`, `--no-mcp`, `--offline`, `--verbose`, `--export`, `--session-id` and `-na` are not options here (other rows).
+- `--model` fuzzy matching only knows the model catalog (`core/llm/models.json` plus the user's `model-catalog.json`); an id it does not list is sent as written if its provider is known. Ties between equal matches of one provider take the undated, then the latest id; Pi's own tie-break was not checked. `--models` and `enabledModels` choose the startup model; there is no model cycling.
+- Extension options are read after the extensions load, so a typo in an option name is reported only then (exit 2) and the extensions have started by that time.
+
+## Environment
+
+The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11. Every `PI_*` variable on it, and what Koine does:
+
+- Process markers: `AI_AGENT=pi` is `AI_AGENT=koine`; `PI_CODING_AGENT=true` is `KOINE_CODING_AGENT=true`. Set by the CLI for itself and its children, not when `core/app` is embedded. The `PI_` names are not set.
+- Shell tool session variables, given to the model's bash tool only: `PI_SESSION_ID` is `KOINE_SESSION_ID`; `PI_SESSION_FILE` is `KOINE_SESSION_FILE` (unset without a session file); `PI_PROVIDER` is `KOINE_SESSION_PROVIDER`; `PI_MODEL` is `KOINE_SESSION_MODEL` (not `KOINE_MODEL`, which already means "start with this model"); `PI_REASONING_LEVEL` is `KOINE_SESSION_REASONING_LEVEL`, not set until `--thinking` exists.
+- Directories: `PI_CODING_AGENT_DIR` is `KOINE_AGENT_DIR`; `PI_CODING_AGENT_SESSION_DIR` is `KOINE_SESSION_DIR`.
+- Not applicable, no `KOINE_` counterpart because the feature does not exist: `PI_PACKAGE_DIR` (no packages, a single binary), `PI_OFFLINE` and `PI_SKIP_VERSION_CHECK` (Koine does no catalog refresh or version check), `PI_SELF_UPDATE_COMMAND` (no self-update), `PI_TELEMETRY` (no telemetry), `PI_CODEMODE_MAX_WORKERS` (no codemode), `PI_SHARE_VIEWER_URL` (no `/share`), `PI_RADIUS_GATEWAY` (no `/bug`).
+- Reserved for later, not read yet: `PI_CACHE_RETENTION` as `KOINE_CACHE_RETENTION` (provider caching, LLM area) and the terminal variables `PI_CLEAR_ON_SHRINK`, `PI_HARDWARE_CURSOR`, `PI_CLIPBOARD_OSC52`, `PI_HYPERLINKS`, `PI_PROGRAM_STATUS`, `PI_IMAGE_PROTOCOL`, `PI_TRUE_COLOR`, `PI_TUI_ESC_TIMEOUT` as the same names with `KOINE_` (the line-mode TUI has no use for them).
+- Not `PI_` variables: `HTTP_PROXY` and `HTTPS_PROXY` are honoured by Go's default HTTP transport (not tested here); `VISUAL` and `EDITOR` are unused because Koine has no external-editor feature.

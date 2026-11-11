@@ -103,7 +103,8 @@ func (j *jsonStream) both(msg map[string]any) {
 func usageOf(m llm.Message) map[string]any {
 	u := map[string]any{"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0}
 	if m.Usage != nil {
-		u["input"], u["output"], u["cacheRead"], u["cacheWrite"], u["totalTokens"] = m.Usage.Input, m.Usage.Output, m.Usage.CacheRead, m.Usage.CacheWrite, m.Usage.Total()
+		u["input"], u["output"] = m.Usage.Input, m.Usage.Output
+		u["cacheRead"], u["cacheWrite"], u["totalTokens"] = m.Usage.CacheRead, m.Usage.CacheWrite, m.Usage.Total()
 	}
 	if c := m.Cost; c != nil {
 		u["cost"] = map[string]any{"input": c.Input, "output": c.Output, "cacheRead": c.CacheRead, "cacheWrite": c.CacheWrite, "total": c.Total}

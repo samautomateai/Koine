@@ -203,7 +203,8 @@ for (const rt of runtimes) {
         pi.registerFlag("label", { description: "A label", type: "string", default: "none" });
         pi.registerFlag("bare");
         pi.registerFlag();
-        pi.registerCommand("show", { description: "s", handler: async (a, ctx) => ctx.ui.notify(JSON.stringify([pi.getFlag("plan"), pi.getFlag("label"), pi.getFlag("bare"), pi.getFlag("zzz")])) });
+        const show = async (a, ctx) => ctx.ui.notify(JSON.stringify(["plan", "label", "bare", "zzz"].map((n) => pi.getFlag(n))));
+        pi.registerCommand("show", { description: "s", handler: show });
       }`,
     );
     const { results: r, notes } = await rpc(

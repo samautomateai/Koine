@@ -207,8 +207,9 @@ func TestExplicitResourcesAndTheirProblems(t *testing.T) {
 	writeFile(t, filepath.Join(proj, "emptydir", "readme.txt"), `x`)
 	writeFile(t, filepath.Join(proj, "notes.txt"), `x`)
 	a, err := NewWithOptions(context.Background(), proj, Options{Load: LoadOptions{
-		Extensions: []string{good, "dirext", "jsonext/extension.json", "badjson/extension.json", "badjson", "many", "emptydir", "notes.txt", "missing.mjs", "builtin:mcp"},
-		Skills:     []string{"no-skill"}, PromptTemplates: []string{"no-prompt.md"}, Themes: []string{"x"}, NoThemes: true}})
+		Extensions: []string{good, "dirext", "jsonext/extension.json", "badjson/extension.json", "badjson", "many", "emptydir", "notes.txt",
+			"missing.mjs", "builtin:mcp"},
+		Skills: []string{"no-skill"}, PromptTemplates: []string{"no-prompt.md"}, Themes: []string{"x"}, NoThemes: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +321,8 @@ func TestShellEnvironmentAndMarkers(t *testing.T) {
 func TestListModelsAndTokens(t *testing.T) {
 	isolate(t)
 	home, _ := os.UserHomeDir()
-	writeFile(t, filepath.Join(home, ".koine", "model-catalog.json"), `{"models":[{"id":"tiny","provider":"local","name":"Tiny One","contextWindow":8192,"maxOutput":512}]}`)
+	writeFile(t, filepath.Join(home, ".koine", "model-catalog.json"), `{"models":[{"id":"tiny","provider":"local","name":"Tiny One",
+		"contextWindow":8192,"maxOutput":512}]}`)
 	all := ListModels(home, "")
 	for _, want := range []string{"provider", "claude-opus-5-5", "tiny", "8192", "512", "Tiny One", "1M"} {
 		if !strings.Contains(all, want) {

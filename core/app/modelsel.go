@@ -26,7 +26,8 @@ func inferProvider(id string) string {
 	switch {
 	case strings.HasPrefix(id, "claude"):
 		return "anthropic"
-	case strings.HasPrefix(id, "gpt-"), strings.HasPrefix(id, "chatgpt-"), strings.HasPrefix(id, "o1"), strings.HasPrefix(id, "o3"), strings.HasPrefix(id, "o4"):
+	case strings.HasPrefix(id, "gpt-"), strings.HasPrefix(id, "chatgpt-"),
+		strings.HasPrefix(id, "o1"), strings.HasPrefix(id, "o3"), strings.HasPrefix(id, "o4"):
 		return "openai"
 	}
 	return ""

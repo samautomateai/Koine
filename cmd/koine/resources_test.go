@@ -86,11 +86,14 @@ func TestParseResourceArgs(t *testing.T) {
 			cliArgs{Model: "sonnet", resourceArgs: resourceArgs{Provider: "anthropic", APIKey: "k", Models: []string{"a*", "b", "c"}}}},
 		{"list models alone", []string{"--list-models"}, cliArgs{resourceArgs: resourceArgs{ListModels: true}}},
 		{"list models with search", []string{"--list-models", "sonnet"}, cliArgs{resourceArgs: resourceArgs{ListModels: true, ListSearch: "sonnet"}}},
-		{"list models then option", []string{"--list-models", "-p", "hi"}, cliArgs{Print: true, Message: []string{"hi"}, resourceArgs: resourceArgs{ListModels: true}}},
-		{"list models then file", []string{"--list-models=gpt", "@f"}, cliArgs{Files: []string{"f"}, resourceArgs: resourceArgs{ListModels: true, ListSearch: "gpt"}}},
+		{"list models then option", []string{"--list-models", "-p", "hi"},
+			cliArgs{Print: true, Message: []string{"hi"}, resourceArgs: resourceArgs{ListModels: true}}},
+		{"list models then file", []string{"--list-models=gpt", "@f"},
+			cliArgs{Files: []string{"f"}, resourceArgs: resourceArgs{ListModels: true, ListSearch: "gpt"}}},
 		{"tool adjustments", []string{"-t", "+codemode,-write"}, cliArgs{Tools: []string{"+codemode", "-write"}}},
 		{"unknown long options are kept for extensions", []string{"--plan", "--label=x", "go"},
-			cliArgs{Message: []string{"go"}, resourceArgs: resourceArgs{ExtFlags: map[string]any{"plan": true, "label": "x"}, UnknownLong: []string{"plan", "label"}}}},
+			cliArgs{Message: []string{"go"}, resourceArgs: resourceArgs{
+				ExtFlags: map[string]any{"plan": true, "label": "x"}, UnknownLong: []string{"plan", "label"}}}},
 	}
 	for _, c := range good {
 		got, err := parseArgs(c.in)
@@ -317,6 +320,8 @@ func TestModelSelectionOptions(t *testing.T) {
 		{[]string{"--models", "*opus*"}, "claude-opus-5-5"},
 		{[]string{"--models", "nothing-like-it,claude-opus-5-5"}, "claude-opus-5-5"},
 		{[]string{"--models", "haiku", "--model", "opus"}, "claude-opus-5-5"},
+		{[]string{"--model", "sonnet:high"}, "claude-sonnet-5-5"},
+		{[]string{"--models", "haiku:low,opus"}, "claude-haiku-5-5"},
 	} {
 		if code, got, errs := model(c.args...); code != 0 || got != c.want {
 			t.Errorf("%v: code %d model %q want %q (%s)", c.args, code, got, c.want, errs)
