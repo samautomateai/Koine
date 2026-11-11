@@ -16,11 +16,11 @@ priorities and efforts are judgement calls.
 
 | Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
 | ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
-| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 4      | 11      | 31      | 5         | 10      | 17      |
-| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 21     | 25      | 31      | 0         | 7       | 27      |
+| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 4      | 13      | 29      | 5         | 10      | 17      |
+| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 22      | 22      | 0         | 7       | 19      |
 | Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 1      | 16      | 32      | 0         | 14      | 13      |
 | Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 4      | 19      | 20      | 2         | 10      | 19      |
-| **Total**                                |                          | **30** | **71**  | **114** | **7**     | **41**  | **76**  |
+| **Total**                                |                          | **42** | **70**  | **103** | **7**     | **41**  | **68**  |
 
 Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
 coding agent it is far from Pi. About 14% of behaviours match, and the 41 open P0 items cluster in a few places.
@@ -52,7 +52,7 @@ Sizes are rough (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks of focused w
 | B. Usable for real work | long sessions survive                           | LLM-02 streaming; LLM-11/28 catalog + usage; LLM-25 caching; LLM-22/23 thinking; sessions CLI-15/16/17/19; compaction CMP-01..05, LLM-31               | L    |
 | C. Ecosystem            | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26; tool fidelity EXT-12..14, 20, 45 | L    |
 | D. Packages             | install Pi packages                             | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41                                                         | L    |
-| E. Frontends            | interactive quality                             | compile Bubble Tea and Wails (REQ-FE-002); TUI-02..06, 09; steering/follow-up AGT-02/03; parallel tools AGT-04                                         | L    |
+| E. Frontends            | interactive quality                             | compile Bubble Tea and Wails (REQ-FE-002); TUI-06 (per-tool renderers); steering/follow-up AGT-02/03; parallel tools AGT-04                            | L    |
 | F. Later                |                                                 | OAuth logins (LLM-17..19), more providers (LLM-04..08, 10), `--mode rpc` (CLI-07), HTML export, tree views, images (TOOL-03, LLM-27)                   | L    |
 
 ## Deliberately not copying

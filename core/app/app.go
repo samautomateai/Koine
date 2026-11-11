@@ -53,6 +53,11 @@ type App struct {
 	// NoUserBash turns "!cmd" and "!!cmd" into ordinary prompts. Print, JSON and server runs set it: text piped in or sent over HTTP must not
 	// become a shell command.
 	NoUserBash bool
+	// PrefillEditor, when set by a frontend with an editor, receives the text of the user message a /tree move returned to, instead of a
+	// notice that prints it.
+	PrefillEditor func(text string)
+	// UntrustedCode counts the project extensions, hooks and providers that were not loaded because the folder is not trusted.
+	UntrustedCode int
 
 	// OnMessage, when set, is told of every message added to the conversation, in order, before it is saved (--mode json uses it).
 	OnMessage   func(llm.Message)
@@ -155,7 +160,6 @@ func (a *App) load(ctx context.Context) {
 	}
 	defs := agents.Discover(a.Cwd, a.Home)
 	a.Prompts = a.loadPrompts()
-	a.themeWarnings()
 
 	a.Hooks = &hooks.Runner{Cwd: a.Cwd, SessionID: "koine", ByEvent: cfg.Hooks,
 		Logf: func(f string, args ...any) { a.Warnings = append(a.Warnings, fmt.Sprintf(f, args...)) }}
@@ -189,6 +193,7 @@ func (a *App) load(ctx context.Context) {
 		}
 	}
 	a.Host.SetFlags(a.opts.Load.ExtFlags)
+	a.UntrustedCode = skippedCode
 	if skippedCode > 0 {
 		a.Warnings = append(a.Warnings, fmt.Sprintf(
 			"untrusted folder: %d project extension/hook/provider entr%s NOT loaded — run /trust to enable them (or start with -trust)",

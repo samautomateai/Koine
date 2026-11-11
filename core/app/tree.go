@@ -157,7 +157,9 @@ func (a *App) tree(ctx context.Context, args string, notice func(string)) error 
 		msg += "; summary of the old branch added"
 	}
 	notice(msg)
-	if text != "" {
+	if text != "" && a.PrefillEditor != nil {
+		a.PrefillEditor(text)
+	} else if text != "" {
 		notice("that message is not part of the context now; send it again (edited if you like) to start a new branch:\n" + text)
 	}
 	return nil

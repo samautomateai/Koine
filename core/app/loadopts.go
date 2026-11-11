@@ -23,7 +23,7 @@ type LoadOptions struct {
 	PromptTemplates   []string // --prompt-template: files or directories
 	NoPromptTemplates bool     // -np: skip discovered prompt templates
 	NoContextFiles    bool     // -nc: do not read AGENTS.md and CLAUDE.md files
-	Themes            []string // --theme, --use-theme, --no-themes: accepted, but Koine has no themes yet
+	Themes            []string // --theme, --use-theme, --no-themes: theme files and the theme to use (the last entry unless it is a path)
 	NoThemes          bool
 
 	Provider string   // --provider: restricts --model to one provider
@@ -137,13 +137,6 @@ func (a *App) extensionTargets() (out []extTarget, skipped int) {
 		out, skipped = append(out, found...), skipped+n
 	}
 	return out, skipped
-}
-
-// themeWarnings says that the theme options had no effect.
-func (a *App) themeWarnings() {
-	if l := a.opts.Load; len(l.Themes) > 0 || l.NoThemes {
-		a.Warnings = append(a.Warnings, "themes are not supported yet: --theme, --use-theme and --no-themes were ignored")
-	}
 }
 
 // ExtFlags lists the options the loaded extensions registered with pi.registerFlag.

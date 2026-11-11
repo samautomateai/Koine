@@ -230,7 +230,7 @@ bmp) and piped image data are sent as images, resized to at most 2000 by 2000 pi
       --prompt-template PATH   load a prompt template file or directory (repeatable)
   -np, --no-prompt-templates   do not load discovered prompt templates
   -nc, --no-context-files      do not read AGENTS.md or CLAUDE.md
-      --theme PATH, --use-theme NAME, --no-themes   accepted; Koine has no themes yet
+      --theme PATH, --use-theme NAME, --no-themes   theme files, the theme to use, or none of the discovered ones
   -c, --continue               continue the most recent session in this project
   -r, --resume                 list this project's sessions (resume one with --session ID, or /resume ID in the session)
       --session ID|PATH|NAME   resume that session

@@ -262,7 +262,8 @@ server runs do not do this (`App.NoUserBash`): the text is an ordinary prompt.
 
 ## 7. Slash commands
 
-`/help /clear /exit /quit /tools /skills /agents /commands /model [id[:level]] /thinking [level]`,
+`/help /clear /exit /quit /tools /skills /agents /commands /model [id[:level]] /thinking [level]`, and in the terminal UI `/hotkeys /settings
+/scoped-models /copy /tree`,
 `/skill:<name> [args]`, extension commands (§3.3), then prompt templates (§1).
 `!<command>` and `!!<command>` run a shell command (§6, user commands).
 Anything else is a prompt to the model. Slash commands never reach the model
@@ -277,6 +278,24 @@ and `Describe()`. `emit` receives `agent.Event`:
 { "type": "text|thinking|tool_start|tool_end|notice|error|usage|done", "text": "", "tool": "", "callId": "", "args": {}, "isError": false }
 ```
 
+- **Terminal UI** (REQ-TUI-001, `core/tui`): on a terminal `koine` runs a raw-mode UI in regular (scrollback) mode: finished transcript blocks
+  are printed once and a live area (status line, editor or selector, completion popup, footer) is redrawn each frame. Without a terminal, or with
+  `KOINE_LINE_MODE=1`, it falls back to the line loop. Fullscreen/alt-screen mode (`tuiMode`) and images are not implemented.
+  - Editor: multiline (Shift+Enter, or `\` then Enter), word and line movement, kill ring and yank, undo, bracketed paste (pastes of more than a few
+    lines show as `[paste #n +m lines]` and expand on submit), Up/Down prompt history, Ctrl+G external editor (`externalEditor`, `$VISUAL`,
+    `$EDITOR`), Ctrl+Z suspend, Ctrl+T show/hide thinking, Ctrl+O expand/collapse tool output, Ctrl+L model selector, Ctrl+P / Ctrl+Shift+P cycle
+    the model scope (`--models`, `enabledModels`), Esc interrupts, a second Esc follows `doubleEscapeAction`, Ctrl+C clears the editor, interrupts a
+    running turn, or quits on a second press within a second.
+  - Autocomplete: `/` commands (built-in, extension, prompt templates, skills), `@` file references (fuzzy), Tab path completion.
+  - `keybindings.json` in the agent directory maps Pi's action ids to keys (`"ctrl+x"`, `["ctrl+x","alt+y"]`, `[]` to disable); a configured value
+    replaces the defaults. Ids Koine has no action for are accepted and ignored. `/hotkeys` lists the active bindings.
+  - Themes are JSON files with `vars` (hex, `oklch(...)`, 0-255, references, `""` for the terminal default) and `colors` using Pi's token names.
+    `system`, `dark` and `light` are built in; others come from `<agent dir>/themes`, `.koine/themes` (trusted folders) and `--theme`. Missing
+    tokens are filled from the built-in theme of the same appearance and unknown ones warn. `/reload` reloads them; they are not watched.
+  - Settings acted on: `theme`, `quietStartup`, `editorPaddingX`, `outputPad`, `autocompleteMaxVisible`, `showHardwareCursor`, `externalEditor`,
+    `doubleEscapeAction`, `terminal.{showTerminalProgress,hyperlinks,trueColor}`, `markdown.codeBlockIndent`. `/settings` edits them and writes the
+    user `settings.json` (only when it is plain JSON). A project `externalEditor` is ignored in an untrusted folder.
+  - Rendering, layout and key decoding are pure functions covered by unit tests; only `term_unix.go` touches a terminal (one pty test).
 - **Command line** (`koine [options] [--] [@files] [message]`, REQ-CLI-001): with a message, piped stdin, `-p` or `--mode json` it runs one
   prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines. An `@file` that is an image by its content, and image data
   piped on stdin, are sent as images instead (REQ-CLI-005, REQ-LLM-006); an unreadable image is a usage error like a missing file.
@@ -287,7 +306,7 @@ and `Describe()`. `emit` receives `agent.Event`:
   names and `+`/`-` cannot be mixed); `-xt list` removes tools by name or pattern after everything else; `-nbt` drops the built-in tools and keeps
   extension tools; `-nt` offers none. `-e PATH`, `--skill PATH`, `--prompt-template PATH` add resources (repeatable; a file, or a directory);
   `-ne`, `-ns`, `-np`, `-nc` switch off discovered extensions, skills, prompt templates and `AGENTS.md`/`CLAUDE.md`; explicit paths still load.
-  `--theme`, `--use-theme`, `--no-themes` are accepted and ignored. `--model` takes an id, `provider/id` or part of an id or name; `--provider` limits
+  `--theme PATH` adds a theme file or directory, `--use-theme NAME` picks the theme, `--no-themes` skips discovered ones (§8, terminal UI). `--model` takes an id, `provider/id` or part of an id or name; `--provider` limits
   it to one provider; `--models p1,p2` or `enabledModels` give the scope, whose first model starts the session when no model is set (`--model`,
   `$KOINE_MODEL`, `defaultModel`); `--api-key` replaces the key for this run; `--list-models [search]` lists the catalog. Options registered by an
   extension (`pi.registerFlag`) are `--name` (boolean) or `--name VALUE` / `--name=VALUE` (string); other unknown options exit 2.
