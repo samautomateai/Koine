@@ -22,6 +22,22 @@ const (
 	// ResourcesDiscover is sent after session_start (reason "startup") and after a reload (reason "reload"); handlers answer with
 	// Decision.Resources, paths of skills, prompt templates and themes to load.
 	ResourcesDiscover = "resources_discover"
+
+	// BeforeAgentStart is sent once per prompt, after the input is accepted and before the first model request (Pi's before_agent_start).
+	// Handlers may answer with Decision.SystemPrompt and Decision.Message.
+	BeforeAgentStart = "before_agent_start"
+	// Session lifecycle (REQ-EXT-007). The session_before_* events are gates: a handler that answers Decision.Cancel stops the operation.
+	SessionBeforeSwitch  = "session_before_switch"  // {reason: "new"|"resume", targetSessionFile?}
+	SessionBeforeFork    = "session_before_fork"    // {entryId, position: "before"|"at"}
+	SessionBeforeCompact = "session_before_compact" // {reason: "manual"|"threshold"|"overflow", customInstructions, willRetry}
+	SessionCompact       = "session_compact"        // {compactionEntry, fromExtension: false, reason, willRetry}
+	SessionBeforeTree    = "session_before_tree"    // {preparation: {targetId, oldLeafId, commonAncestorId, userWantsSummary, ...}}
+	SessionTree          = "session_tree"           // {newLeafId, oldLeafId, fromExtension: false}
+	SessionShutdown      = "session_shutdown"       // {reason: "quit"|"reload"|"new"|"resume"|"fork", targetSessionFile?}
+	// ToolExecutionStart, ToolExecutionUpdate and ToolExecutionEnd are Pi's tool progress events, observed by extensions.
+	ToolExecutionStart  = "tool_execution_start"
+	ToolExecutionUpdate = "tool_execution_update"
+	ToolExecutionEnd    = "tool_execution_end"
 )
 
 // Resources are the paths an extension contributes in answer to ResourcesDiscover (Pi's skillPaths, promptPaths and themePaths).
@@ -51,6 +67,30 @@ type Decision struct {
 	Messages     json.RawMessage `json:"messages,omitempty"`
 	SystemAppend string          `json:"systemAppend,omitempty"`
 	Resources    *Resources      `json:"resources,omitempty"` // answer to ResourcesDiscover; paths from several handlers add up
+
+	// Cancel answers a session_before_* gate: the operation does not happen. Like Block it ends the chain of handlers.
+	Cancel bool `json:"cancel,omitempty"`
+	// Handled answers the input event: an extension dealt with the prompt, so no agent run starts and nothing is reported as blocked.
+	Handled bool `json:"handled,omitempty"`
+	// Content replaces the whole result of a tool (tool_result): Pi content blocks, [{type:"text",text}, {type:"image",data,mimeType}].
+	// Output stays the text part of it. Details replaces the tool's details.
+	Content json.RawMessage `json:"content,omitempty"`
+	Details json.RawMessage `json:"details,omitempty"`
+	// Images replaces the images that come with a prompt (input transform): Pi image blocks.
+	Images json.RawMessage `json:"images,omitempty"`
+	// SystemPrompt replaces the whole system prompt for the run (before_agent_start). Message is a custom message to add to the
+	// conversation before the first model request.
+	SystemPrompt *string        `json:"systemPrompt,omitempty"`
+	Message      *CustomMessage `json:"message,omitempty"`
+}
+
+// CustomMessage is a message an extension adds to the conversation (Pi's custom message): it reaches the model as a user message
+// and is stored in the session as a custom_message entry. Display says whether frontends show it.
+type CustomMessage struct {
+	CustomType string          `json:"customType"`
+	Content    string          `json:"content"`
+	Display    bool            `json:"display"`
+	Details    json.RawMessage `json:"details,omitempty"`
 }
 
 func (d *Decision) Merge(o Decision) {
@@ -74,6 +114,30 @@ func (d *Decision) Merge(o Decision) {
 	}
 	if o.Terminate {
 		d.Terminate = true
+	}
+	if o.Cancel {
+		d.Cancel = true
+		if o.Reason != "" {
+			d.Reason = o.Reason
+		}
+	}
+	if o.Handled {
+		d.Handled, d.Block = true, true
+	}
+	if len(o.Content) > 0 {
+		d.Content = o.Content
+	}
+	if len(o.Details) > 0 {
+		d.Details = o.Details
+	}
+	if len(o.Images) > 0 {
+		d.Images = o.Images
+	}
+	if o.SystemPrompt != nil {
+		d.SystemPrompt = o.SystemPrompt
+	}
+	if o.Message != nil {
+		d.Message = o.Message
 	}
 	if len(o.Messages) > 0 {
 		d.Messages = o.Messages
@@ -110,7 +174,7 @@ func (m Multi) Emit(ctx context.Context, name string, payload any) Decision {
 			continue
 		}
 		out.Merge(d.Emit(ctx, name, payload))
-		if out.Block {
+		if out.Block || out.Cancel {
 			return out
 		}
 	}

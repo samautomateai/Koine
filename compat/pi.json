@@ -30,29 +30,28 @@
    "name": "tool_call",
    "status": "verified",
    "test": "conformance",
-   "note": "block + argument rewrite; terminate on a block"
+   "note": "in-place input mutation is applied and seen by later handlers; block/terminate; a throwing handler blocks the call"
   },
   {
    "kind": "event",
    "name": "tool_result",
    "status": "verified",
    "test": "conformance",
-   "note": "output rewrite (text content only); isError override"
+   "note": "chained patches of content (text and images), details and isError; structuredContent and usage are ignored"
   },
   {
    "kind": "event",
    "name": "input",
    "status": "verified",
    "test": "conformance",
-   "note": "handled / transform"
+   "note": "continue/transform/handled with text, images and source; transforms chain; streamingBehavior is passed in RPC mode only"
   },
   {
    "kind": "event",
    "name": "before_agent_start",
    "status": "verified",
-   "host": "system_prompt",
    "test": "conformance",
-   "note": "systemPrompt diff -> systemAppend; systemPromptOptions not provided"
+   "note": "once per prompt: systemPrompt replaces the prompt for the run (chained), message adds a custom message; systemPromptOptions is read-only"
   },
   {
    "kind": "event",
@@ -60,7 +59,7 @@
    "status": "verified",
    "host": "session_start",
    "test": "conformance",
-   "note": "reason is startup|reload only"
+   "note": "reason: startup, reload, new, resume or fork; previousSessionFile for the last three"
   },
   {
    "kind": "event",
@@ -86,8 +85,9 @@
   {
    "kind": "event",
    "name": "session_shutdown",
-   "status": "todo",
-   "note": "not emitted yet; needs shutdown hook + reason/targetSessionFile (Pi 0.68)"
+   "status": "verified",
+   "note": "reason: quit, reload, new, resume or fork; targetSessionFile when a session replaces this one",
+   "test": "app.TestSessionLifecycleEventsReachExtensions"
   },
   {
    "kind": "event",
@@ -99,20 +99,23 @@
   {
    "kind": "event",
    "name": "session_before_compact",
-   "status": "unsupported",
-   "note": "no context compaction yet"
+   "status": "verified",
+   "note": "{reason, customInstructions, willRetry}; { cancel: true } stops the compaction; a custom `compaction` result is ignored; no preparation or signal",
+   "test": "agent.TestCompactionGateAndEvent"
   },
   {
    "kind": "event",
    "name": "session_compact",
-   "status": "unsupported",
-   "note": "no context compaction yet"
+   "status": "verified",
+   "note": "{compactionEntry: {summary, firstKeptEntryId, tokensBefore}, fromExtension: false, reason, willRetry}",
+   "test": "agent.TestCompactionGateAndEvent"
   },
   {
    "kind": "event",
    "name": "session_before_tree",
-   "status": "unsupported",
-   "note": "no session tree yet"
+   "status": "verified",
+   "note": "preparation has targetId, oldLeafId, userWantsSummary, customInstructions; { cancel: true } stops /tree; a summary override is ignored",
+   "test": "app.TestSessionGatesCancelSwitchForkAndTree"
   },
   {
    "kind": "event",
@@ -175,16 +178,16 @@
    "name": "pi.events",
    "status": "verified",
    "shape": "prop",
-   "test": "conformance",
-   "note": "inter-extension event bus (in-process EventEmitter)"
+   "test": "ext.TestEventBusReachesOtherExtensions",
+   "note": "bus shared by all extensions, relayed through the host; the emitter's own listeners run first"
   },
   {
    "kind": "api",
    "name": "pi.sendMessage",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance",
-   "note": "text is logged, not added to the conversation"
+   "test": "app.TestSendMessageAddsACustomMessage",
+   "note": "custom message in the conversation and the session (custom_message entry); during a run it is queued as a user message; renderers are not supported"
   },
   {
    "kind": "api",
@@ -270,14 +273,16 @@
    "name": "ctx.hasUI",
    "status": "verified",
    "shape": "prop",
-   "test": "conformance"
+   "test": "ext.TestUIDialogsAreAnsweredByTheHost",
+   "note": "true in tui and rpc mode, false in print and json mode"
   },
   {
    "kind": "ctx",
    "name": "ctx.mode",
    "status": "verified",
    "shape": "prop",
-   "test": "conformance"
+   "test": "ext.TestUIDialogsAreAnsweredByTheHost",
+   "note": "tui, rpc, json or print, as the host runs"
   },
   {
    "kind": "ctx",
@@ -310,9 +315,10 @@
   {
    "kind": "ctx",
    "name": "ctx.shutdown",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "ext.TestShutdownRequestReachesTheHost",
+   "note": "asks the host to quit once the work in progress is done"
   },
   {
    "kind": "ctx",
@@ -393,52 +399,58 @@
   {
    "kind": "ui",
    "name": "ctx.ui.confirm",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance",
-   "note": "confirm() resolves false; others resolve undefined"
+   "test": "ext.TestUIDialogsAreAnsweredByTheHost",
+   "note": "answered by the active frontend; without one it resolves as cancelled"
   },
   {
    "kind": "ui",
    "name": "ctx.ui.select",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "ext.TestUIDialogsAreAnsweredByTheHost",
+   "note": "answered by the active frontend; without one it resolves as cancelled"
   },
   {
    "kind": "ui",
    "name": "ctx.ui.input",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "ext.TestUIDialogsAreAnsweredByTheHost",
+   "note": "answered by the active frontend; without one it resolves as cancelled"
   },
   {
    "kind": "ui",
    "name": "ctx.ui.editor",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "ext.TestUIDialogsAreAnsweredByTheHost",
+   "note": "single line in the terminal UI; the prefill is not shown"
   },
   {
    "kind": "ui",
    "name": "ctx.ui.setStatus",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "app.TestExtensionSurfacesReachTheFrontend",
+   "note": "status line under the footer (terminal UI) or an extension_ui_request (RPC)"
   },
   {
    "kind": "ui",
    "name": "ctx.ui.setWidget",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "app.TestExtensionSurfacesReachTheFrontend",
+   "note": "string lines above or below the editor; component factories are ignored"
   },
   {
    "kind": "ui",
    "name": "ctx.ui.setTitle",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "app.TestExtensionSurfacesReachTheFrontend",
+   "note": "terminal title (terminal UI) or an extension_ui_request (RPC)"
   },
   {
    "kind": "ui",
@@ -457,9 +469,10 @@
   {
    "kind": "ui",
    "name": "ctx.ui.setWorkingMessage",
-   "status": "inert",
+   "status": "verified",
    "shape": "method",
-   "test": "conformance"
+   "test": "app.TestExtensionSurfacesReachTheFrontend",
+   "note": "replaces the Working message in the terminal UI; a no-op in RPC, as in Pi"
   },
   {
    "kind": "ui",
@@ -919,14 +932,16 @@
   {
    "kind": "event",
    "name": "session_before_fork",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "note": "{entryId, position: before|at}; { cancel: true } stops /fork and /clone; skipConversationRestore is ignored",
+   "test": "app.TestSessionGatesCancelSwitchForkAndTree"
   },
   {
    "kind": "event",
    "name": "session_before_switch",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "note": "{reason: new|resume, targetSessionFile}; { cancel: true } stops /new and /resume",
+   "test": "app.TestSessionGatesCancelSwitchForkAndTree"
   },
   {
    "kind": "event",
@@ -943,26 +958,30 @@
   {
    "kind": "event",
    "name": "session_tree",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "note": "{newLeafId, oldLeafId, fromExtension: false}; summaryEntry is not sent",
+   "test": "app.TestSessionGatesCancelSwitchForkAndTree"
   },
   {
    "kind": "event",
    "name": "tool_execution_end",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "note": "observe-only; no parentToolCallId",
+   "test": "agent.TestToolExecutionEventsReachExtensions"
   },
   {
    "kind": "event",
    "name": "tool_execution_start",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "note": "observe-only; no parentToolCallId",
+   "test": "agent.TestToolExecutionEventsReachExtensions"
   },
   {
    "kind": "event",
    "name": "tool_execution_update",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "note": "observe-only; no parentToolCallId",
+   "test": "agent.TestToolExecutionEventsReachExtensions"
   },
   {
    "kind": "event",
@@ -985,9 +1004,10 @@
   {
    "kind": "api",
    "name": "pi.getCommands",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me",
-   "shape": "method"
+   "status": "verified",
+   "note": "extensions, then prompt templates, then skills, each with sourceInfo; collisions are numbered name:1, name:2",
+   "shape": "method",
+   "test": "app.TestGetCommandsListsExtensionsTemplatesAndSkills"
   },
   {
    "kind": "api",
@@ -1121,10 +1141,10 @@
   {
    "kind": "ctx",
    "name": "ctx.signal",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me",
+   "status": "verified",
+   "note": "the abort signal of the host request being served (event handler or tool call)",
    "shape": "prop",
-   "behavior": "undefined"
+   "test": "ext.TestToolAbortSignalFiresWhenTheCallIsCancelled"
   },
   {
    "kind": "ctx",
@@ -1200,9 +1220,10 @@
   {
    "kind": "ui",
    "name": "ctx.ui.setEditorText",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me",
-   "shape": "method"
+   "status": "verified",
+   "note": "fills the editor (terminal UI) or an extension_ui_request set_editor_text (RPC)",
+   "shape": "method",
+   "test": "app.TestExtensionSurfacesReachTheFrontend"
   },
   {
    "kind": "ui",

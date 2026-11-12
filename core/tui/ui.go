@@ -79,7 +79,7 @@ func NewUI(a *app.App, set Settings, th *Theme, keys *Bindings, width, height in
 	ui := &UI{a: a, set: set, th: th, keys: keys, ed: NewEditor(), width: max(20, width), height: max(5, height), now: now,
 		hideThinking: set.HideThinking, scoped: a.Scope}
 	a.Agent.HideThinking = false // the UI hides thinking itself, so Ctrl+T can bring it back
-	ui.src = Sources{Cwd: a.Cwd, Files: &FileIndex{}, Commands: ui.commandList()}
+	ui.src = Sources{Cwd: a.Cwd, Files: &FileIndex{}, Commands: ui.commandList(), Args: ui.commandArgs}
 	ui.foot = FooterState{Cwd: a.Cwd, Branch: GitBranch(a.Cwd)}
 	ui.foot.Input, ui.foot.Output = a.Agent.Totals.Input, a.Agent.Totals.Output
 	ui.foot.CacheRead, ui.foot.CacheWrite = a.Agent.Totals.CacheRead, a.Agent.Totals.CacheWrite
@@ -203,7 +203,11 @@ func (ui *UI) status() string {
 		return th.Fg("warning", ui.flash)
 	case ui.busy:
 		el := ui.now().Sub(ui.busyAt).Round(time.Second)
-		return th.Fg("accent", spinner[ui.frame%len(spinner)]) + th.Fg("muted", fmt.Sprintf(" Working… %s  (%s to interrupt)", el,
+		msg := "Working…"
+		if w := ui.a.Surfaces().Working; w != "" { // ctx.ui.setWorkingMessage
+			msg = w
+		}
+		return th.Fg("accent", spinner[ui.frame%len(spinner)]) + th.Fg("muted", fmt.Sprintf(" %s %s  (%s to interrupt)", msg, el,
 			firstKey(ui.keys, "app.interrupt")))
 	}
 	return ""
@@ -223,6 +227,7 @@ func (ui *UI) live() (lines []string, row, col int) {
 		lines = append(lines, RenderBlocks(ui.blocks[ui.printed:], ctx)...)
 	}
 	lines = append(lines, ui.status())
+	surf := ui.a.Surfaces() // what extensions set through ctx.ui: widgets around the editor and status entries under it
 	switch {
 	case ui.prompt != nil:
 		lines = append(lines, ui.promptView()...)
@@ -239,13 +244,20 @@ func (ui *UI) live() (lines []string, row, col int) {
 	default:
 		view, r, c := ui.ed.View(ViewOptions{Width: ui.width, PadX: ui.set.EditorPaddingX, Theme: ui.th, HardwareCursor: ui.set.HardwareCursor,
 			BorderToken: ui.borderToken(), Placeholder: ""})
+		lines = append(lines, surf.Above...)
 		row, col = len(lines)+r, c
 		lines = append(lines, view...)
 		if ui.comp != nil {
 			lines = append(lines, ui.comp.View(ui.width, ui.set.AutocompleteMax, ui.th)...)
 		}
 	}
+	if ui.prompt == nil && ui.sel == nil && ui.tree == nil {
+		lines = append(lines, surf.Below...)
+	}
 	lines = append(lines, Footer(ui.foot, ui.a.Home, ui.width, ui.th)...)
+	if len(surf.Statuses) > 0 {
+		lines = append(lines, ui.th.Fg("muted", " "+strings.Join(surf.Statuses, " · ")))
+	}
 	for i := range lines {
 		lines[i] = Truncate(lines[i], ui.width, "")
 	}
@@ -337,6 +349,12 @@ func (ui *UI) Event(e agent.Event) {
 		ui.endTool(e)
 	case "notice":
 		ui.notice(e.Text)
+	case "extension_error":
+		ui.notice("warning: " + e.Text)
+	case "custom_message": // a message an extension added; display says whether it is shown
+		if show, _ := e.Data["display"].(bool); show {
+			ui.notice(fmt.Sprintf("[%v] %s", e.Data["customType"], e.Text))
+		}
 	case "error":
 		ui.add(Block{Kind: "error", Text: e.Text, Final: true})
 	case "usage":

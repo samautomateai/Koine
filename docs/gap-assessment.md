@@ -39,21 +39,21 @@ Most P0 rows trace back to six missing foundations. Fix these in order, because 
 | 6   | **Credentials + MCP**                              | OAuth login (`auth.json` and `!command` secrets done: REQ-AUTH-001; MCP done: REQ-MCP-001)                             | LLM-17..19                  |
 
 Cheap and high-value on their own, independent of the foundations: parent-directory `AGENTS.md` (CTX-01), prompt-template argument fixes
-(TPL-02..04), `ctx.mode`/`hasUI` passed through to extensions (EXT-25), complete shim export lists so extensions do not fail at link time (EXT-07), prompt caching
+(TPL-02..04), `ctx.mode`/`hasUI` passed through to extensions (EXT-25, built), complete shim export lists so extensions do not fail at link time (EXT-07), prompt caching
 (LLM-25), thinking levels with block replay (LLM-22/23).
 
 ## Proposed phases
 
 Sizes are rough (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks of focused work).
 
-| Phase                   | Goal                                            | Contents                                                                                                                                                      | Size |
-| ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| A. Usable in scripts    | `koine -p` behaves like `pi -p`                 | CLI-01..04, 12, 29..31, 48; CTX-01; TPL-02..04; TOOL-12, 13, 17, 18, 20; EXT-25                                                                               | M    |
-| B. Usable for real work | long sessions survive                           | LLM-02 streaming; LLM-11/28 catalog + usage; LLM-25 caching; LLM-22/23 thinking; sessions CLI-15/16/17/19; compaction CMP-01..05, LLM-31                      | L    |
-| C. Ecosystem            | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26; tool fidelity EXT-12..14, 20, 45        | L    |
-| D. Packages             | install Pi packages                             | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41                                                                | L    |
-| E. Frontends            | interactive quality                             | compile Bubble Tea and Wails (REQ-FE-002); TUI-06 (per-tool renderers); steering/follow-up AGT-02/03; parallel tools AGT-04                                   | L    |
-| F. Later                |                                                 | OAuth logins (LLM-17..19), Vertex and Bedrock (LLM-06, 07), more providers (LLM-10), `--mode rpc` (CLI-07), HTML export, tree views, images (TOOL-03, LLM-27) | L    |
+| Phase                   | Goal                                            | Contents                                                                                                                                                                                                           | Size |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| A. Usable in scripts    | `koine -p` behaves like `pi -p`                 | CLI-01..04, 12, 29..31, 48; CTX-01; TPL-02..04; TOOL-12, 13, 17, 18, 20; EXT-25                                                                                                                                    | M    |
+| B. Usable for real work | long sessions survive                           | LLM-02 streaming; LLM-11/28 catalog + usage; LLM-25 caching; LLM-22/23 thinking; sessions CLI-15/16/17/19; compaction CMP-01..05, LLM-31                                                                           | L    |
+| C. Ecosystem            | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26 (built, REQ-EXT-005, REQ-RPC-001); tool fidelity EXT-12..14, 20, 45 (built, REQ-EXT-006..009) | L    |
+| D. Packages             | install Pi packages                             | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41                                                                                                                     | L    |
+| E. Frontends            | interactive quality                             | compile Bubble Tea and Wails (REQ-FE-002); TUI-06 (per-tool renderers); steering/follow-up AGT-02/03; parallel tools AGT-04                                                                                        | L    |
+| F. Later                |                                                 | OAuth logins (LLM-17..19), Vertex and Bedrock (LLM-06, 07), more providers (LLM-10), HTML export, tree views, images (TOOL-03, LLM-27)                                                                             | L    |
 
 ## Deliberately not copying
 
@@ -77,4 +77,4 @@ upstream-tracking pipeline. Keep these when closing gaps.
 ## Requirements this adds
 
 Planned requirements, one per foundation, are in [requirements.md](requirements.md): `REQ-CLI-001`, `REQ-LLM-004`, `REQ-SESS-002`, `REQ-CMP-001`,
-`REQ-MCP-001`, `REQ-PKG-001`, `REQ-EXT-005`, `REQ-TOOL-001`. They cite gap IDs, not test names, because nothing is implemented yet.
+`REQ-MCP-001`, `REQ-PKG-001`, `REQ-EXT-011`, `REQ-TOOL-001`. They cite gap IDs, not test names, because nothing is implemented yet.

@@ -53,14 +53,25 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		emit(queueEvent(s, f)) // queued before the run began: the stream has not seen them yet
 	}
 
-	d := a.dispatch(ctx, events.Input, map[string]any{"text": prompt})
+	d := a.dispatch(ctx, events.Input, a.inputPayload(prompt))
+	if d.Handled { // an extension dealt with the prompt: no run, and nothing to report
+		a.pendingImages = nil
+		a.inputResolved(true)
+		return nil
+	}
 	if d.Block {
+		a.pendingImages = nil
 		emit(Event{Type: "notice", Text: "input blocked: " + d.Reason})
+		a.inputResolved(true)
 		return nil
 	}
 	if d.Text != nil {
 		prompt = *d.Text
 	}
+	if len(d.Images) > 0 {
+		a.pendingImages = imagesFromPi(d.Images)
+	}
+	a.inputResolved(false)
 	var user llm.Message
 	if prompt = a.ExpandInput(prompt); prompt != "" {
 		user = userText(prompt)
@@ -70,7 +81,30 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 	a.pendingImages = nil
 	a.add(user)
 	defer a.dispatch(context.WithoutCancel(ctx), events.AgentEnd, map[string]any{})
+	defer a.beforeAgentStart(ctx, prompt, user.Content)()
+	return a.loop(ctx, emit)
+}
 
+// Continue runs the agent on the conversation as it stands, without a new user message: a custom message an extension added is waiting
+// for an answer (pi.sendMessage with triggerTurn).
+func (a *Agent) Continue(ctx context.Context, emit func(Event)) error {
+	if emit == nil {
+		emit = func(Event) {}
+	}
+	var mu sync.Mutex
+	inner := emit
+	emit = func(e Event) {
+		mu.Lock()
+		defer mu.Unlock()
+		inner(e)
+	}
+	defer a.setActive(emit)()
+	defer a.dispatch(context.WithoutCancel(ctx), events.AgentEnd, map[string]any{})
+	return a.loop(ctx, emit)
+}
+
+// loop makes model requests and runs tools until the model asks for nothing more.
+func (a *Agent) loop(ctx context.Context, emit func(Event)) error {
 	maxTurns := a.MaxTurns
 	if maxTurns <= 0 {
 		maxTurns = 50

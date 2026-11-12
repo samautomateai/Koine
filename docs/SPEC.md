@@ -65,30 +65,47 @@ _Verified by:_ `skills.TestDiscoverAcrossEcosystems`, `prompts.TestDiscoverAndEx
 
 ## 2. Event model
 
-Nine canonical events. A handler may return a **Decision** (all fields optional;
+The canonical events. A handler may return a **Decision** (all fields optional;
 the zero value means "no opinion").
 
-| Event                     | Payload                                      | Decision fields honoured                                                                                                           |
-| ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `session_start`           | `{cwd}`                                      | –                                                                                                                                  |
-| `input`                   | `{text}`                                     | `block` (swallow the prompt), `text` (rewrite it)                                                                                  |
-| `system_prompt`           | `{system}`                                   | `systemAppend`                                                                                                                     |
-| `turn_start` / `turn_end` | `{turn}`                                     | –                                                                                                                                  |
-| `tool_call`               | `{toolName, callId, input}`                  | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `terminate` (with `block`), `args` (replace input) |
-| `tool_result`             | `{toolName, callId, input, output, isError}` | `output` (replace what the model sees), `isError` (override the error flag), `terminate`                                           |
-| `context`                 | `{messages}`                                 | `messages` (replace the conversation for this request; Koine's message shape, not Pi's)                                            |
-| `agent_end`               | `{}`                                         | –                                                                                                                                  |
+| Event                     | Payload                                                                      | Decision fields honoured                                                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `session_start`           | `{cwd, reason, previousSessionFile?}`                                        | –                                                                                                                                   |
+| `input`                   | `{text, source, images?}`                                                    | `block` (swallow the prompt), `handled` (an extension took it; no run), `text` (rewrite it), `images` (replace them)                |
+| `system_prompt`           | `{system}`                                                                   | `systemAppend`                                                                                                                      |
+| `before_agent_start`      | `{prompt, images, systemPrompt, systemPromptOptions}`                        | `systemPrompt` (replaces the prompt for this run), `message` (`{customType, content, display, details?}` added to the conversation) |
+| `turn_start` / `turn_end` | `{turn}`                                                                     | –                                                                                                                                   |
+| `tool_call`               | `{toolName, callId, input}`                                                  | `block`+`reason` (tool is not run; model sees `Blocked: <reason>` as an error), `terminate` (with `block`), `args` (replace input)  |
+| `tool_result`             | `{toolName, callId, input, output, isError, content, details}`               | `output`, `content` (Pi blocks: text and image), `details`, `isError`, `terminate`                                                  |
+| `context`                 | `{messages}`                                                                 | `messages` (replace the conversation for this request; Koine's message shape, not Pi's)                                             |
+| `agent_end`               | `{}`                                                                         | –                                                                                                                                   |
+| `tool_execution_end`      | `{toolCallId, toolName, result, isError}`                                    | –                                                                                                                                   |
+| `tool_execution_update`   | `{toolCallId, toolName, args, partialResult}`                                | –                                                                                                                                   |
+| `tool_execution_start`    | `{toolCallId, toolName, args}`                                               | –                                                                                                                                   |
+| `session_tree`            | `{newLeafId, oldLeafId, fromExtension}`                                      | –                                                                                                                                   |
+| `session_compact`         | `{reason, willRetry, fromExtension, compactionEntry}`                        | –                                                                                                                                   |
+| `session_before_tree`     | `{preparation: {targetId, oldLeafId, userWantsSummary, customInstructions}}` | `cancel` (stop the operation)                                                                                                       |
+| `session_before_compact`  | `{reason, customInstructions, willRetry}`                                    | `cancel` (stop the operation)                                                                                                       |
+| `session_before_fork`     | `{entryId, position: before                                                  | at}`                                                                                                                                | `cancel` (stop the operation) |
+| `session_before_switch`   | `{reason: new                                                                | resume, targetSessionFile?}`                                                                                                        | `cancel` (stop the operation) |
+| `session_shutdown`        | `{reason, targetSessionFile?}`                                               | `cancel` (stop the operation)                                                                                                       |
 
 ```jsonc
 // Decision
 { "block": true, "reason": "…", "args": {…}, "output": "…", "text": "…", "systemAppend": "…",
-  "isError": true, "terminate": true, "messages": [ … ] }
+  "isError": true, "terminate": true, "messages": [ … ],
+  "cancel": true, "handled": true, "content": [ … ], "details": {…}, "images": [ … ],
+  "systemPrompt": "…", "message": { "customType": "…", "content": "…", "display": true } }
 ```
 
 Dispatchers run in order **hooks → extensions**. Decisions merge: `block`
 short-circuits; the last `args`/`output`/`text` wins; `systemAppend` values are
-newline-joined; `terminate` and `isError` are set if any handler sets them and `messages` is the last non-empty one. A handler that errors or times out (30 s extensions, 60 s
-hooks) **fails open** (no decision) and is logged.
+newline-joined; `terminate` and `isError` are set if any handler sets them and `messages` is the last non-empty one. `cancel` (the
+`session_before_*` gates) short-circuits like `block`; `handled` also sets `block`; `content`, `details`, `images`, `systemPrompt` and `message` follow the
+last-wins rule. When several extensions handle one event the host passes what each changed (args, output, `isError`, `content`, `details`, `text`,
+`images`, `systemPrompt`) to the next one in its payload. A host-level failure (an extension that times out after 30 s, hooks after 60 s, or exits)
+**fails open** (no decision) and is logged. Inside the JS sidecar a handler that throws is reported with the `ext_error` notification and the
+extension carries on, except a throwing `tool_call` handler, which **blocks** the call: gates fail closed, observers fail open.
 
 _Agent-loop decisions_ (REQ-AGT-001): the tool calls of one assistant message are first checked in order (`tool_call`), then the allowed ones run
 at the same time; `tool_result` fires as each finishes. The loop stops after a batch only if **every** result in it asked to `terminate` (a
@@ -97,7 +114,19 @@ messages in `llm.Message` form (`role`, `content` blocks of type `text`, `thinki
 ignored with a notice. The JS sidecar maps Pi's `tool_call` `{block, reason, terminate}` and `tool_result` `{content, isError}`, and never
 subscribes Pi handlers to `context`.
 
-_Verified by:_ `events.TestMerge`, `events.TestMultiStopsAtBlock`,
+_Extension API events_ (REQ-EXT-006..008): `tool_call` handlers may change `event.input` in place; the final input becomes `args`. `tool_result` and `input`
+handlers of one extension are chained. `before_agent_start` is sent once per prompt (not per model request). `input.source` is `interactive`,
+`rpc` or `extension`. A `session_before_*` gate answering `{cancel: true}` stops the operation (`/new`, `/resume`, `/fork`, `/clone`, `/tree`, `/compact`
+and automatic compaction); a `compaction`, `summary` or `skipConversationRestore` field in the answer is ignored. `session_shutdown` and
+`session_start` carry `reason`: `quit` (shutdown only), `reload`, `new`, `resume` or `fork`, `startup` (start only), `targetSessionFile` (shutdown) and
+`previousSessionFile` (start). `tool_execution_*` are observe-only and have no parent id. Before `tool_call` the arguments are coerced and checked
+against the tool's schema (`tools.Validate`); invalid ones give the model `Invalid arguments for tool "x":` with a `- path: problem` line each, and
+`tool_call` is not sent. Not sent: `message_*`, `context` (to Pi handlers), the provider events.
+
+_Verified by:_ `events.TestMerge`, `events.TestMultiStopsAtBlock`, `events.TestMergeCarriesTheExtensionAPIFields`, `events.TestMultiStopsAtCancel`,
+`agent.TestInputHandledBlockedAndTransformed`, `agent.TestBeforeAgentStartReplacesThePromptForOneRunAndAddsAMessage`,
+`agent.TestToolExecutionEventsReachExtensions`, `agent.TestCompactionGateAndEvent`, `app.TestSessionGatesCancelSwitchForkAndTree`,
+`app.TestSessionLifecycleEventsReachExtensions`, `tools.TestValidateCoercesLooseValuesTheWayPiDoes`,
 `agent.TestToolCallHooks`, `agent.TestInputHook`, `agent.TestSystemPromptContents`,
 `agent.TestTerminateStopsTheLoopOnlyWhenEveryResultAsksForIt`, `agent.TestContextEventTransformContextAndPrepareNextTurn`.
 
@@ -120,27 +149,47 @@ extension's folder.
 
 ### 3.2 Host → extension (requests; reply required)
 
-| Method            | Params                              | Result                                                                                 |
-| ----------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `initialize`      | `{protocol: 1, host: "koine", cwd}` | `{name?, events?: [string]}` — `events` is the subscription list; omit to receive all. |
-| `event`           | `{name, payload}`                   | a Decision (§2) or `{}`                                                                |
-| `tool.execute`    | `{name, args, callId}`              | `{content: string, isError?: bool}`                                                    |
-| `command.execute` | `{name, args}`                      | `{output: string}`                                                                     |
+| Method             | Params                                                    | Result                                                                                 |
+| ------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `initialize`       | `{protocol: 1, host: "koine", cwd, trusted, mode, hasUI}` | `{name?, events?: [string]}` — `events` is the subscription list; omit to receive all. |
+| `event`            | `{name, payload}`                                         | a Decision (§2) or `{}`                                                                |
+| `tool.execute`     | `{name, args, callId}`                                    | `{content: string, isError?: bool}`                                                    |
+| `command.execute`  | `{name, args}`                                            | `{output: string}`                                                                     |
+| `command.complete` | `{name, prefix}`                                          | `{items: [{value, label}]}`                                                            |
 
-Host → extension **notification**: `shutdown` (exit promptly; killed after 2 s).
+Host → extension **notifications**: `shutdown` (exit promptly; killed after 2 s); `cancel` `{id}` (the host gave up on request `id`: stop
+its work; the JS sidecar aborts that request's `AbortSignal`); `bus_event` `{channel, data}` (`pi.events` from another extension); `host_state`
+`{commands, tools}` (what `pi.getCommands()` and `ctx.tools` answer from); `flags` `{values}`. `mode` is `tui`, `rpc`, `json` or `print`; `hasUI`
+says that a frontend answers dialogs.
 Unknown methods must be answered with error `-32601`.
 
 ### 3.3 Extension → host (notifications; no reply)
 
-| Method              | Params                        | Effect                                                                              |
-| ------------------- | ----------------------------- | ----------------------------------------------------------------------------------- |
-| `register_tool`     | `{name, description, schema}` | adds a tool to the model's tool list (`schema` = JSON Schema, default empty object) |
-| `register_command`  | `{name, description}`         | adds `/name`                                                                        |
-| `log`               | `{level, message}`            | shown with `KOINE_DEBUG=1`                                                          |
-| `send_user_message` | `{text}`                      | injects a user message                                                              |
+| Method              | Params                                                                                     | Effect                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `register_tool`     | `{name, description, schema}`                                                              | adds a tool to the model's tool list (`schema` = JSON Schema, default empty object) |
+| `register_command`  | `{name, description, hasCompletions?}`                                                     | adds `/name`; numbered `name:1`, `name:2` if several extensions use the name        |
+| `log`               | `{level, message}`                                                                         | shown with `KOINE_DEBUG=1`                                                          |
+| `send_user_message` | `{text}`                                                                                   | injects a user message                                                              |
+| `ui`                | `{method, …}` (notify, setStatus, setWidget, setTitle, setWorkingMessage, set_editor_text) | fire-and-forget UI request for the frontend (§12)                                   |
+| `bus_emit`          | `{channel, data}`                                                                          | relayed to the other extensions as `bus_event`                                      |
+| `send_message`      | `{customType, content, display, details?, deliverAs?, triggerTurn?}`                       | `pi.sendMessage`: a custom message in the conversation and the session              |
+| `ext_error`         | `{event, error}`                                                                           | a handler threw; the frontends get an `extension_error` event                       |
+| `shutdown_request`  | `{}`                                                                                       | `ctx.shutdown()`: the host quits when the work in progress is done                  |
 
 `register_tool` may also carry `promptSnippet` (a string, one line for the system prompt's `<tools>` section) and `promptGuidelines`
 (an array of strings, bullets for `<rules>` while the tool is active). Both are optional; `ext.TestRegisteredToolsCarryPromptSnippetAndGuidelines`.
+
+Extension → host **requests** (numbered by the extension; the host answers with a result or an error). They are served on goroutines of their own,
+because a dialog waits for a person:
+
+| Method          | Params                                                                                                  | Result                             |
+| --------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `ui.dialog`     | `{method: select\|confirm\|input\|editor, title, options?, message?, placeholder?, prefill?, timeout?}` | `{value?, confirmed?, cancelled?}` |
+| `tools.execute` | `{name, args}`                                                                                          | `{content: string, isError: bool}` |
+
+A dialog without a frontend, or one that times out (`timeout` in ms), resolves as `{cancelled: true}`. `tools.execute` validates the arguments, runs
+the `tool_call` hook and the tool, and does not add to the transcript.
 
 `initialize` must complete within 30 s. If the process exits mid-call, pending
 calls fail with `extension exited` (no hangs). A 25-line Python reference
@@ -204,21 +253,23 @@ treated as opencode hooks.
 
 ### Pi (`@mariozechner/pi-coding-agent`)
 
-| API                                                                                                                  | Status                                                                                       |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `pi.registerTool({name, description, parameters, execute})`                                                          | ✅ `execute(callId, params, signal, onUpdate, ctx)`; result `{content:[{type:"text",text}]}` |
-| `pi.registerCommand(name, {description, handler})`                                                                   | ✅ `ctx.ui.notify` output is returned to the user                                            |
-| `pi.on("tool_call")` → `{block, reason}`                                                                             | ✅                                                                                           |
-| `pi.on("tool_result")` → `{content}`                                                                                 | ✅ (text content)                                                                            |
-| `pi.on("input")` → `{action: "handled" \| "transform", text}`                                                        | ✅                                                                                           |
-| `pi.on("before_agent_start")` → `{systemPrompt}`                                                                     | ✅ (diffed into `systemAppend`)                                                              |
-| `pi.on("session_start" \| "turn_start" \| "turn_end" \| "agent_end")`                                                | ✅ observe-only                                                                              |
-| `pi.sendUserMessage(text, {deliverAs})`, `pi.exec`, `pi.getActiveTools`                                              | ✅ `deliverAs` `"steer"` queues for after the current tool calls, else a follow-up           |
-| `pi.appendEntry(customType, data)`                                                                                   | ✅ stored as a `custom` session entry; never sent to the model                               |
-| `ctx.ui.*` (select/confirm/input/widgets/status)                                                                     | ⚠️ accepted, inert; `confirm`→`false`, others→`undefined`                                    |
-| `registerProvider`, `registerShortcut`, `registerFlag`, `registerMessageRenderer`, `@mariozechner/pi-tui` components | ⚠️ accepted, inert                                                                           |
-| Pi events not in §2 (e.g. `session_before_compact`, `model_select`)                                                  | ❌ never fired                                                                               |
-| `@mariozechner/pi-ai`: `Type`, `StringEnum`                                                                          | ✅                                                                                           |
+| API                                                                                                                                                               | Status                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `pi.registerTool({name, description, parameters, execute})`                                                                                                       | ✅ `execute(callId, params, signal, onUpdate, ctx)`; result `{content:[{type:"text",text}]}`                |
+| `pi.registerCommand(name, {description, handler})`                                                                                                                | ✅ `ctx.ui.notify` output is returned to the user                                                           |
+| `pi.on("tool_call")` → `{block, reason}`                                                                                                                          | ✅ in-place `event.input` changes apply and chain; a throw blocks the call                                  |
+| `pi.on("tool_result")` → `{content, details, isError}`                                                                                                            | ✅ chained; text and image content                                                                          |
+| `pi.on("input")` → `{action: "handled" \| "transform", text, images}`                                                                                             | ✅ chained; `source` is real                                                                                |
+| `pi.on("before_agent_start")` → `{systemPrompt, message}`                                                                                                         | ✅ once per prompt; the prompt replaces the base prompt for the run; `systemPromptOptions` is read-only     |
+| `pi.on("session_start" \| "turn_start" \| "turn_end" \| "agent_end")`                                                                                             | ✅ observe-only                                                                                             |
+| `pi.on("session_before_*")` → `{cancel}`; `session_shutdown`, `session_compact`, `session_tree`, `tool_execution_*`                                               | ✅ (§2)                                                                                                     |
+| `pi.sendUserMessage(text, {deliverAs})`, `pi.exec`, `pi.getActiveTools`                                                                                           | ✅ `deliverAs` `"steer"` queues for after the current tool calls, else a follow-up                          |
+| `pi.appendEntry(customType, data)`                                                                                                                                | ✅ stored as a `custom` session entry; never sent to the model                                              |
+| `pi.sendMessage`, `pi.getCommands`, `pi.events`, `ctx.executeTool`, `ctx.tools`                                                                                   | ✅ (REQ-EXT-009, 010)                                                                                       |
+| `ctx.ui.select/confirm/input/editor/notify/setStatus/setWidget/setTitle/setWorkingMessage/setEditorText`, `ctx.mode`, `ctx.hasUI`, `ctx.signal`, `ctx.shutdown()` | ✅ dialogs answered by the frontend; `editor` is one line in the terminal UI; component widgets are ignored |
+| `registerProvider`, `registerShortcut`, `registerMessageRenderer`, `ctx.ui.custom/setFooter/setHeader`, `@mariozechner/pi-tui` components                         | ⚠️ accepted, inert                                                                                          |
+| Pi events not in §2 (e.g. `message_*`, `model_select`)                                                                                                            | ❌ never fired                                                                                              |
+| `@mariozechner/pi-ai`: `Type`, `StringEnum`                                                                                                                       | ✅                                                                                                          |
 
 ### opencode (`@opencode-ai/plugin`)
 
@@ -586,3 +637,42 @@ with their `SourceInfo` (`path`, `source`, `scope`, `origin`, `baseDir`).
 _Verified by:_ `pkgs.TestInstallNPMPinsRecordsAndLocks`, `pkgs.TestIntegrityMismatchIsRefusedAndNotRecorded`, `pkgs.TestFilterSemantics`,
 `app.TestPackageResourcesFeedTheLoaders`, `app.TestProjectPackagesStayBehindTheTrustGate`, `app.TestSourceInfoIsAttachedToTheLoadedThings`,
 `koine.TestUpdateShowsTheChangelogOfUpdatedPackages`. Filter precedence, `autoload` and the manifest fallback are Koine's reading of Pi's guide.
+
+## 12. RPC mode (REQ-RPC-001)
+
+`koine --mode rpc` serves Pi's RPC protocol (https://pi.dev/docs/latest/rpc and `rpc-extension-ui`) on standard input and output. Input is strict JSONL
+(records end at LF only). Stdout holds only: one `response` per command, the events of the JSON event stream (§8, `agent_start` … `agent_settled`,
+`extension_error`, `custom_message` as a `message_start`/`message_end` pair) and `extension_ui_request` lines. Notices, errors and warnings go to stderr.
+`@file` arguments are refused (exit 2). A response is `{"type":"response","id"?,"command","success":true,"data"?}` or `… "success":false,"error"}`. A
+line that is not JSON gets `{"type":"response","command":"parse","success":false,"error":"Failed to parse command: …"}`.
+
+| Command                                                                                                      | Answer (`data`)                                                                            |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `prompt` `{message, images?, streamingBehavior?}`                                                            | `{disposition: started\|queued\|handled}`; a busy agent needs `steer` or `followUp`        |
+| `steer`, `follow_up` `{message}`                                                                             | `{disposition: "queued"}`; an extension command is refused                                 |
+| `abort`, `abort_bash`, `clear_queue`                                                                         | nothing; `{steering, followUp}`                                                            |
+| `new_session`, `switch_session` `{sessionPath}`, `clone`, `fork` `{entryId}`                                 | `{cancelled}` (and `text` for `fork`)                                                      |
+| `compact` `{customInstructions?}`                                                                            | `{summary, firstKeptEntryId, tokensBefore, estimatedTokensAfter}`                          |
+| `bash` `{command, excludeFromContext?}`                                                                      | `{output, exitCode, cancelled, truncated, fullOutputPath?}`; `bash_execution_update` lines |
+| `get_state`, `get_messages`, `get_commands`, `get_session_stats`, `get_last_assistant_text`                  | see Pi                                                                                     |
+| `get_entries` `{since?}`, `get_tree`, `get_fork_messages`, `export_html` `{outputPath?}`, `set_session_name` | entries, tree, user messages, `{path}`                                                     |
+| `set_model`, `cycle_model`, `get_available_models`                                                           | model objects                                                                              |
+| `set_thinking_level`, `cycle_thinking_level`, `get_available_thinking_levels`                                | `{level}`, `{levels}`                                                                      |
+| `set_steering_mode`, `set_follow_up_mode` `{mode: all\|one-at-a-time}`, `set_auto_compaction` `{enabled}`    | nothing                                                                                    |
+| `set_auto_retry`, `abort_retry`                                                                              | `success: false`: Koine always retries transient errors                                    |
+
+A `prompt` is answered when its `input` event is settled, not when the run ends. An extension command sent with `prompt` runs at once, even
+while the agent streams, and answers `handled`. The server exits 0 at the end of standard input or when an extension calls `ctx.shutdown()`, after
+the commands in flight finished.
+
+**Extension UI sub-protocol.** `ctx.ui.select`, `confirm`, `input` and `editor` become `{"type":"extension_ui_request","id":"ui-N","method","title",…}` and wait for
+`{"type":"extension_ui_response","id","value"\|"confirmed"\|"cancelled":true}`. A `timeout` (ms) or the extension giving up resolves the dialog as cancelled.
+`notify`, `setStatus` (`statusKey`, `statusText`), `setWidget` (`widgetKey`, `widgetLines`, `widgetPlacement`), `setTitle` (`title`) and
+`set_editor_text` (`text`) are requests that expect no answer. `setWorkingMessage`, footers, headers and components are not sent. Stray responses
+are dropped. `ctx.mode` is `rpc` and `ctx.hasUI` is true.
+
+Koine-specific or undocumented by Pi: the ids `ui-N`; `get_state` leaves out `sessionFile` and `sessionName` when there is none; the exact fields of
+`get_session_stats` and `get_tree` follow the session format; `set_auto_retry` and `abort_retry` fail. None of the shapes was compared with Pi's source.
+
+_Verified by:_ `koine.TestRPCAnswersEveryCommandWithOneResponse`, `koine.TestRPCPromptRunsTheAgentAndSessionCommandsReadTheResult`,
+`koine.TestRPCQueuesMessagesWhileTheAgentRuns`, `koine.TestRPCExtensionDialogsAndShutdown`, `koine.TestRPCModeRefusesFileArguments`.

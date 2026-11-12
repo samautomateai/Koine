@@ -68,7 +68,7 @@ func run(args []string, st streams) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: c.Trust, RunOptions: app.RunOptions{
+	a, err := app.NewWithOptions(ctx, cwd, app.Options{Trust: c.Trust, Mode: c.runMode(st), RunOptions: app.RunOptions{
 		Model: c.Model, System: c.System, AppendSystem: c.AppendSystem, Tools: c.Tools, NoTools: c.NoTools, Thinking: c.Thinking,
 		SessionDir: c.SessionDir, NoSession: c.NoSession, Continue: c.Continue, SessionRef: c.Session, Fork: c.Fork, Name: c.Name},
 		Load: c.loadOptions()})
@@ -103,6 +103,10 @@ func run(args []string, st streams) int {
 		} else if !ok {
 			return 0
 		}
+	}
+	if c.Mode == "rpc" {
+		warnAll(a, st)
+		return runRPC(ctx, a, st)
 	}
 	if c.Serve != "" {
 		warnAll(a, st)

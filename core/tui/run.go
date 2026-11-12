@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"koine/core/agent"
@@ -45,13 +46,15 @@ func RunWith(ctx context.Context, a *app.App, o Options) error {
 type msg any
 
 type (
-	inputMsg   []byte
-	eventMsg   agent.Event
-	escMsg     struct{}
-	resizeMsg  struct{}
-	inputEnd   struct{}
-	prefillMsg string
-	doneMsg    struct {
+	inputMsg    []byte
+	eventMsg    agent.Event
+	uiMsg       struct{}
+	shutdownMsg struct{}
+	escMsg      struct{}
+	resizeMsg   struct{}
+	inputEnd    struct{}
+	prefillMsg  string
+	doneMsg     struct {
 		quit        bool
 		err         error
 		interrupted bool
@@ -162,7 +165,9 @@ func Loop(ctx context.Context, a *app.App, term Terminal, o Options) error {
 		}
 	}
 	a.PrefillEditor = func(t string) { send(prefillMsg(t)) }
-	defer func() { a.Choose, a.PrefillEditor, a.Prompt = nil, nil, nil }()
+	a.UIChanged = func() { send(uiMsg{}) }
+	a.OnShutdown = func() { send(shutdownMsg{}) }
+	defer func() { a.Choose, a.PrefillEditor, a.Prompt, a.UIChanged, a.OnShutdown = nil, nil, nil, nil, nil }()
 
 	l := &loop{ctx: lctx, a: a, ui: ui, term: term, out: out, env: env, send: send, set: set}
 	ui.StartupPrompts()
@@ -199,6 +204,7 @@ type loop struct {
 	buf     []byte
 	cancel  context.CancelFunc
 	wasBusy bool
+	title   string // the terminal title last written
 }
 
 func (l *loop) handle(m msg) {
@@ -225,6 +231,9 @@ func (l *loop) handle(m msg) {
 		ui.Prompt(m.question, m.secret, func(t string, ok bool) { m.reply <- promptReply{t, ok} })
 	case prefillMsg:
 		ui.Prefill(string(m))
+	case uiMsg: // an extension changed a status, widget or title: the next frame shows it
+	case shutdownMsg: // ctx.shutdown() from an extension
+		ui.quit = true
 	case resizeMsg:
 		w, h := l.term.Size()
 		ui.Resize(w, h)
@@ -298,4 +307,20 @@ func (l *loop) external(text string) {
 	ui.afterEdit()
 }
 
-func (l *loop) draw() { _, _ = io.WriteString(l.out, l.ui.Frame()) }
+func (l *loop) draw() {
+	_, _ = io.WriteString(l.out, l.ui.Frame())
+	if t := l.ui.a.Surfaces().Title; t != l.title { // ctx.ui.setTitle
+		l.title = t
+		_, _ = io.WriteString(l.out, "\x1b]0;"+sanitizeTitle(t)+"\x07")
+	}
+}
+
+// sanitizeTitle drops control characters, so an extension cannot end the title sequence and write its own escapes.
+func sanitizeTitle(t string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
+			return -1
+		}
+		return r
+	}, t)
+}

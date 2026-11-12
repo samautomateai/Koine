@@ -87,6 +87,11 @@ func runLines(ctx context.Context, a *app.App) error {
 	}
 	in := bufio.NewReader(os.Stdin)
 	a.Choose = func(title string, options []string) int { return choose(in, os.Stdout, title, options) }
+	a.Prompt = func(question string, _ bool) (string, error) { // extension dialogs (input, editor) and /login read a line from the input
+		fmt.Print(question + ": ")
+		line, err := in.ReadString('\n')
+		return strings.TrimRight(line, "\r\n"), err
+	}
 	for {
 		fmt.Printf("%s› %s", bold, reset)
 		line, err := in.ReadString('\n')

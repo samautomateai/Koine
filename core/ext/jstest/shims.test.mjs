@@ -122,13 +122,13 @@ for (const rt of runtimes) {
         ["event", { name: "tool_result", payload: { toolName: "read", output: "abc" } }],
         ["event", { name: "input", payload: { text: "swallow" } }],
         ["event", { name: "input", payload: { text: "x" } }],
-        ["event", { name: "system_prompt", payload: { system: "BASE" } }],
+        ["event", { name: "before_agent_start", payload: { prompt: "p", systemPrompt: "BASE" } }],
         ["event", { name: "throws", payload: {} }],
         ["bogus", {}],
       ],
       rt,
     );
-    assert.deepEqual(r[0].result.events.sort(), ["input", "system_prompt", "throws", "tool_call", "tool_result"]);
+    assert.deepEqual(r[0].result.events.sort(), ["before_agent_start", "input", "throws", "tool_call", "tool_result"]);
     assert.equal(r[1].result.content, "got v c9");
     assert.match(r[2].error.message, /unknown tool/);
     assert.equal(r[3].result.output, "notified A");
@@ -136,9 +136,9 @@ for (const rt of runtimes) {
     assert.deepEqual([r[5].result.block, r[5].result.reason], [true, "no bash"]);
     assert.equal(r[6].result.block, undefined);
     assert.equal(r[7].result.output, "ABC");
-    assert.equal(r[8].result.block, true);
+    assert.equal(r[8].result.handled, true);
     assert.equal(r[9].result.text, "y");
-    assert.equal(r[10].result.systemAppend, "PI-EXTRA");
+    assert.equal(r[10].result.systemPrompt, "BASE\nPI-EXTRA");
     assert.deepEqual(r[11].result, {});
     assert.equal(r[12].error.code, -32601);
     const t1 = notes.find((n) => n.method === "register_tool" && n.params.name === "t1");
@@ -146,7 +146,7 @@ for (const rt of runtimes) {
     assert.equal(t1.params.promptSnippet, "Gets t1");
     assert.deepEqual(t1.params.promptGuidelines, ["Use t1 for t1."]);
     assert.ok(notes.some((n) => n.method === "register_command" && n.params.name === "cmd"));
-    assert.ok(notes.some((n) => n.method === "log" && /handler bug/.test(n.params.message)));
+    assert.ok(notes.some((n) => n.method === "ext_error" && /handler bug/.test(n.params.error)));
   });
 
   test(`runner: opencode plugin (${rt.runtime})`, async () => {

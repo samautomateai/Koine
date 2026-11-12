@@ -4,7 +4,6 @@
   "ctx.model",
   "ctx.modelRegistry",
   "ctx.scopedModels",
-  "ctx.signal",
   "ctx.thinkingLevel"
  ],
  "identityProps": [

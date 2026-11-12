@@ -126,3 +126,11 @@ func (a *Agent) deliver(texts []string, emit func(Event)) bool {
 	}
 	return len(texts) > 0
 }
+
+// Running reports whether a run is in progress.
+func (a *Agent) Running() bool {
+	q := &a.queue
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.active != nil
+}

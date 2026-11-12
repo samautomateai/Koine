@@ -371,7 +371,7 @@ func TestReloadModelAndCompat(t *testing.T) {
 	write(t, cwd, ".pi/extensions/e.mjs", `export default (pi) => {
 	  pi.registerShortcut("ctrl+x", {});            // known, inert
 	  pi.someFutureApi({a:1});                       // unknown to koine
-	  pi.on("tool_call", async (e, ctx) => { ctx.ui.setStatus("k","v"); ctx.ui.brandNewThing.deep(); });
+	  pi.on("tool_call", async (e, ctx) => { ctx.ui.setFooter("k"); ctx.ui.brandNewThing.deep(); });
 	}`)
 	a, _ := New(ctx, cwd)
 	defer a.Close()
@@ -382,7 +382,7 @@ func TestReloadModelAndCompat(t *testing.T) {
 	rep := strings.Join(a.CompatReport(), "\n")
 	wants := []string{
 		"inert       pi.registerShortcut", "unsupported pi.someFutureApi",
-		"inert       ctx.ui.setStatus", "unsupported ctx.ui.brandNewThing.deep",
+		"inert       ctx.ui.setFooter", "unsupported ctx.ui.brandNewThing.deep",
 	}
 	for _, want := range wants {
 		if !strings.Contains(rep, want) {

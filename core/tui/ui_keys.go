@@ -329,7 +329,7 @@ func (ui *UI) Ask(title string, options []string, done func(int)) {
 // typedInFull reports whether the token under the popup already is the selected command, so Enter should send it rather than complete it.
 func (ui *UI) typedInFull() bool {
 	c := ui.comp
-	if c.Kind != "command" || c.Sel >= len(c.Items) {
+	if (c.Kind != "command" && c.Kind != "arg") || c.Sel >= len(c.Items) {
 		return false
 	}
 	return string(ui.ed.lines[ui.ed.Row][c.Start:min(c.End, len(ui.ed.lines[ui.ed.Row]))]) == strings.TrimSpace(c.Items[c.Sel].Value)

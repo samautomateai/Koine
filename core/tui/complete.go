@@ -45,6 +45,8 @@ type Sources struct {
 	Commands []Command
 	Cwd      string
 	Files    *FileIndex
+	// Args suggests arguments for the command typed so far (an extension's getArgumentCompletions); nil = none.
+	Args func(command, prefix string) []Suggestion
 }
 
 // Complete works out what to offer for the line up to col (in runes). row is the editor row; slash commands only complete on the first.
@@ -56,6 +58,9 @@ func Complete(line []rune, row, col int, src Sources, forced bool) *Completion {
 		start--
 	}
 	tok := string(line[start:col])
+	if c := completeArgs(line, row, col, src); c != nil {
+		return c
+	}
 	switch {
 	case row == 0 && start == 0 && strings.HasPrefix(tok, "/") && !strings.Contains(tok[1:], "/"):
 		return completeCommand(tok[1:], src.Commands, start, col)

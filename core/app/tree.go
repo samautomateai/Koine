@@ -12,6 +12,7 @@ import (
 
 	"koine/core/agent"
 	"koine/core/compact"
+	"koine/core/events"
 	"koine/core/session"
 )
 
@@ -38,9 +39,9 @@ func (a *App) treeCommand(ctx context.Context, name, args string, emit func(agen
 	case "label":
 		err = a.label(args, notice)
 	case "clone":
-		err = a.cloneAt(a.Session.Leaf(), "", notice)
+		err = a.cloneAt(ctx, a.Session.Leaf(), "at", "", notice)
 	case "fork":
-		err = a.forkFrom(args, notice)
+		err = a.forkFrom(ctx, args, notice)
 	case "export":
 		err = a.export(args, notice)
 	}
@@ -139,6 +140,11 @@ func (a *App) tree(ctx context.Context, args string, notice func(string)) error 
 			notice("the branch you are leaving was not summarised; add --summary to do that, or set branchSummary.skipPrompt to stop this hint")
 		}
 	}
+	prep := map[string]any{"targetId": e.ID, "oldLeafId": old, "userWantsSummary": summarise && len(left) > 0, "customInstructions": focus}
+	if a.gate(ctx, events.SessionBeforeTree, map[string]any{"preparation": prep}) {
+		notice("cancelled by an extension")
+		return nil
+	}
 	summary := ""
 	if summarise && len(left) > 0 {
 		if summary, err = a.summariseBranch(ctx, left, focus); err != nil {
@@ -152,6 +158,7 @@ func (a *App) tree(ctx context.Context, args string, notice func(string)) error 
 		}
 	}
 	a.Agent.SetHistory(s.Messages())
+	a.emitEvent(ctx, events.SessionTree, map[string]any{"newLeafId": s.Leaf(), "oldLeafId": old, "fromExtension": false})
 	msg := fmt.Sprintf("moved to %s; %d messages in context", e.ID, len(a.Agent.History))
 	if summary != "" {
 		msg += "; summary of the old branch added"
@@ -265,13 +272,21 @@ func (a *App) label(args string, notice func(string)) error {
 }
 
 // cloneAt copies the branch ending at leaf into a new session file and switches to it.
-func (a *App) cloneAt(leaf, text string, notice func(string)) error {
+// position is "at" for /clone (the branch up to the entry) and "before" for /fork (up to the message before it), as session_before_fork says.
+func (a *App) cloneAt(ctx context.Context, leaf, position, text string, notice func(string)) error {
+	if a.gate(ctx, events.SessionBeforeFork, map[string]any{"entryId": leaf, "position": position}) {
+		notice("cancelled by an extension")
+		return nil
+	}
 	f, err := a.Session.ForkAt(a.SessionDir(), a.Cwd, leaf)
 	if err != nil {
 		return err
 	}
+	prev := a.sessionFile()
+	a.leaving(ctx, "fork", f.Path)
 	a.setSession(f)
 	a.Agent.SetHistory(f.Messages())
+	a.arrived(ctx, "fork", prev)
 	notice("cloned into " + shortID(f.ID))
 	if text != "" {
 		notice("send this message again (edited if you like) to continue from there:\n" + text)
@@ -280,7 +295,7 @@ func (a *App) cloneAt(leaf, text string, notice func(string)) error {
 }
 
 // forkFrom starts a new session from an earlier user message: /fork <id>. The message itself is left out so it can be sent again.
-func (a *App) forkFrom(ref string, notice func(string)) error {
+func (a *App) forkFrom(ctx context.Context, ref string, notice func(string)) error {
 	e, err := a.Session.Find(ref)
 	if err != nil {
 		return err
@@ -289,7 +304,7 @@ func (a *App) forkFrom(ref string, notice func(string)) error {
 	if text == "" {
 		return fmt.Errorf("%s is not a user message; /fork needs one (use /clone for the current position)", e.ID)
 	}
-	return a.cloneAt(leaf, text, notice)
+	return a.cloneAt(ctx, leaf, "before", text, notice)
 }
 
 // export handles /export [file]: .jsonl writes the session file as stored, anything else (default <id>.html) a self-contained HTML page.

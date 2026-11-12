@@ -68,7 +68,7 @@ test("loop: tool_call block with terminate, and tool_result isError, reach the d
   const results = await session(decisions, decisionSteps);
   assert.deepEqual(results[1].result, { block: true, reason: "enough", terminate: true });
   assert.deepEqual(results[2].result, { block: true, reason: "blocked" });
-  assert.deepEqual(results[3].result, { isError: true, output: "changed" });
+  assert.deepEqual(results[3].result, { isError: true, output: "changed", content: [{ type: "text", text: "changed" }] });
   assert.deepEqual(results[4].result ?? {}, {});
 });
 
