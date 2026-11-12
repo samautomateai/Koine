@@ -117,8 +117,8 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 
-  # The two frontend modules (REQ-FE-002): separate go.mod files with third-party dependencies (ADR 0013), built here with the Wails system
-  # libraries. Their go.sum files are committed; `go mod tidy -diff` fails on drift. The RPC client they share is gated by the `go` job.
+  # The two frontend modules (REQ-FE-002): separate go.mod files with third-party dependencies (ADR 0013), built here with the Wails v3 system
+  # libraries (GTK 4, WebKitGTK 6.0; ADR 0015). Their go.sum files are committed; `go mod tidy -diff` fails on drift. The RPC client they share is gated by the `go` job.
   frontends:
     name: Frontends · ${{ matrix.module }} build, vet, test
     runs-on: ubuntu-latest
@@ -136,13 +136,6 @@ jobs:
       - name: Wails v3 system libraries (GTK 4 and WebKitGTK 6.0)
         if: matrix.module == 'desktop'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libgtk-4-dev libwebkitgtk-6.0-dev pkg-config
-      - name: TEMP print tidy result
-        if: matrix.module == 'desktop'
-        working-directory: desktop
-        run: |
-          go mod tidy
-          echo "=====GOMOD====="; cat go.mod; echo "=====GOSUM====="; cat go.sum; echo "=====END====="
-          go list -m all | grep -i -E 'labstack|wails' || true
       - name: go.mod and go.sum are tidy
         working-directory: ${{ matrix.module }}
         run: go mod tidy -diff

@@ -42,7 +42,7 @@ type Info struct {
 	Commands []rpcclient.Command `json:"commands"`
 }
 
-// Backend is bound to the page (window.go.bridge.Backend.*). It drives `koine --mode rpc` through core/rpcclient and keeps the transcript;
+// Backend is bound to the page (through desktop's Service, which Wails exposes as main.Service.*). It drives `koine --mode rpc` through core/rpcclient and keeps the transcript;
 // the page only draws it. emit is Wails' EventsEmit in the app and a recorder in tests.
 type Backend struct {
 	emit func(name string, data ...any)
