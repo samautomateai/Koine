@@ -1,5 +1,5 @@
 // Package server exposes the app over HTTP + Server-Sent Events, for Electron,
-// browser or remote frontends. (The Wails desktop app binds the core directly.)
+// browser or remote frontends. (The Wails desktop app drives `koine --mode rpc` instead.)
 package server
 
 import (

@@ -40,11 +40,13 @@
     <button id="go" type="submit">Send</button>
   </form>
 </main>
-<script>
+<script type="module">
+import { Call, Events } from "/wails/runtime.js";
 // The Go side (desktop/bridge) keeps the transcript; this page draws the entries it is sent, by index.
 const $ = (id) => document.getElementById(id);
 const log = $("log"), t = $("t"), go = $("go");
-const api = () => window.go.bridge.Backend;
+// Service methods are called by name (package.type.method); nothing is generated.
+const api = new Proxy({}, { get: (_, m) => (...args) => Call.ByName("main.Service." + m, ...args) });
 let busy = false, dialog = null;
 const nodes = [];
 
@@ -73,7 +75,7 @@ function showDialog(d) {
   const box = document.createElement("div"); box.className = "msg dialog";
   const h = document.createElement("div"); h.className = "user"; h.textContent = d.title + (d.message ? " — " + d.message : "");
   box.appendChild(h);
-  const done = (value, yes) => { api().Answer(value, yes); };
+  const done = (value, yes) => { api.Answer(value, yes); };
   if (d.method === "select") {
     d.options.forEach((o) => { const b = document.createElement("button"); b.textContent = o; b.onclick = () => done(o, false); box.appendChild(b); });
   } else if (d.method === "confirm") {
@@ -82,7 +84,7 @@ function showDialog(d) {
     const i = document.createElement("input"); i.value = d.prefill || ""; i.placeholder = d.placeholder || ""; box.appendChild(i);
     const b = document.createElement("button"); b.textContent = "OK"; b.onclick = () => done(i.value, false); box.appendChild(b);
   }
-  const c = document.createElement("button"); c.className = "stop"; c.textContent = "Cancel"; c.onclick = () => api().Dismiss(); box.appendChild(c);
+  const c = document.createElement("button"); c.className = "stop"; c.textContent = "Cancel"; c.onclick = () => api.Dismiss(); box.appendChild(c);
   log.appendChild(box); log.scrollTop = log.scrollHeight;
 }
 
@@ -98,7 +100,7 @@ function onUpdate(u) {
 }
 
 async function refresh() {
-  const i = await api().Info();
+  const i = await api.Info();
   $("cwd").textContent = (i.model ? i.model + " · " : "") + i.cwd;
   const ul = $("commands"); ul.replaceChildren();
   (i.commands || []).forEach((c) => {
@@ -108,14 +110,12 @@ async function refresh() {
   });
 }
 
-function send() { const v = t.value.trim(); if (!v) return; t.value = ""; api().Send(v); }
-$("f").addEventListener("submit", (ev) => { ev.preventDefault(); busy ? api().Cancel() : send(); });
+function send() { const v = t.value.trim(); if (!v) return; t.value = ""; api.Send(v); }
+$("f").addEventListener("submit", (ev) => { ev.preventDefault(); busy ? api.Cancel() : send(); });
 t.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(); } });
 
-window.addEventListener("load", () => {
-  window.runtime.EventsOn("koine:update", onUpdate);
-  setTimeout(refresh, 500); // the agent process finishes starting asynchronously
-});
+Events.On("koine:update", (ev) => onUpdate(ev.data));
+setTimeout(refresh, 500); // the agent process finishes starting asynchronously
 </script>
 </body>
 </html>

@@ -45,29 +45,23 @@ tasks:
       - go run .
 
   desktop:dev:
-    desc: Run the Wails v2 desktop app in dev mode (needs the wails CLI)
+    desc: Run the Wails v3 desktop app (needs the koine binary and, on Linux, GTK 4 and WebKitGTK 6.0 development packages)
     dir: desktop
-    preconditions:
-      - sh: command -v wails
-        msg: "install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
     cmds:
       - go mod tidy
-      - wails dev
+      - go run .
 
   desktop:build:
-    desc: Build the Wails v2 desktop app
+    desc: Build the Wails v3 desktop app (bin/koine-desktop; no wails3 CLI needed, the page has no build step)
     dir: desktop
-    preconditions:
-      - sh: command -v wails
-        msg: "install the wails CLI: go install github.com/wailsapp/wails/v2/cmd/wails@latest"
     cmds:
       - go mod tidy
-      - wails build
+      - go build -o ../bin/koine-desktop .
 
   frontends:test:
-    desc: Build, vet and test the Bubble Tea and Wails modules (needs network; Wails needs GTK 3 and WebKitGTK 4.1 on Linux)
+    desc: Build, vet and test the Bubble Tea and Wails modules (needs network; Wails v3 needs GTK 4 and WebKitGTK 6.0 on Linux)
     cmds:
-      - for d in tui-bubbletea desktop; do (cd $d && go mod tidy && go build -tags webkit2_41 ./... && go vet -tags webkit2_41 ./... && go test -tags webkit2_41 -race -count=1 -cover ./...); done
+      - for d in tui-bubbletea desktop; do (cd $d && go mod tidy && go build ./... && go vet ./... && go test -race -count=1 -cover ./...); done
 
   # ---- quality -----------------------------------------------------------
   fmt:

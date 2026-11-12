@@ -13,7 +13,7 @@ in any language are all adapters onto those two things.
 ┌────────────┐   ┌──────────────────────────────────────────┐   ┌──────────────────────────┐
 │ line TUI   │   │ app ── agent loop ── llm.Provider        │   │ JS sidecar (bun / node)  │
 │ Bubble Tea │──▶│        │      │                          │   │  ├ Pi extensions (.ts/.js)│
-│ Wails v2   │   │        │      └ tools.Registry ◀──────────┼──▶│  └ opencode plugins       │
+│ Wails v3   │   │        │      └ tools.Registry ◀──────────┼──▶│  └ opencode plugins       │
 │ HTTP + SSE │   │        └ events.Dispatcher ──┬───────────┼──▶│ any-language process      │
 └────────────┘   │   skills · prompts · agents  │ hooks.Runner ▶ shell commands (Claude hooks)│
                  └──────────────────────────────────────────┘   └──────────────────────────┘
@@ -430,7 +430,7 @@ and `Describe()`. `emit` receives `agent.Event`:
     `doubleEscapeAction`, `terminal.{showTerminalProgress,hyperlinks,trueColor}`, `markdown.codeBlockIndent`. `/settings` edits them and writes the
     user `settings.json` (only when it is plain JSON). A project `externalEditor` is ignored in an untrusted folder.
   - Rendering, layout and key decoding are pure functions covered by unit tests; only `term_unix.go` touches a terminal (one pty test).
-- **Bubble Tea and desktop frontends** (REQ-FE-002, REQ-FE-003, ADR 0013): `tui-bubbletea/` and `desktop/` (Wails v2) are separate modules that start
+- **Bubble Tea and desktop frontends** (REQ-FE-002, REQ-FE-003, ADR 0013): `tui-bubbletea/` and `desktop/` (Wails v3, ADR 0015) are separate modules that start
   `koine --mode rpc` (binary from `$KOINE_BIN`, next to the program, or on `PATH`) and show its events through `core/rpcclient`. Arguments given to
   the Bubble Tea program are passed to koine (`-C DIR`, `--model`, ...); the desktop app uses `$KOINE_CWD` as the directory. Enter sends a prompt, and
   while the agent runs it steers (`streamingBehavior: steer`); Esc aborts; extension dialogs (`select`, `confirm`, `input`, `editor`) are answered in
@@ -561,8 +561,8 @@ and `Describe()`. `emit` receives `agent.Event`:
   `POST /api/prompt {"text": …}` → `text/event-stream` of events then `done`;
   `409` if a run is in progress, `400` on a bad body; client disconnect cancels the run. `POST /api/steer` and `POST /api/follow-up` queue a message.
   This is the integration point for an Electron UI.
-- **Wails v2** (`desktop/`): `Backend.Info()`, `Backend.Send(text)`, `Backend.Cancel()`;
-  events on `koine:event`, completion on `koine:done`.
+- **Wails v3** (`desktop/`): the `main.Service` calls `Info()`, `Send(text)`, `Cancel()`, `Answer(value, yes)` and `Dismiss()`, invoked by name from the page
+  (`Call.ByName("main.Service.Send", text)`); one `koine:update` event per change carries the transcript entries that changed.
 - **Bubble Tea** (`tui-bubbletea/`): same calls, in-process.
 
 _Verified by:_ `server` tests, `tui` tests, `cmd/koine.TestServeMode`.

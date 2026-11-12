@@ -5,7 +5,7 @@ extensibility is **language-agnostic** and **drop-in compatible** with existing
 Pi extensions, opencode plugins, Claude-style hooks and `SKILL.md` skills.
 
 - **Core** (`core/`): agent loop, tools, skills/prompts/sub-agents loader, event model, extension host. Standard library only.
-- **Frontends**: line-mode TUI (`cmd/koine`, no deps) · Bubble Tea TUI (`tui-bubbletea/`) · Wails v2 desktop (`desktop/`) · HTTP/SSE server (`koine -serve`) for Electron or the browser.
+- **Frontends**: line-mode TUI (`cmd/koine`, no deps) · Bubble Tea TUI (`tui-bubbletea/`) · Wails v3 desktop (`desktop/`) · HTTP/SSE server (`koine -serve`) for Electron or the browser.
 - **Extensions**: JS/TS (Pi + opencode) via a Bun/Node sidecar, any other language via a JSON-RPC-over-stdio protocol, shell commands via Claude-compatible hooks.
 - **Pi packages**: `koine install npm:name@1.2.3`, `git:host/user/repo@v1` or a local path (`-l` for the project); `remove`, `update`, `list`, `config`. Hash-locked, `npm --ignore-scripts` by default, project packages only in a trusted folder ([SPEC §11](docs/SPEC.md)).
 
@@ -52,7 +52,7 @@ A complete Python extension is ~25 lines — see
 | `task cover:gate`                                   | fail if any package is under `COVER_MIN` (default 85%; `cmd/koine` 75%)                      |
 | `task build` / `run` / `serve`                      | CLI · run in place · HTTP/SSE server                                                         |
 | `task tui`                                          | Bubble Tea TUI                                                                               |
-| `task desktop:dev` / `desktop:build`                | Wails v2 app (needs the `wails` CLI)                                                         |
+| `task desktop:dev` / `desktop:build`                | Wails v3 app (`go run` / `go build`; Linux needs GTK 4 and WebKitGTK 6.0)                    |
 | `task fmt` / `fmt:check` / `vet` / `lint` / `clean` | housekeeping                                                                                 |
 
 Without Task installed, `scripts/covergate.sh`, `go test ./...` and
@@ -63,7 +63,7 @@ Without Task installed, `scripts/covergate.sh`, `go test ./...` and
 | Area                                                     | State                                                                                              |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean |
-| `tui-bubbletea/`, `desktop/` (Wails v2)                  | RPC clients of `koine --mode rpc`; built and tested in CI (job `frontends`, `task frontends:test`) |
+| `tui-bubbletea/`, `desktop/` (Wails v3)                  | RPC clients of `koine --mode rpc`; built and tested in CI (job `frontends`, `task frontends:test`) |
 | Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing, streamed (`core/llm`)        |
 | Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                |
 | Not yet                                                  | frontends that render streamed text, permission prompts, Pi/opencode UI APIs (inert shims)         |
@@ -82,7 +82,7 @@ core/app             wiring: config, discovery, slash commands
 core/server|tui      HTTP/SSE and line-mode frontends
 core/rpcclient       client for `koine --mode rpc`, used by the two frontends below
 tui-bubbletea/       Bubble Tea frontend (separate module, RPC client)
-desktop/             Wails v2 frontend (separate module, RPC client; desktop/bridge holds its logic)
+desktop/             Wails v3 frontend (separate module, RPC client; desktop/bridge holds its logic)
 docs/SPEC.md         normative specification
 ```
 
