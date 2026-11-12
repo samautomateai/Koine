@@ -206,7 +206,14 @@ for (const runtime of ["node", "bun"].filter(has)) {
 
   test(`conformance: resources_discover without paths answers nothing (${runtime})`, async () => {
     const f = tmp("res2.mjs", `export default function (pi) { pi.on("resources_discover", async () => undefined); }`);
-    const { results } = await rpc(f, [["initialize", {}], ["event", { name: "resources_discover", payload: {} }]], runtime);
+    const { results } = await rpc(
+      f,
+      [
+        ["initialize", {}],
+        ["event", { name: "resources_discover", payload: {} }],
+      ],
+      runtime,
+    );
     assert.equal(results[1].result.resources, undefined);
   });
 
