@@ -372,3 +372,34 @@ func TestExplicitExtensionsObeyTheTrustGate(t *testing.T) {
 		t.Errorf("after trusting, the -e extension should load: %v %v", a.ExtFlags(), a.Warnings)
 	}
 }
+
+func TestSkillAndPromptFlagsObeyTheTrustGate(t *testing.T) {
+	isolate(t)
+	t.Setenv("KOINE_TRUST", "")
+	t.Setenv("KOINE_MODEL", "")
+	proj := t.TempDir()
+	writeFile(t, filepath.Join(proj, "extra", "SKILL.md"), "---\nname: extra\ndescription: an extra skill\n---\nbody")
+	writeFile(t, filepath.Join(proj, "tmpl.md"), "Say hello")
+	opts := Options{Load: LoadOptions{Skills: []string{"extra"}, PromptTemplates: []string{"tmpl.md"}}}
+	a, err := NewWithOptions(context.Background(), proj, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if a.Trusted || len(a.Agent.Skills) != 0 || len(a.Prompts) != 0 {
+		t.Errorf("trusted=%v skills=%d prompts=%d: neither flag may load from an untrusted folder", a.Trusted, len(a.Agent.Skills), len(a.Prompts))
+	}
+	if !warned(a, "--skill path(s) NOT loaded (extra)") || !warned(a, "--prompt-template path(s) NOT loaded (tmpl.md)") {
+		t.Errorf("warnings %v", a.Warnings)
+	}
+
+	t.Setenv("KOINE_TRUST", "1")
+	b, err := NewWithOptions(context.Background(), proj, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if len(b.Agent.Skills) != 1 || b.Agent.Skills[0].Name != "extra" || len(b.Prompts) != 1 {
+		t.Errorf("trusted: skills=%+v prompts=%+v warnings=%v", b.Agent.Skills, b.Prompts, b.Warnings)
+	}
+}

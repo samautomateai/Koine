@@ -53,6 +53,11 @@ func (a *App) loadSkills() []skills.Skill {
 	if len(l.Skills) == 0 {
 		return found
 	}
+	if !a.Trusted {
+		a.Warnings = append(a.Warnings, fmt.Sprintf("--skill path(s) NOT loaded (%s): this folder is untrusted; run /trust or start with --trust",
+			strings.Join(l.Skills, ", ")))
+		return found
+	}
 	paths := make([]string, len(l.Skills))
 	for i, p := range l.Skills {
 		paths[i] = a.resolveUser(p)
@@ -84,6 +89,11 @@ func (a *App) loadPrompts() []prompts.Prompt {
 		found = prompts.Merge(found, a.packagePrompts())
 	}
 	if len(l.PromptTemplates) == 0 {
+		return found
+	}
+	if !a.Trusted {
+		a.Warnings = append(a.Warnings, fmt.Sprintf("--prompt-template path(s) NOT loaded (%s): this folder is untrusted; run /trust or start with --trust",
+			strings.Join(l.PromptTemplates, ", ")))
 		return found
 	}
 	paths := make([]string, len(l.PromptTemplates))
