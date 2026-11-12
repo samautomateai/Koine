@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-var ansiRe = regexp.MustCompile("\x1b\\[[0-9;:?<>=]*[ -/]*[@-~]|\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)")
+var ansiRe = regexp.MustCompile("\x1b\\[[0-9;:?<>=]*[ -/]*[@-~]|\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)|\x1b_[^\x1b]*\x1b\\\\|\x1b[78]")
 
 // StripANSI removes colour codes and hyperlinks, leaving the text a terminal would show.
 func StripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }

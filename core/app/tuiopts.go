@@ -17,10 +17,17 @@ type TUISettings struct {
 	AutocompleteMaxVisible opt[float64] `json:"autocompleteMaxVisible"`
 	ShowHardwareCursor     opt[bool]    `json:"showHardwareCursor"`
 	ExternalEditor         opt[string]  `json:"externalEditor"`
+	TuiMode                opt[string]  `json:"tuiMode"` // "regular" or "fullscreen"
+	FullscreenExitOutput   opt[string]  `json:"fullscreenExitOutput"`
+	FullscreenScrollbar    opt[string]  `json:"fullscreenScrollbar"`
+	FullscreenWheelLines   opt[any]     `json:"fullscreenWheelScrollLines"` // "auto" or 1-100
 	Terminal               struct {
-		ShowTerminalProgress opt[bool] `json:"showTerminalProgress"`
-		Hyperlinks           opt[any]  `json:"hyperlinks"` // true, false or "auto"
-		TrueColor            opt[any]  `json:"trueColor"`  // true, false or "auto"
+		ShowImages           opt[bool]    `json:"showImages"`
+		ImageWidthCells      opt[float64] `json:"imageWidthCells"`
+		Images               opt[any]     `json:"images"` // "kitty", "iterm2", "auto", true or false
+		ShowTerminalProgress opt[bool]    `json:"showTerminalProgress"`
+		Hyperlinks           opt[any]     `json:"hyperlinks"` // true, false or "auto"
+		TrueColor            opt[any]     `json:"trueColor"`  // true, false or "auto"
 	} `json:"terminal"`
 	Markdown struct {
 		CodeBlockIndent opt[string] `json:"codeBlockIndent"`
@@ -39,6 +46,14 @@ type TUIConfig struct {
 	TerminalProgress      bool
 	Hyperlinks, TrueColor string // "auto", "true" or "false"
 	CodeIndent            string
+	// Fullscreen mode (REQ-TUI-002) and inline images (REQ-TUI-003).
+	Fullscreen   bool   // tuiMode is "fullscreen" (Koine's default is "regular", unlike Pi's)
+	ExitOutput   string // "transcript" or "resume-hint"
+	Scrollbar    string // "auto", "always" or "hidden"
+	WheelLines   int    // 0 = auto, else 1-100
+	ShowImages   bool   // terminal.showImages, default true
+	ImageWidth   int    // terminal.imageWidthCells, default 60
+	ImageProtoIn string // terminal.images: "auto", "kitty", "iterm2" or "false"
 }
 
 func tri(o opt[any]) string {
@@ -51,6 +66,39 @@ func tri(o opt[any]) string {
 	case string:
 		if v == "true" || v == "false" || v == "auto" {
 			return v
+		}
+	}
+	return "auto"
+}
+
+// oneOf returns v when it is one of the allowed values, else the first.
+func oneOf(v string, allowed ...string) string {
+	for _, a := range allowed {
+		if v == a {
+			return v
+		}
+	}
+	return allowed[0]
+}
+
+// wheelLines reads fullscreenWheelScrollLines: "auto" (or anything unusable) is 0, a number is clamped to 1-100.
+func wheelLines(v any) int {
+	if n, ok := v.(float64); ok {
+		return max(1, min(100, int(n)))
+	}
+	return 0
+}
+
+// imageProto reads terminal.images: "kitty", "iterm2", false (off) or anything else (auto).
+func imageProto(v any) string {
+	switch x := v.(type) {
+	case bool:
+		if !x {
+			return "false"
+		}
+	case string:
+		if x == "kitty" || x == "iterm2" {
+			return x
 		}
 	}
 	return "auto"
@@ -72,6 +120,10 @@ func (c Config) TUI() TUIConfig {
 		AutocompleteMax: clampInt(t.AutocompleteMaxVisible, 5, 3, 20), HardwareCursor: t.ShowHardwareCursor.V,
 		ExternalEditor: t.ExternalEditor.V, TerminalProgress: t.Terminal.ShowTerminalProgress.V,
 		Hyperlinks: tri(t.Terminal.Hyperlinks), TrueColor: tri(t.Terminal.TrueColor), CodeIndent: " ",
+		Fullscreen: t.TuiMode.V == "fullscreen", ExitOutput: oneOf(t.FullscreenExitOutput.V, "transcript", "resume-hint"),
+		Scrollbar: oneOf(t.FullscreenScrollbar.V, "auto", "always", "hidden"), WheelLines: wheelLines(t.FullscreenWheelLines.V),
+		ShowImages: !t.Terminal.ShowImages.Set || t.Terminal.ShowImages.V, ImageWidth: clampInt(t.Terminal.ImageWidthCells, 60, 1, 400),
+		ImageProtoIn: imageProto(t.Terminal.Images.V),
 	}
 	if t.Theme.Set && t.Theme.V != "" {
 		r.Theme = t.Theme.V
@@ -120,6 +172,27 @@ func (s *TUISettings) mergeTUI(o TUISettings) {
 	}
 	if o.Terminal.Hyperlinks.Set {
 		s.Terminal.Hyperlinks = o.Terminal.Hyperlinks
+	}
+	if o.TuiMode.Set {
+		s.TuiMode = o.TuiMode
+	}
+	if o.FullscreenExitOutput.Set {
+		s.FullscreenExitOutput = o.FullscreenExitOutput
+	}
+	if o.FullscreenScrollbar.Set {
+		s.FullscreenScrollbar = o.FullscreenScrollbar
+	}
+	if o.FullscreenWheelLines.Set {
+		s.FullscreenWheelLines = o.FullscreenWheelLines
+	}
+	if o.Terminal.ShowImages.Set {
+		s.Terminal.ShowImages = o.Terminal.ShowImages
+	}
+	if o.Terminal.ImageWidthCells.Set {
+		s.Terminal.ImageWidthCells = o.Terminal.ImageWidthCells
+	}
+	if o.Terminal.Images.Set {
+		s.Terminal.Images = o.Terminal.Images
 	}
 	if o.Terminal.TrueColor.Set {
 		s.Terminal.TrueColor = o.Terminal.TrueColor

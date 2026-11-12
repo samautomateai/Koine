@@ -103,9 +103,9 @@ func Loop(ctx context.Context, a *app.App, term Terminal, o Options) error {
 		return err
 	}
 	out := term.Output()
-	_, _ = io.WriteString(out, EnableKeys)
+	_, _ = io.WriteString(out, ui.unpark())
 	defer func() {
-		_, _ = io.WriteString(out, ui.scr.Clear()+RestoreKeys)
+		_, _ = io.WriteString(out, ui.park()+ui.ExitOutput())
 		restore()
 	}()
 
@@ -278,9 +278,9 @@ func (l *loop) actions() {
 		case "editor":
 			l.external(act.Text)
 		case "suspend":
-			_, _ = io.WriteString(l.out, ui.scr.Clear()+RestoreKeys)
+			_, _ = io.WriteString(l.out, ui.park())
 			_ = l.term.Suspend()
-			_, _ = io.WriteString(l.out, EnableKeys)
+			_, _ = io.WriteString(l.out, ui.unpark())
 			ui.Redraw()
 		}
 	}
@@ -293,11 +293,11 @@ func (l *loop) actions() {
 func (l *loop) external(text string) {
 	ui := l.ui
 	cmd := EditorCommand(ui.a.Cfg.TUI().ExternalEditor, l.env)
-	_, _ = io.WriteString(l.out, ui.scr.Clear()+RestoreKeys)
+	_, _ = io.WriteString(l.out, ui.park())
 	got, err := EditExternally(text, cmd, func(c []string) error {
 		return l.term.Exec(exec.Command(c[0], c[1:]...)) //nolint:gosec // the user's own editor command
 	})
-	_, _ = io.WriteString(l.out, EnableKeys)
+	_, _ = io.WriteString(l.out, ui.unpark())
 	ui.Redraw()
 	if err != nil {
 		ui.say("editor: " + err.Error())

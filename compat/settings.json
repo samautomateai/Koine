@@ -199,19 +199,23 @@
     {
       "key": "tuiMode",
       "type": "\"regular\"|\"fullscreen\"",
-      "status": "inert",
-      "note": "Koine implements regular (scrollback) mode only; Pi defaults to fullscreen. See compat/DIVERGENCES.md."
+      "status": "verified",
+      "test": "TestFullscreenAndImageSettings",
+      "note": "Fullscreen mode (alternate screen) is opt-in: Koine's default is `regular`, Pi's is `fullscreen` (compat/DIVERGENCES.md). A `dumb` terminal stays regular."
     },
     {
       "key": "fullscreenExitOutput",
       "type": "\"transcript\"|\"resume-hint\"",
-      "status": "inert",
-      "note": "No fullscreen mode."
+      "status": "verified",
+      "test": "TestFullscreenExitOutput",
+      "note": "`transcript` prints the finished transcript on the normal screen after leaving; `resume-hint` prints `koine --session <id>`."
     },
     {
       "key": "fullscreenScrollbar",
       "type": "\"auto\"|\"always\"|\"hidden\"",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestFullscreenScrollbar",
+      "note": "`auto` shows the bar only when the transcript is longer than the view (Pi's auto-hide timing is not documented)."
     },
     {
       "key": "fullscreenCopyOnSelect",
@@ -221,7 +225,9 @@
     {
       "key": "fullscreenWheelScrollLines",
       "type": "\"auto\"|number",
-      "status": "inert"
+      "status": "verified",
+      "test": "TestWheelStep",
+      "note": "Number 1-100, or `auto`: one line on a local Mac, else fast spins speed up to 6 lines per event. Alt+wheel moves five times as far."
     },
     {
       "key": "editorPaddingX",
@@ -254,14 +260,16 @@
     {
       "key": "terminal.showImages",
       "type": "boolean",
-      "status": "inert",
-      "note": "Image rendering in the terminal is not implemented (TUI-12)."
+      "status": "verified",
+      "test": "TestBlocksCarryImages",
+      "note": "Default true. False shows the text placeholder instead of drawing."
     },
     {
       "key": "terminal.imageWidthCells",
       "type": "number",
-      "status": "inert",
-      "note": "Image rendering in the terminal is not implemented (TUI-12)."
+      "status": "verified",
+      "test": "TestImageSize",
+      "note": "Default 60, clamped to 1-400; an image is never enlarged past its own pixels (8x16 px cells assumed)."
     },
     {
       "key": "terminal.clearOnShrink",
@@ -286,8 +294,9 @@
     {
       "key": "terminal.images",
       "type": "boolean|\"kitty\"|\"iterm2\"|\"auto\"",
-      "status": "inert",
-      "note": "Image rendering in the terminal is not implemented (TUI-12)."
+      "status": "verified",
+      "test": "TestDetectImageProtocol",
+      "note": "`kitty`, `iterm2`, `auto` (Koine's own list of terminals; not inside tmux or screen) or false. `true` means auto."
     },
     {
       "key": "terminal.trueColor",

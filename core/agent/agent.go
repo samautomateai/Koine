@@ -32,6 +32,9 @@ type Event struct {
 	Usage   *UsageInfo      `json:"usage,omitempty"` // on "usage" events: one per model response
 	// Data holds the fields of the Pi-named events in pievents.go (compaction_end, auto_retry_start, queue_update, ...), under Pi's names.
 	Data map[string]any `json:"data,omitempty"`
+	// Images are the images a tool returned, on "tool_end" events. They are for local frontends (the terminal UI draws them) and are not
+	// part of the JSON the server and --mode json write.
+	Images []llm.Block `json:"-"`
 }
 
 type Agent struct {

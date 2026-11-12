@@ -18,8 +18,10 @@ func base64Std(s string) string { return base64.StdEncoding.EncodeToString([]byt
 // Settings are the terminal UI settings in effect, resolved from the app's config and the environment.
 type Settings struct {
 	app.TUIConfig
-	TrueColor    bool // 24-bit colour is used
-	Links        bool // OSC 8 hyperlinks are used
+	TrueColor    bool   // 24-bit colour is used
+	Links        bool   // OSC 8 hyperlinks are used
+	FullscreenOn bool   // fullscreen mode is in use (tuiMode, and a terminal that can show it)
+	ImageProto   string // "kitty", "iterm2" or "" (images are described in text)
 	HideThinking bool
 	DoubleEscape string
 	TreeFilter   string
@@ -44,6 +46,8 @@ func ResolveSettings(a *app.App, env Env) Settings {
 	case "auto":
 		s.Links = supportsLinks(env)
 	}
+	s.FullscreenOn = fullscreenAllowed(c.Fullscreen, env)
+	s.ImageProto = DetectImageProtocol(c.ImageProtoIn, env)
 	return s
 }
 

@@ -130,9 +130,23 @@ tests, a named test that does not exist, a missing design reference, and duplica
 ### REQ-TUI-001 — Interactive terminal UI with Pi's editing, rendering and navigation
 
 - Status: implemented
-- Statement: On a terminal, `koine` runs a raw-mode UI in regular (scrollback) mode with Pi's editor (multiline, kill ring, undo, paste markers, history), `/` and `@` autocomplete, markdown and tool-call rendering with edit diffs, a footer with context, tokens and cost, selectors (model, thinking, settings, theme, scoped models), a `/tree` navigator, external editor, suspend, thinking toggle, Esc interrupt and a trust prompt. `keybindings.json` and JSON themes (`--theme`, `--use-theme`, `--no-themes`, `theme`) configure keys and colours. Fullscreen mode and images are not implemented. Without a terminal or with `KOINE_LINE_MODE=1` the line loop is used. Gap rows TUI-02..11, 13..15, CMD-02, CMP-07.
+- Statement: On a terminal, `koine` runs a raw-mode UI in regular (scrollback) mode with Pi's editor (multiline, kill ring, undo, paste markers, history), `/` and `@` autocomplete, markdown and tool-call rendering with edit diffs, a footer with context, tokens and cost, selectors (model, thinking, settings, theme, scoped models), a `/tree` navigator, external editor, suspend, thinking toggle, Esc interrupt and a trust prompt. `keybindings.json` and JSON themes (`--theme`, `--use-theme`, `--no-themes`, `theme`) configure keys and colours. Fullscreen mode (REQ-TUI-002) and images (REQ-TUI-003) are separate. Without a terminal or with `KOINE_LINE_MODE=1` the line loop is used. Gap rows TUI-02..11, 13..15, CMD-02, CMP-07.
 - Design: DES-041
 - Tests: TestEditorKillRingYankAndUndo; TestEditorPasteMarkers; TestEditorHistory; TestCompleteSlashCommands; TestCompleteFileReferences; TestMarkdownTables; TestEditRendersADiffFromItsArguments; TestFooter; TestLoadBindings; TestParseTheme; TestUIModelSelector; TestUITreeNavigator; TestUIDoubleEscape; TestUIAskAndTrustPrompt; TestLoopRunsAPromptAndExits; TestRawTerminalOnAPseudoTerminal; TestTUIDefaultsAndClamps; TestTUIProjectSettingsNeedTrust; TestThemeArgs; TestTreeMovePrefillsTheEditorWhenOneIsAttached; TestUntrustedCodeIsCounted
+
+### REQ-TUI-002 — Fullscreen (alternate-screen) terminal UI mode
+
+- Status: implemented
+- Statement: With `tuiMode: "fullscreen"` the interactive UI runs on the alternate screen: the transcript is a scrollable viewport above the editor and footer, driven by `tui.altScreen.*` keys (page, half page, line, top, bottom) and the mouse wheel (`fullscreenWheelScrollLines`), with a scrollbar (`fullscreenScrollbar`); new output follows the tail unless the user scrolled up. On exit the normal screen is restored and `fullscreenExitOutput` prints the transcript or a resume hint. The default stays `regular`. Gap rows TUI-01, CLI-09.
+- Design: DES-075
+- Tests: TestFullscreenFollowsTheTailAndScrolls; TestFullscreenKeepsPositionWhenOutputGrows; TestFullscreenShortTranscriptIsTopAligned; TestFullscreenScrollbar; TestFullscreenPaintDrawsOnlyWhatChanged; TestFullscreenPaintClearsKittyImagesWhenTheyMove; TestFullscreenDoesNotDrawAnImageCutOffAtTheTop; TestMouseWheelKeys; TestWheelStep; TestFullscreenIsOptIn; TestFullscreenFrameScrollsWithKeysAndWheel; TestFullscreenCustomKeysAndOverlayPrecedence; TestFullscreenExitOutput; TestFullscreenParkAndUnpark; TestLoopFullscreenEntersAndLeavesTheAlternateScreen; TestResolveSettingsDetectsImagesAndWheel; TestFullscreenAndImageSettings; TestFullscreenSettingsProjectOverridesUser
+
+### REQ-TUI-003 — Inline terminal images with a text fallback
+
+- Status: implemented
+- Statement: Images in the transcript (tool results such as `read` of an image, user images of a resumed session) are drawn inline with the Kitty graphics protocol or the iTerm2 protocol when the terminal supports it, detected from the environment (`TERM`, `TERM_PROGRAM`, `KITTY_WINDOW_ID`, `LC_TERMINAL`, `TMUX`) and overridable with `terminal.images`; `terminal.showImages` (default true) turns drawing off and `terminal.imageWidthCells` (default 60) sets the width. Everywhere else, and for formats that cannot be drawn, a one-line text placeholder with type, size and pixel dimensions is shown. Gap row TUI-12 (display only; pasting and dragging images into the editor are not done).
+- Design: DES-075
+- Tests: TestDetectImageProtocol; TestImagePlaceholder; TestImageSize; TestKittyImageSequence; TestKittyChunksLongData; TestKittyConvertsJPEGAndGIFToPNG; TestITermImageSequence; TestImageFallsBackToAPlaceholder; TestBlocksCarryImages; TestHistoryImagesBecomeBlocks; TestFullscreenLiveToolAndImages; TestFullscreenAndImageSettings
 
 ### REQ-SESS-001 — Persist and resume sessions
 

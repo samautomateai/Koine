@@ -401,7 +401,20 @@ and `Describe()`. `emit` receives `agent.Event`:
 
 - **Terminal UI** (REQ-TUI-001, `core/tui`): on a terminal `koine` runs a raw-mode UI in regular (scrollback) mode: finished transcript blocks
   are printed once and a live area (status line, editor or selector, completion popup, footer) is redrawn each frame. Without a terminal, or with
-  `KOINE_LINE_MODE=1`, it falls back to the line loop. Fullscreen/alt-screen mode (`tuiMode`) and images are not implemented.
+  `KOINE_LINE_MODE=1`, it falls back to the line loop.
+  - **Fullscreen mode** (REQ-TUI-002): `tuiMode: "fullscreen"` (default `regular`, unlike Pi) runs on the alternate screen with mouse reporting. The
+    transcript is a viewport above the editor and footer that follows new output until you scroll up. Keys: `tui.altScreen.pageUp`/`pageDown`
+    (PageUp/PageDown), `halfPageUp`/`halfPageDown`, `lineUp`/`lineDown` (unbound), `top` (Ctrl+Home), `bottom` (Ctrl+End, follows output); an open
+    popup or selector keeps the page keys. The wheel moves `fullscreenWheelScrollLines` (1-100; `auto` is one line on a local Mac, else fast spins
+    speed up to 6; Alt+wheel is five times as far). `fullscreenScrollbar` is `auto` (shown when the transcript is longer than the view), `always` or
+    `hidden`. On exit `fullscreenExitOutput` prints the transcript (`transcript`) or `Resume this session with: koine --session <id>`
+    (`resume-hint`). Sending a message returns to the tail. A `dumb` terminal stays in regular mode. Not done: `fullscreenCopyOnSelect` (hold Shift to
+    select with the terminal), prompt jumps and transcript search.
+  - **Inline images** (REQ-TUI-003): images in tool results (the `read` tool) and in a resumed session's history are drawn with the kitty graphics
+    protocol or iTerm2's inline image protocol. `terminal.images` is `kitty`, `iterm2`, `auto` (default; detects from `KITTY_WINDOW_ID`, `TERM`,
+    `TERM_PROGRAM`, `LC_TERMINAL`, and never inside tmux or screen) or `false`. `terminal.showImages` (default true) and `terminal.imageWidthCells`
+    (default 60) apply. Everything else shows `[image: image/png 640x480 12.3 KB]`. Kitty gets PNG (JPEG and GIF are re-encoded); iTerm2 gets PNG, JPEG
+    and GIF; WebP and BMP are placeholders. Pasting or dragging an image into the editor is not done.
   - Editor: multiline (Shift+Enter, or `\` then Enter), word and line movement, kill ring and yank, undo, bracketed paste (pastes of more than a few
     lines show as `[paste #n +m lines]` and expand on submit), Up/Down prompt history, Ctrl+G external editor (`externalEditor`, `$VISUAL`,
     `$EDITOR`), Ctrl+Z suspend, Ctrl+T show/hide thinking, Ctrl+O expand/collapse tool output, Ctrl+L model selector, Ctrl+P / Ctrl+Shift+P cycle
@@ -473,7 +486,7 @@ and `Describe()`. `emit` receives `agent.Event`:
   `images.autoResize` (default true): at most 2000 by 2000 pixels (Pi's documented value) and 4.5 MB encoded (Koine's own; Pi's default was not found);
   files over 25 MiB are refused. WebP and BMP are sent unchanged. `images.blockImages` (default false) keeps all images from providers. The catalog's
   `input` list (`["text","image"]`, Pi's field) gates by model; unlisted means allowed. Nothing is verified against a real provider: the wire shapes are
-  tested with fake servers only. `terminal.showImages` and `terminal.imageWidthCells` are inert (no inline rendering, TUI-12).
+  tested with fake servers only. `terminal.showImages`, `terminal.imageWidthCells` and `terminal.images` control the terminal's inline display (REQ-TUI-003).
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.
 - **Usage and cost** (REQ-LLM-004): the model catalog is built in; `~/.koine/model-catalog.json` (`{"models":[{"id","contextWindow","maxOutput","cost":{"input","output","cacheRead","cacheWrite"},"longContext":{"threshold","multiplier"}}]}`, USD per million tokens) adds or replaces entries by id. Each response emits an event `{"type":"usage","usage":{input,output,cacheRead,cacheWrite,cost?,contextTokens,contextWindow,contextPercent}}`; `cost` is absent when the model has no known price. Assistant messages in the session file carry Pi's `usage` object. `/session` prints totals, cost and context use. `compaction.contextWindow` overrides the catalog's window.
@@ -583,7 +596,7 @@ tested against fake servers only; the live Bedrock and Vertex APIs were not exer
 ## 10. Known limits (v1)
 
 - Providers: Anthropic, OpenAI-compatible Chat Completions, OpenAI Responses, Azure OpenAI, Gemini, Amazon Bedrock, Google Vertex AI, and the built-in and custom providers of §9.1; streamed, retried as configured (four attempts by default). No OAuth. Wire formats are checked against fake servers only. No frontend renders streamed deltas yet.
-- Images: WebP and BMP are not resized; the HTTP server and the line-mode TUI take text only (no paste or inline display, TUI-12).
+- Images: WebP and BMP are not resized; the HTTP server and the line-mode TUI take text only (no image paste; inline display is REQ-TUI-003).
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
 - No permission prompts yet.
 - The `bubbletea` and `wails` frontends are written against the same API but are

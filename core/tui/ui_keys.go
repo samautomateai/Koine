@@ -7,6 +7,10 @@ import (
 
 // Key handles one keypress.
 func (ui *UI) Key(k Key) {
+	if ui.fs != nil && (strings.HasSuffix(k.Name, "wheelUp") || strings.HasSuffix(k.Name, "wheelDown")) {
+		ui.scrollKey(k)
+		return
+	}
 	switch {
 	case ui.prompt != nil:
 		ui.promptKey(k)
@@ -44,6 +48,9 @@ func (ui *UI) editorKey(k Key) {
 		return
 	}
 	if ui.comp != nil && ui.completionKey(k) {
+		return
+	}
+	if ui.fs != nil && ui.scrollKey(k) {
 		return
 	}
 	switch {
@@ -264,6 +271,9 @@ func (ui *UI) submit() {
 
 // submitLine runs a line: commands the UI owns are handled here, everything else goes to the app.
 func (ui *UI) submitLine(text string) {
+	if ui.fs != nil {
+		ui.fs.Bottom()
+	}
 	if ui.localCommand(text) {
 		return
 	}

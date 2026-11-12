@@ -17,10 +17,10 @@ priorities and efforts are judgement calls.
 | Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
 | ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
 | CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 5      | 14      | 27      | 5         | 10      | 17      |
-| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 22      | 22      | 0         | 7       | 19      |
+| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 23      | 21      | 0         | 7       | 19      |
 | Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 7      | 32      | 10      | 0         | 11      | 11      |
 | Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 12     | 22      | 9       | 2         | 7       | 17      |
-| **Total**                                |                          | **57** | **90**  | **68**  | **7**     | **35**  | **64**  |
+| **Total**                                |                          | **57** | **91**  | **67**  | **7**     | **35**  | **64**  |
 
 Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
 coding agent it is far from Pi. About 26% of behaviours match, and the 35 open P0 items cluster in a few places.
