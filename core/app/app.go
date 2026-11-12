@@ -218,7 +218,7 @@ func (a *App) load(ctx context.Context) {
 	a.UntrustedCode = skippedCode + mcpSkipped // project MCP servers are code too, so the startup prompt offers to trust the folder
 	if skippedCode > 0 {
 		a.Warnings = append(a.Warnings, fmt.Sprintf(
-			"untrusted folder: %d project extension/hook/provider entr%s NOT loaded — run /trust to enable them (or start with -trust)",
+			"untrusted folder: %d project extension/hook/provider/package entr%s NOT loaded — run /trust to enable them (or start with -trust)",
 			skippedCode, plural(skippedCode)))
 	}
 
@@ -337,8 +337,8 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 		return true, nil
 	case "help":
 		notice("/help /new /session /name /resume /fork [id] /clone /tree [id] /label /export [file] /exit /tools /skills /agents /commands " +
-			"/model [id[:level]] /thinking [level] /compact [focus] /login [provider] /logout [provider] /mcp /trust /reload /compat /packages /sources [filter] " +
-			"/skill:<name> /<command> <args>")
+			"/model [id[:level]] /thinking [level] /compact [focus] /login [provider] /logout [provider] /mcp /trust /reload /compat " +
+			"/packages /sources [filter] /skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
 		notice(strings.Join(info.Tools, ", "))

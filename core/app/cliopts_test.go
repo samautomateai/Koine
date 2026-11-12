@@ -362,7 +362,7 @@ func TestExplicitExtensionsObeyTheTrustGate(t *testing.T) {
 		t.Errorf("an extension from -e ran in an untrusted folder: %+v", a.ExtFlags())
 	}
 	if !warned(a, "-e extension(s) NOT loaded") || !warned(a, "this folder is untrusted") ||
-		!warned(a, "2 project extension/hook/provider entries were NOT loaded") {
+		!warned(a, "2 project extension/hook/provider/package entries were NOT loaded") {
 		t.Errorf("warnings %v", a.Warnings)
 	}
 	if err := a.TrustProject(context.Background()); err != nil {
