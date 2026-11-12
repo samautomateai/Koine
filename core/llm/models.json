@@ -12,7 +12,8 @@
       "contextWindow": 1000000,
       "maxOutput": 128000,
       "cost": { "input": 4, "output": 20, "cacheRead": 0.2, "cacheWrite": 5 },
-      "reasoning": { "mode": "adaptive", "max": "max", "off": "omit" }
+      "reasoning": { "mode": "adaptive", "max": "max", "off": "omit" },
+      "promptCache": { "short": 300, "long": 3600 }
     },
     {
       "id": "claude-sonnet-5-5",
@@ -22,7 +23,8 @@
       "contextWindow": 1000000,
       "maxOutput": 128000,
       "cost": { "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5 },
-      "reasoning": { "mode": "adaptive", "max": "max", "off": "between_tools" }
+      "reasoning": { "mode": "adaptive", "max": "max", "off": "between_tools" },
+      "promptCache": { "short": 300, "long": 3600 }
     },
     {
       "id": "claude-haiku-5-5",
@@ -33,7 +35,8 @@
       "maxOutput": 128000,
       "cost": { "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125 },
       "longContext": { "threshold": 100000, "multiplier": 5 },
-      "reasoning": { "mode": "adaptive", "max": "max", "off": "disabled" }
+      "reasoning": { "mode": "adaptive", "max": "max", "off": "disabled" },
+      "promptCache": { "short": 300, "long": 3600 }
     }
   ]
 }

@@ -32,6 +32,7 @@ type ModelConfig struct {
 	Headers        map[string]string          `json:"headers,omitempty"`
 	Compat         map[string]json.RawMessage `json:"compat,omitempty"`
 	SamplingParams map[string]any             `json:"samplingParams,omitempty"`
+	PromptCache    *PromptCache               `json:"promptCache,omitempty"`
 }
 
 // Pi's defaults for a model that models.json declares without them.
@@ -44,7 +45,7 @@ var (
 	providerKeysActed = []string{"$schema", "name", "api", "baseUrl", "apiKey", "headers", "authHeader", "compat", "models", "modelOverrides",
 		"type", "apiKeyEnv"}
 	modelKeysActed = []string{"id", "name", "api", "baseUrl", "reasoning", "input", "contextWindow", "maxTokens", "cost", "headers", "compat",
-		"samplingParams"}
+		"samplingParams", "promptCache"}
 )
 
 // ReadModelsFile reads a models.json (Pi's schema). A missing file is empty, not an error. The warnings say what in the file Koine does
@@ -175,7 +176,7 @@ func (c *Catalog) AddProviders(providers map[string]ProviderConfig) {
 		pc := providers[name]
 		for _, m := range pc.Models {
 			entry := Model{ID: m.ID, Provider: name, Name: m.Name, ContextWindow: DefaultContextWindow, MaxOutput: DefaultMaxTokens,
-				Input: []string{"text"}, Reasoning: m.Reasoning}
+				Input: []string{"text"}, Reasoning: m.Reasoning, PromptCache: m.PromptCache}
 			if m.ContextWindow != nil {
 				entry.ContextWindow = *m.ContextWindow
 			}
@@ -230,6 +231,9 @@ func (c *Catalog) override(id string, ov ModelConfig) {
 		}
 		if ov.Cost != nil {
 			m.Cost = mergeCost(m.Cost, ov.Cost)
+		}
+		if ov.PromptCache != nil {
+			m.PromptCache = ov.PromptCache
 		}
 	}
 }

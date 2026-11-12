@@ -65,6 +65,12 @@ type Agent struct {
 	// Thinking chooses the thinking level per model; HideThinking keeps thinking text out of the events (the blocks stay in the history).
 	Thinking     llm.ThinkingSettings
 	HideThinking bool
+	// CacheKey identifies the conversation to providers that route prompt-cache hits by it (the session id); CacheLong asks for the
+	// provider's extended cache lifetime (KOINE_CACHE_RETENTION=long).
+	CacheKey  string
+	CacheLong bool
+	// Warm keeps the provider's prompt cache from lapsing (cacheWarming); nil = never.
+	Warm *llm.Warmer
 	// Images are the images.* settings. pendingImages ride along with the next Run (RunWithImages); imageNotice is the last reason images were left out.
 	Images        ImageOptions
 	pendingImages []llm.Block
@@ -135,6 +141,9 @@ func (a *Agent) Reset() { a.SetHistory(nil) }
 
 // SetHistory replaces the conversation, as when a session is loaded, and rebuilds the usage totals from the messages that carry them.
 func (a *Agent) SetHistory(h []llm.Message) {
+	if a.Warm != nil {
+		a.Warm.Forget() // the cached prompt belonged to the old conversation
+	}
 	a.History, a.Totals, a.CostTotal, a.Unpriced, a.lastCtx, a.ctxAt = h, llm.Usage{}, 0, false, 0, 0
 	for _, m := range h {
 		if m.Usage == nil {

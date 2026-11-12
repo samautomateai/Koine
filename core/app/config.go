@@ -221,6 +221,8 @@ func LoadConfigScoped(cwd, home string) (user, project Config, used []string) {
 	read(&project, filepath.Join(cwd, "opencode.json"), false)
 	read(&project, filepath.Join(cwd, ".koine", "config.json"), false)
 	read(&project, filepath.Join(cwd, ".koine", "settings.json"), false)
+	// cacheWarming is a global-only setting (compat/settings.json): a project file must not turn on requests that cost money.
+	project.CacheWarming = opt[string]{}
 	return
 }
 

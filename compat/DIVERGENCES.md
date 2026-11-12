@@ -65,7 +65,7 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - Shell tool session variables, given to the model's bash tool only: `PI_SESSION_ID` is `KOINE_SESSION_ID`; `PI_SESSION_FILE` is `KOINE_SESSION_FILE` (unset without a session file); `PI_PROVIDER` is `KOINE_SESSION_PROVIDER`; `PI_MODEL` is `KOINE_SESSION_MODEL` (not `KOINE_MODEL`, which already means "start with this model"); `PI_REASONING_LEVEL` is `KOINE_SESSION_REASONING_LEVEL`, set while the model is asked to think.
 - Directories: `PI_CODING_AGENT_DIR` is `KOINE_AGENT_DIR`; `PI_CODING_AGENT_SESSION_DIR` is `KOINE_SESSION_DIR`.
 - Not applicable, no `KOINE_` counterpart because the feature does not exist: `PI_PACKAGE_DIR` (no packages, a single binary), `PI_OFFLINE` and `PI_SKIP_VERSION_CHECK` (Koine does no catalog refresh or version check), `PI_SELF_UPDATE_COMMAND` (no self-update), `PI_TELEMETRY` (no telemetry), `PI_CODEMODE_MAX_WORKERS` (no codemode), `PI_SHARE_VIEWER_URL` (no `/share`), `PI_RADIUS_GATEWAY` (no `/bug`).
-- Reserved for later, not read yet: `PI_CACHE_RETENTION` as `KOINE_CACHE_RETENTION` (provider caching, LLM area) and the terminal variables `PI_CLEAR_ON_SHRINK`, `PI_HARDWARE_CURSOR`, `PI_CLIPBOARD_OSC52`, `PI_HYPERLINKS`, `PI_PROGRAM_STATUS`, `PI_IMAGE_PROTOCOL`, `PI_TRUE_COLOR`, `PI_TUI_ESC_TIMEOUT` as the same names with `KOINE_` (the line-mode TUI has no use for them).
+- `PI_CACHE_RETENTION` is read as `KOINE_CACHE_RETENTION` (`long`; REQ-LLM-013). Reserved for later, not read yet: the terminal variables `PI_CLEAR_ON_SHRINK`, `PI_HARDWARE_CURSOR`, `PI_CLIPBOARD_OSC52`, `PI_HYPERLINKS`, `PI_PROGRAM_STATUS`, `PI_IMAGE_PROTOCOL`, `PI_TRUE_COLOR`, `PI_TUI_ESC_TIMEOUT` as the same names with `KOINE_` (the line-mode TUI has no use for them).
 - Not `PI_` variables: `HTTP_PROXY` and `HTTPS_PROXY` are honoured by Go's default HTTP transport (not tested here); `VISUAL` and `EDITOR` start the external editor (Ctrl+G) when `externalEditor` is not set.
 
 ## Images
@@ -104,7 +104,10 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - A project `.koine/models.json` is read only in a trusted folder (ADR 0002), because it can run `!command` secrets and choose where keys are sent. Pi's trust handling of this file was not checked.
 - `koine auth check --json` prints `status`, `provider`, `source`, `reason` and `credentials`: Pi documents the three states and exit codes 0, 1 and 2 only, so this shape is Koine's. `print-bearer-token --min-expiry` is accepted and not enforced.
 - OpenAI stays on Chat Completions unless a provider or model sets `api: "openai-responses"`. The Responses, Azure and Gemini providers do not replay reasoning items or thought signatures, and none of the new wire formats has been checked against a live API. Built-in endpoints and the key variable names are the authors' knowledge of the vendors' public addresses and of Pi's names, not a comparison with Pi's registry.
-- Not implemented: OAuth logins (LLM-17 to LLM-20), Amazon Bedrock and Vertex AI (LLM-06, LLM-07), ambient cloud credentials and workload identity (LLM-21).
+- Not implemented: OAuth logins (LLM-17 to LLM-20), AWS SSO, assumed roles, `credential_process` and instance credentials, the Google metadata server and workload identity (LLM-21).
+- Amazon Bedrock and Vertex AI (LLM-06, LLM-07) keep AWS's and Google's own variable names. Bedrock acts on `AWS_BEARER_TOKEN_BEDROCK`, `AWS_BEDROCK_SKIP_AUTH`, `AWS_BEDROCK_FORCE_CACHE` and the standard `AWS_*` variables, not on `AWS_BEDROCK_FORCE_HTTP1`. Neither provider was checked against a live API, and Pi's Bedrock and Vertex sources were not read line by line.
+- `cacheWarming` follows Pi's three values and default. Pi documents only the $0.05 threshold, so the savings formula and the refresh timing (cache lifetime less 30 seconds) are Koine's. Koine's model-level `promptCache` (`{"short","long"}` seconds) is a Koine key and is not Pi's provider `compat.promptCache`.
+- Message conversion for another model (LLM-24) was written from what each API rejects; Pi's `transform-messages.ts` was not compared rule by rule.
 
 ## Packages
 

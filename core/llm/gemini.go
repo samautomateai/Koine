@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-// Gemini speaks Google's Gemini API (generativelanguage.googleapis.com, `google-generative-ai` in models.json) with an API key. Vertex AI,
-// which uses another address and Google credentials, is not supported.
+// Gemini speaks Google's Gemini API (generativelanguage.googleapis.com, `google-generative-ai` in models.json) with an API key. Vertex AI
+// (`google-vertex`) is the same protocol at another address, with an API key or a Google access token: set ModelPath and Token (vertex.go).
 //
 // Limits: thought signatures, which newer Gemini models want echoed back on function calls, are not kept, so a long tool-using
 // conversation with such a model may be refused; the wire format was written from Google's documentation and is tested against fake
@@ -23,6 +23,10 @@ type Gemini struct {
 	APIKey  string
 	Bearer  bool // send the key as "Authorization: Bearer" (authHeader in models.json) instead of x-goog-api-key
 	BaseURL string
+	// ModelPath is what comes before the model id in the URL: "models/" (default) or Vertex's "projects/…/publishers/google/models/".
+	ModelPath string
+	// Token, when set, supplies a bearer token for each request (Vertex AI access tokens); it replaces the API key.
+	Token   func(ctx context.Context) (string, error)
 	Headers map[string]string
 	HTTP    *http.Client
 	Retry   RetryPolicy
@@ -104,7 +108,7 @@ func toGeminiContents(msgs []Message) []map[string]any {
 	return out
 }
 
-func (g *Gemini) request(req Request, stream bool) (string, map[string]string, []byte, error) {
+func (g *Gemini) request(ctx context.Context, req Request, stream bool) (string, map[string]string, []byte, error) {
 	body := map[string]any{"contents": toGeminiContents(req.Messages)}
 	if req.System != "" {
 		body["systemInstruction"] = map[string]any{"parts": []map[string]any{{"text": req.System}}}
@@ -136,13 +140,23 @@ func (g *Gemini) request(req Request, stream bool) (string, map[string]string, [
 		headers[k] = v
 	}
 	switch {
+	case g.Token != nil:
+		tok, err := g.Token(ctx)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("%s: %w", g.label(), err)
+		}
+		headers["authorization"] = "Bearer " + tok
 	case g.APIKey == "":
 	case g.Bearer:
 		headers["authorization"] = "Bearer " + g.APIKey
 	default:
 		headers["x-goog-api-key"] = g.APIKey
 	}
-	u := strings.TrimRight(g.BaseURL, "/") + "/models/" + strings.TrimPrefix(req.Model, "models/")
+	prefix := g.ModelPath
+	if prefix == "" {
+		prefix = "models/"
+	}
+	u := strings.TrimRight(g.BaseURL, "/") + "/" + prefix + strings.TrimPrefix(req.Model, "models/")
 	if stream {
 		u += ":streamGenerateContent?alt=sse"
 	} else {
@@ -153,7 +167,7 @@ func (g *Gemini) request(req Request, stream bool) (string, map[string]string, [
 
 // Complete implements Provider.
 func (g *Gemini) Complete(ctx context.Context, req Request) (*Response, error) {
-	u, headers, payload, err := g.request(req, false)
+	u, headers, payload, err := g.request(ctx, req, false)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +180,7 @@ func (g *Gemini) Complete(ctx context.Context, req Request) (*Response, error) {
 
 // Stream implements Streamer with server-sent events (alt=sse). Each event is a response chunk holding the next parts.
 func (g *Gemini) Stream(ctx context.Context, req Request, fn func(StreamEvent)) (*Response, error) {
-	u, headers, payload, err := g.request(req, true)
+	u, headers, payload, err := g.request(ctx, req, true)
 	if err != nil {
 		return nil, err
 	}

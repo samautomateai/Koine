@@ -46,6 +46,9 @@ func millis(d time.Duration) int64 { return d.Milliseconds() }
 // complete asks the provider, streaming when it can, and reports the response as it arrives (text_delta, thinking_delta, tool_delta) and the
 // retries it makes as Pi's auto_retry_start and auto_retry_end events (and as a notice).
 func (a *Agent) complete(ctx context.Context, req llm.Request, emit func(Event)) (*llm.Response, error) {
+	if a.Warm != nil {
+		a.Warm.Busy() // a real request is going out: a pending cache refresh is pointless
+	}
 	retries := 0
 	ctx = llm.WithRetryNotify(ctx, func(n llm.RetryNotice) {
 		retries = n.Attempt

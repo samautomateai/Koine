@@ -9,10 +9,12 @@ const (
 	APIResponses   = "openai-responses"
 	APIAzure       = "azure-openai-responses"
 	APIGemini      = "google-generative-ai"
+	APIBedrock     = "bedrock-converse-stream"
+	APIVertex      = "google-vertex"
 )
 
 // APIs lists the protocols a provider can be configured with.
-var APIs = []string{APIAnthropic, APICompletions, APIResponses, APIAzure, APIGemini}
+var APIs = []string{APIAnthropic, APICompletions, APIResponses, APIAzure, APIGemini, APIBedrock, APIVertex}
 
 // ProviderInfo describes a built-in provider.
 type ProviderInfo struct {
@@ -22,6 +24,10 @@ type ProviderInfo struct {
 	BaseURL string   // "" = the endpoint comes from the environment or models.json (Azure)
 	Env     []string // variables that hold the API key, in order; the first one set wins (names are Pi's)
 	Local   bool     // a local server: no key is needed
+	// Ambient marks a cloud provider that signs in with the machine's cloud credentials (AWS keys, a Google credentials file). Env then
+	// names the optional API-key variable, Guide says in one sentence how to sign in, and no stored key is needed.
+	Ambient bool
+	Guide   string
 }
 
 // providerTable is the built-in provider list. Environment variable names are Pi's (https://pi.dev/docs/latest/providers). The base URLs
@@ -46,6 +52,11 @@ var providerTable = []ProviderInfo{
 	{ID: "vercel-ai-gateway", Name: "Vercel AI Gateway", API: APICompletions, BaseURL: "https://ai-gateway.vercel.sh/v1",
 		Env: []string{"AI_GATEWAY_API_KEY"}},
 	{ID: "zai", Name: "Z.AI Coding Plan", API: APICompletions, BaseURL: "https://api.z.ai/api/coding/paas/v4", Env: []string{"ZAI_API_KEY"}},
+	{ID: "amazon-bedrock", Name: "Amazon Bedrock", API: APIBedrock, Env: []string{"AWS_BEARER_TOKEN_BEDROCK"}, Ambient: true,
+		Guide: "set AWS_BEARER_TOKEN_BEDROCK, or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or AWS_PROFILE (and AWS_REGION)"},
+	{ID: "google-vertex", Name: "Google Vertex AI", API: APIVertex, Env: []string{"GOOGLE_CLOUD_API_KEY"}, Ambient: true,
+		Guide: "set GOOGLE_CLOUD_API_KEY, or GOOGLE_APPLICATION_CREDENTIALS (or run `gcloud auth application-default login`) with " +
+			"GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION"},
 	{ID: "ollama", Name: "Ollama", API: APICompletions, BaseURL: "http://localhost:11434/v1", Local: true},
 	{ID: "lmstudio", Name: "LM Studio", API: APICompletions, BaseURL: "http://localhost:1234/v1", Local: true},
 	{ID: "vllm", Name: "vLLM", API: APICompletions, BaseURL: "http://localhost:8000/v1", Local: true},
@@ -54,7 +65,7 @@ var providerTable = []ProviderInfo{
 }
 
 // providerAliases are other spellings of built-in ids: Pi renamed Azure's, and "gemini" is what people type.
-var providerAliases = map[string]string{"azure-openai-responses": "azure", "gemini": "google"}
+var providerAliases = map[string]string{"azure-openai-responses": "azure", "gemini": "google", "bedrock": "amazon-bedrock", "vertex": "google-vertex"}
 
 // Providers returns the built-in providers in table order.
 func Providers() []ProviderInfo { return append([]ProviderInfo(nil), providerTable...) }
@@ -98,6 +109,8 @@ func inferProvider(model string) string {
 		return "openai"
 	case strings.HasPrefix(model, "gemini-"):
 		return "google"
+	case strings.Contains(model, "anthropic.claude") || strings.HasPrefix(model, "amazon.nova"):
+		return "amazon-bedrock" // Bedrock's own ids, with or without a region prefix such as "us."
 	}
 	return ""
 }
