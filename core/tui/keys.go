@@ -186,6 +186,8 @@ func decodeCSI(b []byte, final bool) (Key, int, bool) {
 		mod = nums[1]
 	}
 	switch {
+	case strings.HasPrefix(params, "<") && (f == 'M' || f == 'm'): // SGR mouse report: only the wheel is of use
+		return mouseKey(params[1:], f), n, true
 	case f == 'Z':
 		return Key{Name: "shift+tab"}, n, true
 	case f == 'u' && len(nums) >= 1:
@@ -202,6 +204,25 @@ func decodeCSI(b []byte, final bool) (Key, int, bool) {
 		}
 	}
 	return Key{}, n, true // an unknown sequence is dropped
+}
+
+// mouseKey names a wheel report (button 64 up, 65 down; +8 with Alt held). Clicks, releases and motion give no key.
+func mouseKey(params string, final byte) Key {
+	nums := splitNums(params)
+	if final != 'M' || len(nums) == 0 {
+		return Key{}
+	}
+	alt := ""
+	if nums[0]&8 != 0 {
+		alt = "alt+"
+	}
+	switch nums[0] &^ (4 | 8 | 16) {
+	case 64:
+		return Key{Name: alt + "wheelUp"}
+	case 65:
+		return Key{Name: alt + "wheelDown"}
+	}
+	return Key{}
 }
 
 func splitNums(p string) []int {

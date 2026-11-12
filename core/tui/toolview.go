@@ -14,6 +14,7 @@ type ToolCall struct {
 	Result   string
 	Done     bool
 	IsError  bool
+	Images   []ImageData // images the tool returned (the read tool on an image file), drawn under the output
 }
 
 // ToolOptions say how a tool call is drawn.
