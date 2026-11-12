@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,24 +12,31 @@ import (
 
 	"koine/core/app"
 	"koine/core/auth"
+	"koine/core/auth/oauth"
 	"koine/core/llm"
 )
 
 const authUsage = `usage: koine auth <command>
 
-  login <provider> [--api-key] [--no-browser]   store an API key for a provider (asks on the terminal, without echo)
+  login <provider> [--api-key] [--no-browser]   sign in with your account (anthropic, openai-codex, github-copilot, openrouter) or, with
+                                                --api-key and for every other provider, store an API key (asked without echo).
+                                                --no-browser: paste a code (anthropic) or use a device code (openai-codex)
   logout <provider>                             remove the stored credential (environment variables and models.json are unchanged)
   check (--provider P | --model M) [--json] [--credentials] [--no-refresh]
                                                 print ready, not_ready or invalid; exit 0, 1 or 2
   print-api-key (--provider P | --model M)      print the API key that would be used
   print-bearer-token (--provider P | --model M) [--min-expiry 30m]
-                                                print a bearer token (ANTHROPIC_AUTH_TOKEN) if that is the credential
+                                                print a bearer token (an account login or ANTHROPIC_AUTH_TOKEN), renewed first if it lapses within D
 
-Credentials are stored in auth.json in the agent directory (~/.koine, or $KOINE_AGENT_DIR), mode 0600. Koine stores API keys; OAuth
-(browser) logins are not implemented, so login always asks for a key. A key may be written as "!command" or "$VAR" in auth.json.
+Credentials are stored in auth.json in the agent directory (~/.koine, or $KOINE_AGENT_DIR), mode 0600. Account logins are renewed
+automatically when they expire. A key may be written as "!command" or "$VAR" in auth.json. "koine login" and "koine logout" are
+shortcuts for "koine auth login" and "koine auth logout".
 Order of use: --api-key, auth.json, apiKey in models.json, the provider's environment variables. print-api-key and
 check --credentials write secrets to stdout.
 `
+
+// oauthClient is what the account logins use; tests replace it so that no request leaves the machine.
+var oauthClient oauth.Client
 
 // authFlags are the options of the auth commands; the maps say which options take a value.
 type authFlags struct {
@@ -108,6 +117,11 @@ func runAuth(args []string, st streams) int {
 	home, _ := os.UserHomeDir()
 	cwd, _ := os.Getwd()
 	ps := app.LoadProviderSetup(cwd, home)
+	ps.OAuth = oauthClient
+	ps.NoRefresh = f.noRefresh
+	if d, err := time.ParseDuration(f.minExpiry); err == nil && args[0] == "print-bearer-token" {
+		ps.Skew = d // a login that lapses sooner than this is renewed before it is printed
+	}
 	for _, w := range ps.Warnings {
 		fmt.Fprintln(st.Err, "koine auth: warning:", w)
 	}
@@ -153,8 +167,13 @@ func authLogin(f authFlags, ps *app.ProviderSetup, st streams) int {
 		fmt.Fprintln(st.Err, "koine auth: login needs an interactive terminal")
 		return 1
 	}
-	if !f.apiKey {
-		fmt.Fprintln(st.Err, "koine auth: signing in with an account (OAuth) is not implemented; storing an API key instead")
+	info, _ := llm.BuiltinProvider(p)
+	if info.OAuthOnly && f.apiKey {
+		fmt.Fprintf(st.Err, "koine auth: %s has no API key; sign in without --api-key\n", p)
+		return 2
+	}
+	if oauth.Has(p) && !f.apiKey {
+		return authOAuth(p, f, ps, st)
 	}
 	key, err := auth.ReadSecret(st.In, st.InTTY, st.Err, "API key for "+p+": ")
 	if err != nil {
@@ -166,6 +185,35 @@ func authLogin(f authFlags, ps *app.ProviderSetup, st streams) int {
 		return 1
 	}
 	fmt.Fprintf(st.Out, "Saved the API key for %s to %s\n", p, ps.Store.Path())
+	return 0
+}
+
+// authOAuth signs in with an account. The terminal both shows the address and can take a pasted code while the browser callback is
+// awaited (ui.Race), which is how a login over SSH finishes.
+func authOAuth(p string, f authFlags, ps *app.ProviderSetup, st streams) int {
+	in := bufio.NewReader(st.In)
+	ui := oauth.UI{
+		Notify: func(m string) { fmt.Fprintln(st.Out, m) },
+		Prompt: func(q string, secret bool) (string, error) {
+			if secret {
+				return auth.ReadSecret(in, st.InTTY, st.Err, q)
+			}
+			fmt.Fprint(st.Err, q)
+			line, err := in.ReadString('\n')
+			if err != nil && line == "" {
+				return "", fmt.Errorf("no input: %w", err)
+			}
+			return strings.TrimSpace(line), nil
+		},
+		OpenBrowser: app.BrowserOpener,
+		Race:        true,
+	}
+	msg, err := ps.LoginOAuth(context.Background(), p, ui, oauth.Options{NoBrowser: f.noBr})
+	if err != nil {
+		fmt.Fprintln(st.Err, "koine auth:", err)
+		return 1
+	}
+	fmt.Fprintln(st.Out, msg)
 	return 0
 }
 
@@ -232,7 +280,9 @@ func authCheck(f authFlags, ps *app.ProviderSetup, st streams) int {
 		}
 		if f.credentials && c.Key != "" {
 			typ := auth.TypeAPIKey
-			if c.Bearer {
+			if c.OAuth {
+				typ = auth.TypeOAuth
+			} else if c.Bearer {
 				typ = "bearer"
 			}
 			res.Credentials = &checkCredential{Type: typ, Key: c.Key}
@@ -284,7 +334,7 @@ func authPrint(cmd string, f authFlags, ps *app.ProviderSetup, st streams) int {
 		fmt.Fprintf(st.Err, "koine auth: the credential for %s is a bearer token (%s); use print-bearer-token\n", p, c.Source)
 		return 1
 	case cmd == "print-bearer-token" && !c.Bearer:
-		fmt.Fprintf(st.Err, "koine auth: %s has an API key (%s), not a bearer token; Koine has no OAuth logins\n", p, c.Source)
+		fmt.Fprintf(st.Err, "koine auth: %s has an API key (%s), not a bearer token\n", p, c.Source)
 		return 1
 	}
 	fmt.Fprintln(st.Out, c.Key)

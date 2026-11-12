@@ -133,6 +133,11 @@ func (s *Store) update(change func(map[string]json.RawMessage) bool) error {
 	}
 	mu.Lock()
 	defer mu.Unlock()
+	return s.updateLocked(change)
+}
+
+// updateLocked is update for a caller that holds mu.
+func (s *Store) updateLocked(change func(map[string]json.RawMessage) bool) error {
 	all, err := s.read()
 	if err != nil {
 		return err

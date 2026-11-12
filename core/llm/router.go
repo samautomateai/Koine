@@ -9,6 +9,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"koine/core/auth/oauth"
 )
 
 // ProviderConfig is one provider of models.json (Pi's schema, https://pi.dev/docs/latest/models-configuration) or of the older
@@ -43,6 +45,9 @@ type Router struct {
 	// Stored returns the auth.json entry of a provider, with its key already resolved. found is false when there is none; env holds the
 	// entry's `env` object, which wins over the process environment for this provider. An error means the entry is unusable.
 	Stored func(provider string) (key string, env map[string]string, found bool, err error)
+	// StoredOAuth returns the subscription login of a provider from auth.json, refreshed when it has expired (REQ-AUTH-003). found is
+	// false when the entry is not an OAuth login; an error means it exists and cannot be used.
+	StoredOAuth func(provider string) (cred OAuthCred, found bool, err error)
 	// Secret resolves a value from models.json (apiKey, headers); nil uses values as written.
 	Secret func(value string) (string, error)
 }
@@ -51,7 +56,9 @@ type Router struct {
 type Credential struct {
 	Key    string
 	Source string            // "--api-key", "auth.json", "models.json", "env:NAME" or "" (none needed)
-	Bearer bool              // the key is a bearer token (ANTHROPIC_AUTH_TOKEN), not an API key
+	Bearer bool              // the key is a bearer token (ANTHROPIC_AUTH_TOKEN, an OAuth login), not an API key
+	OAuth  bool              // the key is the access token of a subscription login
+	Extra  map[string]string // the login's extra fields (accountId, enterpriseUrl)
 	Env    map[string]string // the auth.json entry's env object
 }
 
@@ -239,6 +246,9 @@ func isOpenAIHost(name, base string) bool {
 }
 
 func loginHint(provider string) string {
+	if oauth.Has(provider) {
+		return fmt.Sprintf("run `koine auth login %s` (or /login %s) to sign in with your account or store a key", provider, provider)
+	}
 	return fmt.Sprintf("run `koine auth login %s` (or /login %s) to store a key", provider, provider)
 }
 
@@ -252,7 +262,14 @@ func (r *Router) credential(s setup) (Credential, error) {
 	}
 	var entryEnv map[string]string
 	var storedErr error // an unusable auth.json entry only matters when nothing further down the list works
-	if r.Stored != nil {
+	if r.StoredOAuth != nil {
+		oc, found, err := r.StoredOAuth(s.name)
+		if found && err == nil {
+			return Credential{Key: oc.Access, Source: "auth.json (OAuth login)", Bearer: true, OAuth: true, Extra: oc.Extra}, nil
+		}
+		storedErr = err
+	}
+	if r.Stored != nil && storedErr == nil {
 		key, env, found, err := r.Stored(s.name)
 		storedErr = err
 		if found && err == nil {
@@ -290,6 +307,9 @@ func (r *Router) credential(s setup) (Credential, error) {
 	vars := strings.Join(s.keyEnv, " or ")
 	if s.bearerEnv != "" {
 		vars += " or " + s.bearerEnv
+	}
+	if info, ok := BuiltinProvider(s.name); ok && info.OAuthOnly && s.custom == nil {
+		return fail(true, "not signed in to %s: %s", s.name, loginHint(s.name))
 	}
 	if vars == "" {
 		return fail(true, "no API key for %s: add apiKey to its entry in models.json, or %s", s.name, loginHint(s.name))
@@ -364,13 +384,26 @@ func (r *Router) build(s setup, c Credential) (Provider, error) {
 		headers[k] = val
 	}
 	base := strings.TrimRight(s.base, "/")
+	for k, v := range oauthHeaders(s.name, c) {
+		if _, set := headers[k]; !set { // models.json headers win
+			headers[k] = v
+		}
+	}
 	switch s.api {
 	case APIAnthropic:
-		return &Anthropic{Name: s.name, APIKey: c.Key, Bearer: c.Bearer || s.authHeader, BaseURL: base, Headers: headers, HTTP: r.HTTP, Retry: r.Retry}, nil
+		return &Anthropic{Name: s.name, APIKey: c.Key, Bearer: c.Bearer || s.authHeader, OAuth: c.OAuth, BaseURL: base, Headers: headers, HTTP: r.HTTP,
+			Retry: r.Retry}, nil
 	case APICompletions:
 		flags, _ := parseOpenAIFlags(s.compat)
-		return &OpenAICompat{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Flags: flags, Extra: s.sampling,
-			PromptCache: isOpenAIHost(s.name, base), HTTP: r.HTTP, Retry: r.Retry}, nil
+		o := &OpenAICompat{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Flags: flags, Extra: s.sampling,
+			PromptCache: isOpenAIHost(s.name, base), HTTP: r.HTTP, Retry: r.Retry}
+		if s.name == "github-copilot" {
+			o.Dynamic = copilotDynamic
+			if c.OAuth && s.custom == nil { // the token names the right host; a models.json baseUrl is the user's choice
+				o.BaseURL = copilotBase(c.Key, c.Extra)
+			}
+		}
+		return o, nil
 	case APIResponses:
 		return &Responses{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Extra: s.sampling, PromptCache: isOpenAIHost(s.name, base),
 			HTTP: r.HTTP, Retry: r.Retry}, nil

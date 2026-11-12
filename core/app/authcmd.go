@@ -1,14 +1,17 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"koine/core/agent"
 	"koine/core/auth"
+	"koine/core/auth/oauth"
 	"koine/core/llm"
 )
 
@@ -45,8 +48,8 @@ func (a *App) loginProviders() []string {
 	return names
 }
 
-// authCommand handles /login [provider] and /logout [provider]. It reports whether it handled name. Koine stores API keys only; Pi's
-// browser (OAuth) logins are not implemented, so /login always asks for a key.
+// authCommand handles /login [provider] [--api-key] [--no-browser] and /logout [provider]. It reports whether it handled name. A provider
+// with an account sign-in (REQ-AUTH-003) is signed in to unless --api-key says otherwise; the others ask for a key.
 func (a *App) authCommand(name, args string, emit func(agent.Event)) bool {
 	if name != "login" && name != "logout" {
 		return false
@@ -54,7 +57,18 @@ func (a *App) authCommand(name, args string, emit func(agent.Event)) bool {
 	notice := func(s string) { emit(agent.Event{Type: "notice", Text: s}) }
 	fail := func(err error) { emit(agent.Event{Type: "error", Text: err.Error()}) }
 	store := a.providers.Store
-	provider := llm.CanonicalProvider(strings.TrimSpace(args))
+	var provider string
+	var keyOnly, noBrowser bool
+	for _, f := range strings.Fields(args) {
+		switch f {
+		case "--api-key":
+			keyOnly = true
+		case "--no-browser":
+			noBrowser = true
+		default:
+			provider = llm.CanonicalProvider(f)
+		}
+	}
 	if name == "logout" {
 		a.logout(provider, notice, fail)
 		return true
@@ -66,17 +80,29 @@ func (a *App) authCommand(name, args string, emit func(agent.Event)) bool {
 			i = a.Choose("Log in to which provider?", names)
 		}
 		if i < 0 || i >= len(names) {
-			notice("usage: /login <provider>   providers: " + strings.Join(names, ", ") + "\nThe key is stored in " + store.Path() +
-				" (mode 0600). Koine stores API keys only; OAuth logins are not implemented.")
+			notice("usage: /login <provider> [--api-key] [--no-browser]   providers: " + strings.Join(names, ", ") +
+				"\nSign in with your account: " + strings.Join(oauth.IDs(), ", ") + ". Keys and logins are stored in " + store.Path() + " (mode 0600).")
 			return true
 		}
 		provider = names[i]
 	}
-	if _, builtin := llm.BuiltinProvider(provider); !builtin {
-		if _, custom := a.providers.Custom[provider]; !custom {
-			fail(fmt.Errorf("unknown provider %q; known: %s", provider, strings.Join(a.loginProviders(), ", ")))
+	info, builtin := llm.BuiltinProvider(provider)
+	if _, custom := a.providers.Custom[provider]; !builtin && !custom {
+		fail(fmt.Errorf("unknown provider %q; known: %s", provider, strings.Join(a.loginProviders(), ", ")))
+		return true
+	}
+	if oauth.Has(provider) && !keyOnly {
+		if !info.OAuthOnly && a.Choose != nil && a.Choose("Sign in to "+provider+" with", []string{"your account (OAuth)", "an API key"}) != 0 {
+			keyOnly = true
+		}
+		if !keyOnly {
+			a.oauthLogin(provider, noBrowser, notice, fail)
 			return true
 		}
+	}
+	if info.OAuthOnly {
+		fail(fmt.Errorf("%s has no API key; sign in with /login %s", provider, provider))
+		return true
 	}
 	key, err := a.readSecret(fmt.Sprintf("API key for %s (input hidden; a !command or $VAR works too): ", provider))
 	if err != nil {
@@ -89,6 +115,24 @@ func (a *App) authCommand(name, args string, emit func(agent.Event)) bool {
 	}
 	notice(fmt.Sprintf("stored the key for %s in %s", provider, store.Path()))
 	return true
+}
+
+// oauthLogin runs an account sign-in from a session. The code can be pasted through Prompt when the browser callback cannot reach this
+// machine; the browser opens only where a person is present.
+func (a *App) oauthLogin(provider string, noBrowser bool, notice func(string), fail func(error)) {
+	if a.NoUserBash {
+		fail(errors.New("there is nobody to sign in here; run `koine auth login " + provider + "` in a terminal instead"))
+		return
+	}
+	ui := oauth.UI{Notify: notice, Prompt: a.Prompt, OpenBrowser: BrowserOpener}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	msg, err := a.providers.LoginOAuth(ctx, provider, ui, oauth.Options{NoBrowser: noBrowser})
+	if err != nil {
+		fail(err)
+		return
+	}
+	notice(msg)
 }
 
 func (a *App) logout(provider string, notice func(string), fail func(error)) {

@@ -598,7 +598,7 @@ a literal, `!command` (trimmed output, 10 s limit), or a template with `$NAME`/`
 `apiKey`, `headers`, `authHeader`, `compat`, `models[]` and `modelOverrides`. Keys Koine does not act on are reported at startup.
 
 `koine auth login|logout|check|print-api-key|print-bearer-token` (exit codes of `check`: 0 ready, 1 not ready, 2 invalid). `check --json`
-prints `{"status":"ready|not_ready|invalid","provider":…,"source":…,"reason":…,"credentials":…}`; this shape is Koine's. Not implemented: OAuth logins,
+prints `{"status":"ready|not_ready|invalid","provider":…,"source":…,"reason":…,"credentials":…}`; this shape is Koine's. Account sign-in: `koine auth login <provider>` (or `koine login`, `/login`) signs in to `anthropic`, `openai-codex`, `github-copilot` and `openrouter` with PKCE and a loopback callback or a device code (`--no-browser`: pasted code for Claude, device code for ChatGPT; `--api-key` stores a key instead); logins are kept in `auth.json` as `{"type":"oauth","access","refresh","expires"}` and renewed when they expire (`check --no-refresh` reports instead; `print-bearer-token [--min-expiry D]` prints the access token). Not implemented: OAuth for xAI, Kimi, Meta and Google Gemini CLI,
 AWS `credential_process`, MFA and instance credentials, metadata-server credentials. Wire formats of the Responses, Azure, Gemini, Bedrock and Vertex providers are
 tested against fake servers only; the live Bedrock and Vertex APIs were not exercised.
 

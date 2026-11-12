@@ -28,6 +28,8 @@ type ProviderInfo struct {
 	// names the optional API-key variable, Guide says in one sentence how to sign in, and no stored key is needed.
 	Ambient bool
 	Guide   string
+	// OAuthOnly marks a provider that has no API key at all, only a subscription login (`koine auth login <id>`).
+	OAuthOnly bool
 }
 
 // providerTable is the built-in provider list. Environment variable names are Pi's (https://pi.dev/docs/latest/providers). The base URLs
@@ -57,6 +59,9 @@ var providerTable = []ProviderInfo{
 	{ID: "google-vertex", Name: "Google Vertex AI", API: APIVertex, Env: []string{"GOOGLE_CLOUD_API_KEY"}, Ambient: true,
 		Guide: "set GOOGLE_CLOUD_API_KEY, or GOOGLE_APPLICATION_CREDENTIALS (or run `gcloud auth application-default login`) with " +
 			"GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION"},
+	// Subscription providers: no API key exists, the credential is an OAuth login (REQ-AUTH-003).
+	{ID: "openai-codex", Name: "OpenAI ChatGPT (Codex)", API: APIResponses, BaseURL: codexBase, OAuthOnly: true},
+	{ID: "github-copilot", Name: "GitHub Copilot", API: APICompletions, BaseURL: copilotDefaultBase, OAuthOnly: true},
 	{ID: "ollama", Name: "Ollama", API: APICompletions, BaseURL: "http://localhost:11434/v1", Local: true},
 	{ID: "lmstudio", Name: "LM Studio", API: APICompletions, BaseURL: "http://localhost:1234/v1", Local: true},
 	{ID: "vllm", Name: "vLLM", API: APICompletions, BaseURL: "http://localhost:8000/v1", Local: true},
