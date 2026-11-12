@@ -88,7 +88,7 @@ Upstream: Pi 1.5.2 (TypeScript). Compared against Koine at the commit that added
 2. CMP-01/02 and CMP-07: no token accounting and no compaction, so long sessions overflow the context window. SESS-01 (persistence) is a prerequisite.
 3. Closed by REQ-TOOL-002..005 (TOOL-07..13, 17..22, SYS-01, CMD-03). Left: `powershell` (TOOL-16), rendering of tool updates in the frontends (TOOL-14), NFKC/NFD normalisation (TOOL-08, 20).
 4. AGT-02/03: steering and follow-up queues exist in the core and over HTTP (REQ-AGT-001), but the TUI blocks input while a run is active. AGT-08: no Shift+Tab or selector for thinking levels.
-5. TUI-01/03/05/09: the interactive UI is line mode, or an uncompiled Bubble Tea app with no autocomplete, markdown, history or footer. CTX-01 (parent-directory AGENTS.md) and TPL-02..04 are small fixes with high compatibility value.
+5. TUI-01/03/05/09: the interactive UI is line mode, or a Bubble Tea app (an RPC client built and tested in CI, REQ-FE-002/003) with no autocomplete, markdown, history or footer. CTX-01 (parent-directory AGENTS.md) and TPL-02..04 are small fixes with high compatibility value.
 
 **Questionable upstream features we should NOT copy**
 

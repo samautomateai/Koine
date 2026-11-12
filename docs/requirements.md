@@ -123,9 +123,18 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 ### REQ-FE-002 — Bubble Tea TUI and Wails desktop app build and are tested in CI
 
-- Status: planned
-- Statement: The two frontends compile and have tests; today they are written but unbuilt.
-- Design: DES-008
+- Status: implemented
+- Statement: The Bubble Tea TUI (`tui-bubbletea/`) and the Wails desktop app (`desktop/`) compile with their pinned dependencies, have committed `go.sum` files and pass their own tests in the blocking CI job `frontends`, which installs GTK 3 and WebKitGTK 4.1 for Wails, requires `go mod tidy -diff` to be clean, builds, vets and runs the tests with the race detector, and gates coverage of the package that holds the logic (80% for the TUI, whose `main` is process wiring; 85% for `desktop/bridge`). Both are RPC clients of the core (REQ-FE-003). Not covered: nothing renders the Wails window in CI, so the page (`desktop/frontend/index.html`) and the real window are untested, and the Bubble Tea program has not been run on a terminal against a real model.
+- Design: DES-008; DES-075
+- Tests: TestEnterSendsAPromptAndSteersWhileBusy; TestEventsRenderIntoTheViewAndEscAborts; TestDialogsAreAnsweredFromTheEditor; TestErrorsAndExit; TestRenderEntry; TestKeysViewAndDialogHelpers; TestEventsBecomeUpdatesForThePage; TestSendSteersWhileBusyAndInfoReadsTheServer; TestFailuresAreShownAndDialogsAnswered
+- Gap rows: CLI-09, TUI-01
+
+### REQ-FE-003 — Frontends drive the core through RPC mode
+
+- Status: implemented
+- Statement: `core/rpcclient` is a standard-library client for `koine --mode rpc`: it starts the binary (`KOINE_BIN`, next to the program, or `PATH`), sends commands with ids and returns their responses (`Prompt`, `Steer`, `FollowUp`, `Abort`, `GetState`, `GetCommands`, `RespondUI`), delivers events in order together with the server's standard error lines as `stderr` events, and fails pending commands when the server ends. `Transcript` folds events into entries (user, assistant, thinking, tool, notice, error), the busy flag, extension dialogs, statuses, widgets and the title. The Bubble Tea and Wails frontends use only this package from the core and no core internals (ADR 0009).
+- Design: DES-075
+- Tests: TestClientCorrelatesResponsesAndKeepsEvents; TestCommandErrorsAndHelpers; TestRespondUIWritesAResponseLine; TestContextCancelAndClosedConnection; TestReadErrorIsReportedAndCloseStopsDelivery; TestStartRunsAChildAndForwardsStderr; TestChildExitIsReported; TestStartFailures; TestFindBinary; TestStreamedRunBecomesEntries; TestUnstreamedMessagesErrorsAndMissedToolStart; TestExtensionUIRequests; TestSummarize; TestRPCClientDrivesTheServer
 
 ### REQ-TUI-001 — Interactive terminal UI with Pi's editing, rendering and navigation
 

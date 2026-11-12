@@ -60,13 +60,13 @@ Without Task installed, `scripts/covergate.sh`, `go test ./...` and
 
 ### Status
 
-| Area                                                     | State                                                                                                    |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean       |
-| `tui-bubbletea/`, `desktop/` (Wails v2)                  | **written, not compiled** — they need `go mod tidy` with network access (`task tui`, `task desktop:dev`) |
-| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing, streamed (`core/llm`)              |
-| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                      |
-| Not yet                                                  | frontends that render streamed text, permission prompts, Pi/opencode UI APIs (inert shims)               |
+| Area                                                     | State                                                                                               |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean  |
+| `tui-bubbletea/`, `desktop/` (Wails v2)                  | RPC clients of `koine --mode rpc`; built and tested in CI (job `frontends`, `task frontends:test`) |
+| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing, streamed (`core/llm`)         |
+| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                 |
+| Not yet                                                  | frontends that render streamed text, permission prompts, Pi/opencode UI APIs (inert shims)          |
 
 ## Layout
 
@@ -80,8 +80,9 @@ core/hooks           Claude-compatible command hooks
 core/ext             extension host (JSON-RPC) + embedded JS sidecar (sidecar/, jstest/)
 core/app             wiring: config, discovery, slash commands
 core/server|tui      HTTP/SSE and line-mode frontends
-tui-bubbletea/       Bubble Tea frontend (separate module)
-desktop/             Wails v2 frontend (separate module)
+core/rpcclient       client for `koine --mode rpc`, used by the two frontends below
+tui-bubbletea/       Bubble Tea frontend (separate module, RPC client)
+desktop/             Wails v2 frontend (separate module, RPC client; desktop/bridge holds its logic)
 docs/SPEC.md         normative specification
 ```
 
