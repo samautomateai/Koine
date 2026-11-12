@@ -1,4 +1,4 @@
-# ADR 0007 — Bedrock and Vertex without cloud SDKs, with a short credential chain
+# ADR 0008 — Bedrock and Vertex without cloud SDKs, with a short credential chain
 
 - Status: accepted
 - Date: 2026-11-12

@@ -121,7 +121,11 @@ export function checkAdrs(root, reqs) {
   const dir = path.join(root, "docs", "adr");
   if (!fs.existsSync(dir)) return errs;
   const reqIds = new Set(reqs.map((r) => r.id));
-  for (const f of fs.readdirSync(dir).filter((n) => /^\d{4}-.*\.md$/.test(n) && !n.startsWith("0000"))) {
+  const files = fs.readdirSync(dir).filter((n) => /^\d{4}-.*\.md$/.test(n) && !n.startsWith("0000"));
+  const byNumber = new Map();
+  for (const f of files) byNumber.set(f.slice(0, 4), [...(byNumber.get(f.slice(0, 4)) ?? []), f]);
+  for (const [n, fs2] of byNumber) if (fs2.length > 1) errs.push(`adr: number ${n} is used by ${fs2.join(", ")}; renumber one`);
+  for (const f of files) {
     const text = fs.readFileSync(path.join(dir, f), "utf8");
     const status = /^- Status:\s*(.*)$/m.exec(text)?.[1]?.trim();
     if (!status || !ADR_STATUSES.test(status))

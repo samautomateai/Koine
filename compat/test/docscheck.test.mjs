@@ -114,6 +114,13 @@ test("docscheck rejects ADRs with a bad status, date or requirement", () => {
   fs.rmSync(d, { recursive: true, force: true });
 });
 
+test("docscheck rejects two ADRs with the same number", () => {
+  const ok = "# ADR\n- Status: accepted\n- Date: 2026-01-01\n";
+  const d = tmp({ "docs/adr/0001-a.md": ok, "docs/adr/0001-b.md": ok, "docs/adr/0002-c.md": ok });
+  assert.deepEqual(checkAdrs(d, []), ["adr: number 0001 is used by 0001-a.md, 0001-b.md; renumber one"]);
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
 test("docscheck finds broken relative links but ignores URLs, anchors and code blocks", () => {
   const d = tmp({
     "README.md": "[ok](docs/a.md#x) [url](https://x.y) [bad](docs/missing.md)\n```\n[fake](nope.md)\n```\n",
