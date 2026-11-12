@@ -13,6 +13,7 @@ import (
 
 	"koine/core/agent"
 	"koine/core/agents"
+	"koine/core/auth"
 	"koine/core/events"
 	"koine/core/ext"
 	"koine/core/hooks"
@@ -51,6 +52,8 @@ type App struct {
 	// Choose lets an interactive frontend ask the user to pick one of options (for /resume and the /tree summary question). It returns the
 	// index, or -1 to cancel. Nil in print, JSON and server runs, where those commands fall back to listing and flags.
 	Choose func(title string, options []string) int
+	// Prompt asks the user for a line of input; secret says it must not be echoed. /login uses it for API keys. Nil = ask on the terminal.
+	Prompt func(question string, secret bool) (string, error)
 	// NoUserBash turns "!cmd" and "!!cmd" into ordinary prompts. Print, JSON and server runs set it: text piped in or sent over HTTP must not
 	// become a shell command.
 	NoUserBash bool
@@ -67,9 +70,11 @@ type App struct {
 	opts        Options
 	thinking    string // the explicit thinking level (--thinking, a model suffix or /thinking); "" = from settings
 	router      *llm.Router
-	apiKey      string // --api-key
-	apiKeyEnv   string // the variable the key stands in for
-	ephemeralID string // session id reported to the shell when sessions are off
+	providers   *ProviderSetup
+	secrets     *auth.Resolver // shared by every router, so a command cached for auth.json runs once per process
+	apiKey      string         // --api-key
+	apiKeyProv  string         // the provider it was given for (the first model's)
+	ephemeralID string         // session id reported to the shell when sessions are off
 }
 
 type Info struct {
@@ -90,7 +95,7 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	if abs, err := filepath.Abs(cwd); err == nil {
 		cwd = abs
 	}
-	a := &App{Cwd: cwd, Home: home, opts: opts}
+	a := &App{Cwd: cwd, Home: home, opts: opts, secrets: newResolver()}
 	a.Trusted = opts.Trust || trust.FromEnv() || trust.Open(home).IsTrusted(cwd)
 
 	a.Agent = &agent.Agent{Cwd: cwd, Provider: lazyProvider{a}, Catalog: loadCatalog(home)}
@@ -104,7 +109,9 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	model = a.chooseThinking(model)
 	a.Agent.Model = model
 	if opts.Load.APIKey != "" {
-		a.apiKey, a.apiKeyEnv = opts.Load.APIKey, a.keyEnvOf(model)
+		a.apiKey = opts.Load.APIKey
+		a.apiKeyProv, _, _ = a.router.ProviderOf(model)
+		a.applyRuntimeKey()
 	}
 	if err := a.initSession(); err != nil {
 		a.Close()
@@ -149,7 +156,12 @@ func (a *App) load(ctx context.Context) {
 	}
 	a.Cfg = cfg
 	a.Warnings = append(a.Warnings, SettingsDiagnostics(a.Cwd, a.Home)...)
-	a.router = &llm.Router{Custom: cfg.Providers, Getenv: a.getenv}
+	a.providers = NewProviderSetup(a.Cwd, a.Home, a.Trusted, cfg.Providers, a.secrets)
+	a.Warnings = append(a.Warnings, a.providers.Warnings...)
+	skippedCode += a.providers.Skipped
+	a.router = a.providers.Router
+	a.applyRuntimeKey()
+	a.Agent.Catalog = buildCatalog(a.Home, a.providers.Custom)
 	a.loadScope()
 
 	a.Tools = tools.NewRegistry()
@@ -305,7 +317,8 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 	}
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)
-	if a.sessionCommand(ctx, name, args, emit) || a.thinkingCommand(name, args, emit) || a.mcpCommand(ctx, name, args, emit) {
+	if a.sessionCommand(ctx, name, args, emit) || a.thinkingCommand(name, args, emit) || a.mcpCommand(ctx, name, args, emit) ||
+		a.authCommand(name, args, emit) {
 		return false, nil
 	}
 	info := a.Describe()
@@ -314,7 +327,8 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 		return true, nil
 	case "help":
 		notice("/help /new /session /name /resume /fork [id] /clone /tree [id] /label /export [file] /exit /tools /skills /agents /commands " +
-			"/model [id[:level]] /thinking [level] /compact [focus] /mcp /trust /reload /compat /skill:<name> /<command> <args>")
+			"/model [id[:level]] /thinking [level] /compact [focus] /login [provider] /logout [provider] /mcp /trust /reload /compat " +
+			"/skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
 		notice(strings.Join(info.Tools, ", "))
@@ -402,9 +416,9 @@ func orNone(s []string) string {
 // loadCatalog is the built-in model catalog plus the user's own ~/.koine/model-catalog.json, whose entries replace built-in ones with the same id.
 // A broken user file is ignored: prices and windows are conveniences, and the built-in data still applies.
 func loadCatalog(home string) *llm.Catalog {
-	c := llm.DefaultCatalog()
-	if home != "" {
-		_ = c.Merge(filepath.Join(agentdir.Of(home), "model-catalog.json"))
+	var custom map[string]llm.ProviderConfig
+	if dir := agentdir.Of(home); dir != "" {
+		custom, _, _ = llm.ReadModelsFile(filepath.Join(dir, "models.json"))
 	}
-	return c
+	return buildCatalog(home, custom)
 }

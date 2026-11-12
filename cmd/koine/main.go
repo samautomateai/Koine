@@ -31,6 +31,9 @@ func run(args []string, st streams) int {
 	if len(args) > 0 && args[0] == "mcp" { // koine mcp add|remove|list|login|logout (mcp_cmd.go)
 		return runMCP(args[1:], st)
 	}
+	if len(args) > 0 && args[0] == "auth" { // koine auth login|logout|check|print-api-key|print-bearer-token (auth.go)
+		return runAuth(args[1:], st)
+	}
 	c, err := parseArgs(args)
 	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)

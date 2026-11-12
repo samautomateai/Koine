@@ -96,7 +96,15 @@ type HTTPError struct {
 }
 
 func (e *HTTPError) Error() string {
-	return fmt.Sprintf("%s: HTTP %d: %s", e.Provider, e.Status, truncate(e.Body, 500))
+	msg := ErrorMessage(e.Body)
+	if msg == "" {
+		msg = e.Body
+	}
+	s := fmt.Sprintf("%s: HTTP %d: %s", e.Provider, e.Status, truncate(msg, 500))
+	if h := e.Hint(); h != "" {
+		s += " (" + h + ")"
+	}
+	return s
 }
 
 // quotaHints are phrases of billing and quota failures that arrive as 429 but do not clear by waiting.

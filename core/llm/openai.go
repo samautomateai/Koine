@@ -16,6 +16,9 @@ type OpenAICompat struct {
 	Name    string // for error messages
 	APIKey  string // optional (local servers)
 	BaseURL string // e.g. https://api.openai.com/v1
+	Headers map[string]string
+	Flags   OpenAIFlags    // the compat flags of models.json that change the request
+	Extra   map[string]any // samplingParams of models.json: fields merged into every request body
 	HTTP    *http.Client
 	Retry   RetryPolicy
 }
@@ -25,6 +28,7 @@ type oaMessage struct {
 	Content    any          `json:"content"` // a string, or an array of parts when the message carries images
 	ToolCalls  []oaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
+	Name       string       `json:"name,omitempty"` // tool messages, for servers with requiresToolResultName
 }
 
 type oaToolCall struct {
@@ -47,7 +51,13 @@ func oaImage(b Block) map[string]any {
 // its own "tool" message. Tool messages cannot carry images, so the images of a tool result follow as a user message, as Pi does. A user
 // message with images has an array of text and image_url parts instead of a string.
 func toOpenAI(system string, msgs []Message) []oaMessage {
+	return toOpenAIWith(system, msgs, OpenAIFlags{})
+}
+
+// toOpenAIWith is toOpenAI for a server with the quirks fl describes.
+func toOpenAIWith(system string, msgs []Message, fl OpenAIFlags) []oaMessage {
 	var out []oaMessage
+	names := map[string]string{} // tool call id -> tool name, for requiresToolResultName
 	if system != "" {
 		out = append(out, oaMessage{Role: "system", Content: sp(system)})
 	}
@@ -67,6 +77,7 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 			case "image":
 				parts = append(parts, oaImage(b))
 			case "tool_use":
+				names[b.ID] = b.Name
 				c := oaToolCall{ID: b.ID, Type: "function"}
 				c.Function.Name = b.Name
 				c.Function.Arguments = string(b.Input)
@@ -79,7 +90,11 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 				if b.IsError {
 					content = "Error: " + content
 				}
-				results = append(results, oaMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: sp(content)})
+				tm := oaMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: sp(content)}
+				if fl.ToolResultName {
+					tm.Name = names[b.ToolUseID]
+				}
+				results = append(results, tm)
 				fromTools = append(fromTools, b.Images...)
 			}
 		}
@@ -100,6 +115,8 @@ func toOpenAI(system string, msgs []Message) []oaMessage {
 			msg.Content = parts
 		case len(text) > 0:
 			msg.Content = sp(strings.Join(text, "\n"))
+		case fl.NonNullAssistant && m.Role == "assistant":
+			msg.Content = sp("")
 		}
 		out = append(out, msg)
 	}
@@ -114,17 +131,25 @@ func (o *OpenAICompat) label() string {
 }
 
 func (o *OpenAICompat) request(req Request, stream bool) (url string, headers map[string]string, payload []byte, err error) {
-	body := map[string]any{"model": req.Model, "messages": toOpenAI(req.System, req.Messages)}
+	msgs := toOpenAIWith(req.System, req.Messages, o.Flags)
+	body := map[string]any{}
+	for k, v := range o.Extra { // samplingParams first, so nothing here can be overridden by them
+		body[k] = v
+	}
+	body["model"], body["messages"] = req.Model, msgs
 	effort := openAIEffort(req.Thinking)
-	if effort != "" {
+	if effort != "" && !o.Flags.NoReasoningEffort {
 		body["reasoning_effort"] = effort
 	}
 	if req.MaxTokens > 0 {
-		if effort != "" { // reasoning models reject max_tokens
-			body["max_completion_tokens"] = req.MaxTokens
-		} else {
-			body["max_tokens"] = req.MaxTokens
+		field := o.Flags.MaxTokensField
+		if field == "" {
+			field = "max_tokens"
+			if effort != "" { // reasoning models reject max_tokens
+				field = "max_completion_tokens"
+			}
 		}
+		body[field] = req.MaxTokens
 	}
 	if len(req.Tools) > 0 {
 		var tools []map[string]any
@@ -133,13 +158,20 @@ func (o *OpenAICompat) request(req Request, stream bool) (url string, headers ma
 				"name": t.Name, "description": t.Description, "parameters": t.InputSchema}})
 		}
 		body["tools"] = tools
+	} else if o.Flags.ToolsWithHistory && hasToolHistory(req.Messages) {
+		body["tools"] = []any{}
 	}
 	if stream {
 		body["stream"] = true
-		body["stream_options"] = map[string]any{"include_usage": true}
+		if !o.Flags.NoStreamUsage {
+			body["stream_options"] = map[string]any{"include_usage": true}
+		}
 	}
 	payload, err = json.Marshal(body)
 	headers = map[string]string{}
+	for k, v := range o.Headers {
+		headers[k] = v
+	}
 	if o.APIKey != "" {
 		headers["authorization"] = "Bearer " + o.APIKey
 	}

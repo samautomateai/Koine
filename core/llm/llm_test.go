@@ -181,7 +181,7 @@ func TestRouterResolve(t *testing.T) {
 
 func TestRouterRejectsInsteadOfGuessing(t *testing.T) {
 	r := &Router{Getenv: env(nil)}
-	for in, want := range map[string]string{"gemini-2": "cannot infer", "weird/model": "unknown provider prefix"} {
+	for in, want := range map[string]string{"weird-model-2": "cannot infer", "weird/model": "unknown provider prefix"} {
 		if _, _, err := r.Resolve(in); err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "openrouter") {
 			t.Errorf("%s: %v", in, err)
 		}
