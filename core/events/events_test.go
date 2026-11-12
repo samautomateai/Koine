@@ -22,6 +22,24 @@ func TestMerge(t *testing.T) {
 	}
 }
 
+func TestMergeAddsUpDiscoveredResources(t *testing.T) {
+	var d Decision
+	d.Merge(Decision{})
+	d.Merge(Decision{Resources: &Resources{}})
+	if d.Resources != nil {
+		t.Fatalf("no paths, no resources: %+v", d.Resources)
+	}
+	d.Merge(Decision{Resources: &Resources{SkillPaths: []string{"/a"}, ThemePaths: []string{"/t"}}})
+	d.Merge(Decision{Resources: &Resources{SkillPaths: []string{"/b"}, PromptPaths: []string{"/p"}}})
+	r := d.Resources
+	if len(r.SkillPaths) != 2 || r.SkillPaths[1] != "/b" || len(r.PromptPaths) != 1 || len(r.ThemePaths) != 1 || r.Empty() {
+		t.Fatalf("%+v", r)
+	}
+	if !(*Resources)(nil).Empty() {
+		t.Error("nil is empty")
+	}
+}
+
 func TestMultiStopsAtBlock(t *testing.T) {
 	calls := 0
 	m := Multi{nil, fn(func(string) Decision { calls++; return Decision{Block: true, Reason: "r"} }), fn(func(string) Decision { calls++; return Decision{} })}

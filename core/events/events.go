@@ -19,7 +19,22 @@ const (
 	ToolResult   = "tool_result" // after a tool runs; may rewrite output
 	Context      = "context"     // before each model request; may replace the messages (Koine's message shape, not Pi's)
 	AgentEnd     = "agent_end"
+	// ResourcesDiscover is sent after session_start (reason "startup") and after a reload (reason "reload"); handlers answer with
+	// Decision.Resources, paths of skills, prompt templates and themes to load.
+	ResourcesDiscover = "resources_discover"
 )
+
+// Resources are the paths an extension contributes in answer to ResourcesDiscover (Pi's skillPaths, promptPaths and themePaths).
+type Resources struct {
+	SkillPaths  []string `json:"skillPaths,omitempty"`
+	PromptPaths []string `json:"promptPaths,omitempty"`
+	ThemePaths  []string `json:"themePaths,omitempty"`
+}
+
+// Empty reports whether no path was contributed.
+func (r *Resources) Empty() bool {
+	return r == nil || len(r.SkillPaths)+len(r.PromptPaths)+len(r.ThemePaths) == 0
+}
 
 // Decision is what a handler may answer. The zero value means "no opinion".
 type Decision struct {
@@ -35,6 +50,7 @@ type Decision struct {
 	// Messages replaces the conversation for one request (context event): a JSON array of messages as llm.Message encodes them.
 	Messages     json.RawMessage `json:"messages,omitempty"`
 	SystemAppend string          `json:"systemAppend,omitempty"`
+	Resources    *Resources      `json:"resources,omitempty"` // answer to ResourcesDiscover; paths from several handlers add up
 }
 
 func (d *Decision) Merge(o Decision) {
@@ -61,6 +77,14 @@ func (d *Decision) Merge(o Decision) {
 	}
 	if len(o.Messages) > 0 {
 		d.Messages = o.Messages
+	}
+	if !o.Resources.Empty() {
+		if d.Resources == nil {
+			d.Resources = &Resources{}
+		}
+		d.Resources.SkillPaths = append(d.Resources.SkillPaths, o.Resources.SkillPaths...)
+		d.Resources.PromptPaths = append(d.Resources.PromptPaths, o.Resources.PromptPaths...)
+		d.Resources.ThemePaths = append(d.Resources.ThemePaths, o.Resources.ThemePaths...)
 	}
 	if o.SystemAppend != "" {
 		if d.SystemAppend != "" {

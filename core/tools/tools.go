@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"koine/core/srcinfo"
 )
 
 type Tool interface {
@@ -80,6 +82,26 @@ type Registry struct {
 	mu     sync.RWMutex
 	m      map[string]Tool
 	hidden map[string]bool // registered but not offered: Names and Get skip them, Filtered copies still see them
+	srcs   map[string]srcinfo.Info
+}
+
+// SetSource records where a registered tool came from (Pi's sourceInfo). Registering the tool again under the same name forgets it,
+// so a tool never carries the provenance of the one it replaced.
+func (r *Registry) SetSource(name string, info srcinfo.Info) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.srcs == nil {
+		r.srcs = map[string]srcinfo.Info{}
+	}
+	r.srcs[name] = info
+}
+
+// SourceOf is where the named tool came from; ok is false when nothing was recorded.
+func (r *Registry) SourceOf(name string) (srcinfo.Info, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	info, ok := r.srcs[name]
+	return info, ok
 }
 
 func NewRegistry() *Registry { return &Registry{m: map[string]Tool{}} }
@@ -87,6 +109,7 @@ func NewRegistry() *Registry { return &Registry{m: map[string]Tool{}} }
 func (r *Registry) Register(t Tool) {
 	r.mu.Lock()
 	r.m[t.Name()] = t
+	delete(r.srcs, t.Name())
 	delete(r.hidden, t.Name()) // a tool registered later under the name is a deliberate choice
 	r.mu.Unlock()
 }
@@ -147,6 +170,9 @@ func (r *Registry) Filtered(allow, deny []string) *Registry {
 			continue
 		}
 		out.m[n] = t
+		if s, ok := r.srcs[n]; ok {
+			out.SetSource(n, s)
+		}
 	}
 	return out
 }

@@ -247,6 +247,9 @@ bmp) and piped image data are sent as images, resized to at most 2000 by 2000 pi
   -h, --help                   this text and the options extensions registered
 
 Subcommand: koine mcp add|remove|list|login|logout   manage MCP servers (koine mcp --help)
+Pi packages (third-party code; see "koine install -h"):
+  koine install|remove|update|list|config [-l] [source...]   npm:name[@version], git:host/path[@ref], a git URL or a directory;
+                               -l keeps the package in this project (needs a trusted folder); install scripts never run unless allowed
 
 Answers go to stdout; tool activity, notices and errors go to stderr. Exit codes: 0 ok, 1 failed, 2 usage.
 `

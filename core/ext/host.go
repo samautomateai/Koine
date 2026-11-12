@@ -7,6 +7,8 @@
 //
 //	initialize      {protocol, host, cwd, trusted}   -> {name?, events?: [string]}
 //	event           {name, payload}                  -> events.Decision
+//	                  resources_discover {cwd, reason: "startup"|"reload"} answers {resources: {skillPaths, promptPaths, themePaths}};
+//	                  relative paths are taken from the extension's working directory
 //	tool.execute    {name, args, callId}             -> {content, isError?}
 //	command.execute {name, args}                     -> {output}
 //	flags           (notification) {values: {name: value}}  command-line values of the registered flags
@@ -32,12 +34,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"koine/core/events"
+	"koine/core/srcinfo"
 	"koine/core/tools"
 )
 
@@ -46,10 +50,14 @@ type Spec struct {
 	Command []string          `json:"command"`
 	Env     map[string]string `json:"env,omitempty"`
 	Dir     string            `json:"dir,omitempty"` // working dir for the process (default: project cwd)
+	// Source says where the extension was found (Pi's sourceInfo); the tools and commands it registers carry it. Set by the app, never
+	// read from a settings file.
+	Source srcinfo.Info `json:"-"`
 }
 
 type Command struct {
 	Name, Description string
+	Source            srcinfo.Info
 	proc              *Proc
 }
 
@@ -151,6 +159,8 @@ type Proc struct {
 	pend   map[int64]chan msg
 	dead   chan struct{}
 	events map[string]bool // nil = all
+	src    srcinfo.Info
+	dir    string // working directory of the process; relative paths the extension returns are taken from here
 }
 
 // Start launches an extension and completes the initialize handshake.
@@ -183,7 +193,7 @@ func (h *Host) Start(ctx context.Context, s Spec) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	p := &Proc{Name: s.Name, host: h, cmd: cmd, in: in, pend: map[int64]chan msg{}, dead: make(chan struct{})}
+	p := &Proc{Name: s.Name, host: h, cmd: cmd, in: in, pend: map[int64]chan msg{}, dead: make(chan struct{}), src: s.Source, dir: cmd.Dir}
 	go func() {
 		sc := bufio.NewScanner(errp)
 		for sc.Scan() {
@@ -276,11 +286,14 @@ func (p *Proc) notify(m msg) {
 			t.Schema = json.RawMessage(`{"type":"object","properties":{}}`)
 		}
 		h.Tools.Register(&procTool{p: p, name: t.Name, desc: t.Description, schema: t.Schema, snippet: t.PromptSnippet, guidelines: t.PromptGuidelines})
+		if !p.src.IsZero() {
+			h.Tools.SetSource(t.Name, p.src)
+		}
 	case "register_command":
 		var c struct{ Name, Description string }
 		if json.Unmarshal(m.Params, &c) == nil && c.Name != "" {
 			h.mu.Lock()
-			h.commands[c.Name] = Command{Name: c.Name, Description: c.Description, proc: p}
+			h.commands[c.Name] = Command{Name: c.Name, Description: c.Description, Source: p.src, proc: p}
 			h.mu.Unlock()
 		}
 	case "register_flag":
@@ -390,6 +403,9 @@ func (h *Host) Emit(ctx context.Context, name string, payload any) events.Decisi
 		}
 		var d events.Decision
 		if len(res) > 0 && json.Unmarshal(res, &d) == nil {
+			if name == events.ResourcesDiscover && d.Resources != nil {
+				p.absolute(d.Resources)
+			}
 			out.Merge(d)
 		}
 		if out.Block {
@@ -397,6 +413,30 @@ func (h *Host) Emit(ctx context.Context, name string, payload any) events.Decisi
 		}
 	}
 	return out
+}
+
+// absolute makes the paths an extension contributed absolute: a relative path is taken from the extension's working directory, a leading ~
+// is the home directory. Blank entries are dropped.
+func (p *Proc) absolute(r *events.Resources) {
+	fix := func(in []string) []string {
+		var out []string
+		for _, s := range in {
+			s = strings.TrimSpace(s)
+			switch {
+			case s == "":
+				continue
+			case s == "~" || strings.HasPrefix(s, "~/"):
+				if home, err := os.UserHomeDir(); err == nil {
+					s = filepath.Join(home, strings.TrimPrefix(s, "~"))
+				}
+			case !filepath.IsAbs(s):
+				s = filepath.Join(p.dir, s)
+			}
+			out = append(out, filepath.Clean(s))
+		}
+		return out
+	}
+	r.SkillPaths, r.PromptPaths, r.ThemePaths = fix(r.SkillPaths), fix(r.PromptPaths), fix(r.ThemePaths)
 }
 
 func (h *Host) Commands() []Command {

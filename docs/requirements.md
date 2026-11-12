@@ -303,11 +303,26 @@ tests, a named test that does not exist, a missing design reference, and duplica
 - Design: DES-050
 - Tests: TestMCPAddRemoveAndUsage; TestMCPList; TestMCPLoginAndLogout; TestAddAndRemoveServerKeepsTheRest
 
-### REQ-PKG-001 — Install Pi packages
+### REQ-PKG-001 — Install and manage Pi packages
 
-- Status: planned
-- Statement: `koine install|remove|update|list` handles npm, git and local Pi packages with a `pi` manifest, feeds their extensions, skills and prompts to the loaders, pins by hash and never runs install scripts. Gap rows EXT-34..40.
-- Design: none yet
+- Status: implemented
+- Statement: `koine install|remove|update|list|config [-l]` manages Pi packages from `npm:` (a pinned version is never moved), `git:` or URL (a tag or commit is never moved) and local-path sources. User packages live under the agent directory (`packages/`, with `packages.lock.json`), project packages under `.koine/packages/` (with a committed `.koine/packages.lock.json`). Installing, removing and updating a project package needs trust (ADR 0002) and `koine` loads project packages only from a trusted folder. npm installs run `npm install --ignore-scripts` unless the user opts in with `--allow-scripts` or `allowInstallScripts`; `npm` and `git` are the user's own programs and a missing one is a clear error. Every installed package is hashed (sha256 over its files) into the lockfile together with the version, commit and registry integrity; an install or update that finds the same version or commit with different bytes is refused, and a package whose files no longer match its lock entry is not loaded. Dependencies listed in `dependencies` that the host provides (`peerDependencies "*"` is the rule) are warned about. `update` prints the changelog sections between the old and new version of packages that carry extensions. Koine never installs at startup. Gap rows EXT-34, EXT-35, EXT-39, EXT-40, EXT-44, CLI-34.
+- Design: DES-070
+- Tests: TestParseSources; TestParseRejectsUnsafeOrUnknownSources; TestInstallNPMPinsRecordsAndLocks; TestIntegrityMismatchIsRefusedAndNotRecorded; TestProjectInstallsNeedTrust; TestNPMCommandSettingIsUsed; TestLoadWarnsAboutHostPackagesInDependenciesAndMissingLock; TestDependencyWarnings; TestUpdateShowsTheChangelogOfUpdatedPackages
+
+### REQ-PKG-002 — Package resources reach the loaders
+
+- Status: implemented
+- Statement: A package supplies extensions, skills, prompts and themes through the `pi` key of its `package.json` (lists of paths and globs relative to the package, with `!` exclusions) or, without one, through the directories `extensions/`, `skills/`, `prompts/` and `themes/`. Entries that leave the package are refused. The `packages` setting takes source strings or objects whose `extensions`, `skills`, `prompts` and `themes` lists filter what loads (`!glob` excludes, `+path` adds back, `-path` removes, an empty list loads nothing); a project entry replaces a user entry of the same package, and `autoload: false` makes it a filter over the user entry. The resources feed the same extension, skill and prompt loading as the user and project directories, subject to `-ne`, `-ns` and `-np`. A subdirectory `package.json` with `pi.extensions` makes its entry points one extension (any extension directory). Gap rows EXT-02, EXT-36, EXT-37, EXT-38.
+- Design: DES-070
+- Tests: TestPiManifestDeclaresResources; TestConventionalDirectories; TestFilterSemantics; TestProjectEntryReplacesUserEntryOfTheSamePackage; TestAutoloadFalseNarrowsTheUserPackage; TestSubdirectoryPackageJSONListsExtensionEntries; TestSubdirectoryPackageJSONListsTheEntryPoints; TestPackageResourcesFeedTheLoaders; TestProjectPackagesStayBehindTheTrustGate
+
+### REQ-PKG-003 — Provenance of loaded things and extension-contributed resources
+
+- Status: implemented
+- Statement: Every tool, slash command, skill and prompt carries a `SourceInfo` (path, source, scope, origin, baseDir) that says whether it is built in, from a package, found in a user or project directory or given on the command line; `/packages` lists loaded packages and `/sources [filter]` lists what each supplied. Extensions can answer the `resources_discover` event (sent after `session_start` and after a reload, with the working directory and the reason) with skill, prompt and theme paths, which the app loads like any other; this works for Pi's JS handlers through the sidecar and for any-language extensions through the wire protocol. Gap rows EXT-42, EXT-43.
+- Design: DES-071
+- Tests: TestSourceInfoIsAttachedToTheLoadedThings; TestResourcesDiscoverAndSourceInfo; TestResourcesDiscoverOnReload; TestMergeAddsUpDiscoveredResources; js:conformance: resources_discover returns skill, prompt and theme paths
 
 ### REQ-EXT-005 — Extensions can use the user interface
 

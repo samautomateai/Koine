@@ -11,10 +11,12 @@ import (
 	"strings"
 
 	"koine/core/frontmatter"
+	"koine/core/srcinfo"
 )
 
 type Prompt struct {
 	Name, Description, Body, Path string
+	Source                        srcinfo.Info // where it came from; filled in by the app
 }
 
 func Discover(cwd, home string) []Prompt {

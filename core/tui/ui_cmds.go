@@ -482,7 +482,7 @@ func (ui *UI) StartupPrompts() {
 		return
 	}
 	n := ui.a.UntrustedCode
-	ui.Ask(fmt.Sprintf("Trust %s? It has %d project extension, hook or provider entr%s that can run code.", filepath.Base(ui.a.Cwd), n,
+	ui.Ask(fmt.Sprintf("Trust %s? It has %d project extension, hook, provider, MCP server or package entr%s that can run code.", filepath.Base(ui.a.Cwd), n,
 		map[bool]string{true: "y", false: "ies"}[n == 1]), []string{"Trust this folder and load them", "Continue without them"},
 		func(i int) {
 			if i == 0 {

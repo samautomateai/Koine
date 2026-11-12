@@ -9,6 +9,7 @@ import (
 	"koine/core/ext"
 	"koine/core/prompts"
 	"koine/core/skills"
+	"koine/core/srcinfo"
 )
 
 // LoadOptions are the command line's choices of tools, resources and models beyond RunOptions. Like RunOptions they survive /reload.
@@ -44,6 +45,10 @@ func (a *App) loadSkills() []skills.Skill {
 		var bad []skills.Skipped
 		found, bad = skills.DiscoverReport(a.Cwd, a.Home)
 		a.refused(bad)
+		for i := range found {
+			found[i].Source = a.sourceOfPath(found[i].Location)
+		}
+		found = skills.Merge(found, a.packageSkills())
 	}
 	if len(l.Skills) == 0 {
 		return found
@@ -53,6 +58,9 @@ func (a *App) loadSkills() []skills.Skill {
 		paths[i] = a.resolveUser(p)
 	}
 	explicit, bad, problems := skills.LoadPaths(paths)
+	for i := range explicit {
+		explicit[i].Source = srcinfo.Info{Path: explicit[i].Location, Source: "cli", Scope: "temporary", Origin: "top-level"}
+	}
 	a.refused(bad)
 	a.Warnings = append(a.Warnings, problems...)
 	return skills.Merge(explicit, found)
@@ -70,6 +78,10 @@ func (a *App) loadPrompts() []prompts.Prompt {
 	var found []prompts.Prompt
 	if !l.NoPromptTemplates {
 		found = prompts.Discover(a.Cwd, a.Home)
+		for i := range found {
+			found[i].Source = a.sourceOfPath(found[i].Path)
+		}
+		found = prompts.Merge(found, a.packagePrompts())
 	}
 	if len(l.PromptTemplates) == 0 {
 		return found
@@ -79,6 +91,9 @@ func (a *App) loadPrompts() []prompts.Prompt {
 		paths[i] = a.resolveUser(p)
 	}
 	explicit, problems := prompts.LoadPaths(paths)
+	for i := range explicit {
+		explicit[i].Source = srcinfo.Info{Path: explicit[i].Path, Source: "cli", Scope: "temporary", Origin: "top-level"}
+	}
 	a.Warnings = append(a.Warnings, problems...)
 	return prompts.Merge(explicit, found)
 }
@@ -99,8 +114,8 @@ func (a *App) explicitExtensions() []extTarget {
 		case err != nil:
 			a.Warnings = append(a.Warnings, fmt.Sprintf("extension %s: %v", raw, err))
 		case !st.IsDir() && filepath.Base(p) == "extension.json":
-			if t, ok := dirTarget(filepath.Dir(p), filepath.Base(filepath.Dir(p))); ok {
-				out = append(out, t)
+			if ts := dirTargets(filepath.Dir(p), filepath.Base(filepath.Dir(p))); len(ts) > 0 {
+				out = append(out, ts...)
 			} else {
 				a.Warnings = append(a.Warnings, "extension "+raw+": no command in extension.json")
 			}
@@ -109,8 +124,8 @@ func (a *App) explicitExtensions() []extTarget {
 		case !st.IsDir():
 			a.Warnings = append(a.Warnings, "extension "+raw+": not a script (.js, .mjs, .cjs, .ts, .mts, .cts) or an extension.json")
 		default:
-			if t, ok := dirTarget(p, filepath.Base(p)); ok {
-				out = append(out, t)
+			if ts := dirTargets(p, filepath.Base(p)); len(ts) > 0 {
+				out = append(out, ts...)
 			} else if found := scanDir(p); len(found) > 0 {
 				out = append(out, found...)
 			} else {
@@ -127,6 +142,9 @@ func (a *App) explicitExtensions() []extTarget {
 func (a *App) extensionTargets() (out []extTarget, skipped int) {
 	if a.Trusted {
 		out = a.explicitExtensions()
+		for i := range out {
+			out[i].src = srcinfo.Info{Path: out[i].path(), Source: "cli", Scope: "temporary", Origin: "top-level"}
+		}
 	} else if n := len(a.opts.Load.Extensions); n > 0 {
 		skipped += n
 		a.Warnings = append(a.Warnings, fmt.Sprintf("-e extension(s) NOT loaded (%s): this folder is untrusted; run /trust or start with --trust",
@@ -135,6 +153,7 @@ func (a *App) extensionTargets() (out []extTarget, skipped int) {
 	if !a.opts.Load.NoExtensions {
 		found, n := discoverExtensions(a.Cwd, a.Home, a.Cfg, a.Trusted)
 		out, skipped = append(out, found...), skipped+n
+		out = append(out, a.packageExtensionTargets()...) // packages come after the conventional directories, so those win name clashes
 	}
 	return out, skipped
 }

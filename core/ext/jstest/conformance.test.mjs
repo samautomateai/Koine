@@ -171,6 +171,52 @@ for (const runtime of ["node", "bun"].filter(has)) {
       );
   });
 
+  test(`conformance: resources_discover returns skill, prompt and theme paths (${runtime})`, async () => {
+    const f = tmp(
+      "res.mjs",
+      `
+      export default function (pi) {
+        pi.on("resources_discover", async () => ({
+          skillPaths: ["skills", "/abs/skills", 7, ""],
+          promptPaths: ["p/a.md"],
+          themePaths: ["themes"],
+        }));
+        pi.on("resources_discover", async (e) => { pi.sendUserMessage("SAW:" + e.reason + ":" + e.cwd); });
+      }`,
+    );
+    const dir = path.dirname(f);
+    const { results, notes } = await rpc(
+      f,
+      [
+        ["initialize", {}],
+        ["event", { name: "resources_discover", payload: { cwd: "/work", reason: "reload" } }],
+        ["event", { name: "resources_discover", payload: { cwd: "/work", reason: "startup" } }],
+      ],
+      runtime,
+    );
+    assert.ok(results[0].result.events.includes("resources_discover"), "the extension subscribes to the event");
+    assert.deepEqual(results[1].result.resources, {
+      skillPaths: [path.join(dir, "skills"), "/abs/skills"],
+      promptPaths: [path.join(dir, "p", "a.md")],
+      themePaths: [path.join(dir, "themes")],
+    });
+    const saw = notes.filter((n) => n.method === "send_user_message").map((n) => n.params.text);
+    assert.deepEqual(saw, ["SAW:reload:/work", "SAW:startup:/work"], "handlers get cwd and the reason");
+  });
+
+  test(`conformance: resources_discover without paths answers nothing (${runtime})`, async () => {
+    const f = tmp("res2.mjs", `export default function (pi) { pi.on("resources_discover", async () => undefined); }`);
+    const { results } = await rpc(
+      f,
+      [
+        ["initialize", {}],
+        ["event", { name: "resources_discover", payload: {} }],
+      ],
+      runtime,
+    );
+    assert.equal(results[1].result.resources, undefined);
+  });
+
   test(`conformance: all verified module specifiers resolve (${runtime})`, async () => {
     const specs = items.filter((i) => i.kind === "import" && i.status === "verified").map((i) => i.name);
     const f = tmp(
