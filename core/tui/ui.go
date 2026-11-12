@@ -389,7 +389,8 @@ func (ui *UI) endTool(e agent.Event) {
 			return
 		}
 	}
-	ui.add(Block{Kind: "tool", Tool: &ToolCall{ID: e.CallID, Name: e.Tool, Result: e.Text, IsError: e.IsError, Done: true, Images: ImagesOf(e.Images)}, Final: true})
+	tc := &ToolCall{ID: e.CallID, Name: e.Tool, Result: e.Text, IsError: e.IsError, Done: true, Images: ImagesOf(e.Images)}
+	ui.add(Block{Kind: "tool", Tool: tc, Final: true})
 }
 
 // RunDone is called when the app finished a line. interrupted is true when the user cancelled it.

@@ -193,7 +193,8 @@ func TestImageFallsBackToAPlaceholder(t *testing.T) {
 		t.Errorf("webp: %q", lines)
 	}
 	corrupt := ImageData{MIME: "image/png", Data: base64.StdEncoding.EncodeToString([]byte("not a png at all"))}
-	if lines := RenderImage(corrupt, ImageOptions{Proto: "iterm2", Cells: 10, Avail: 80}); len(lines) != 1 || !strings.HasPrefix(lines[0], "[image: image/png") {
+	lines := RenderImage(corrupt, ImageOptions{Proto: "iterm2", Cells: 10, Avail: 80})
+	if len(lines) != 1 || !strings.HasPrefix(lines[0], "[image: image/png") {
 		t.Errorf("corrupt: %q", lines)
 	}
 	if lines := RenderImage(ImageData{MIME: "image/png", Data: "!!!"}, ImageOptions{Proto: "kitty", Cells: 10, Avail: 80}); len(lines) != 1 {

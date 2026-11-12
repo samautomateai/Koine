@@ -46,9 +46,16 @@
 
 ## Terminal UI
 
-- Koine implements Pi's regular (scrollback) mode only. Pi's default `tuiMode` is fullscreen; `tuiMode`, `fullscreen*`, `terminal.clearOnShrink`
-  stay `inert`. A resize or Ctrl+O reprints the whole transcript.
-- Images (paste, inline display, `terminal.showImages`, `imageWidthCells`, `images`) are not drawn (TUI-12). `markdown.mermaid` is not drawn.
+- Koine's default `tuiMode` is `regular` (scrollback); Pi's is `fullscreen`. Fullscreen is opt-in so existing terminals keep their scrollback.
+  Fullscreen mode does not implement `fullscreenCopyOnSelect` (mouse reporting is on, so select with Shift held), the prompt-jump keys
+  (`tui.altScreen.previousPrompt`/`nextPrompt`) or transcript search (`tui.altScreen.search*`); they stay accepted in `keybindings.json`.
+  `fullscreenScrollbar: "auto"` shows the bar whenever the transcript is longer than the view (Pi's timing is not documented). `terminal.clearOnShrink`
+  stays `inert`. In regular mode a resize or Ctrl+O reprints the whole transcript.
+- Inline images are displayed, not pasted: tool-result images and the history of a resumed session. Pasting (Ctrl+V, `app.clipboard.pasteImage`) and
+  dragging images into the editor are not done. Detection for `terminal.images: "auto"` is Koine's own list (Pi's is not documented): kitty and
+  Ghostty use the kitty protocol, iTerm2 and WezTerm the iTerm2 one, tmux and screen get text. Cells are assumed to be 8 by 16 pixels, so the row
+  count of a picture is a guess. Sixel is not supported. `markdown.mermaid` is not drawn.
+- Not verified on a real terminal: only the escape sequences are tested, against fake terminals.
 - Pi's theme docs do not list the colour tokens; the 51 tokens (and 5 optional ones) are Koine's reading of them. okhsl colours are rejected.
   User themes are reloaded by `/reload`, not watched as Pi does.
 - Key defaults come from Pi's keybindings page. Not verified against Pi: the double Ctrl+C exit rule, the number of lines Pi shows for collapsed

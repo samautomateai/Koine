@@ -17,10 +17,10 @@ priorities and efforts are judgement calls.
 | Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
 | ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
 | CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 5      | 14      | 27      | 5         | 10      | 17      |
-| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 22      | 22      | 0         | 7       | 19      |
+| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 23      | 21      | 0         | 7       | 19      |
 | Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 7      | 32      | 10      | 0         | 11      | 11      |
 | Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 12     | 22      | 9       | 2         | 7       | 17      |
-| **Total**                                |                          | **57** | **90**  | **68**  | **7**     | **35**  | **64**  |
+| **Total**                                |                          | **57** | **91**  | **67**  | **7**     | **35**  | **64**  |
 
 Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
 coding agent it is far from Pi. About 26% of behaviours match, and the 35 open P0 items cluster in a few places.
@@ -53,7 +53,7 @@ Sizes are rough (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks of focused w
 | C. Ecosystem            | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26 (built, REQ-EXT-005, REQ-RPC-001); tool fidelity EXT-12..14, 20, 45 (built, REQ-EXT-006..009) | L    |
 | D. Packages             | install Pi packages                             | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41                                                                                                                     | L    |
 | E. Frontends            | interactive quality                             | compile Bubble Tea and Wails (REQ-FE-002); TUI-06 (per-tool renderers); steering/follow-up AGT-02/03; parallel tools AGT-04                                                                                        | L    |
-| F. Later                |                                                 | OAuth logins (LLM-17..19), Vertex and Bedrock (LLM-06, 07), more providers (LLM-10), HTML export, tree views, images (TOOL-03, LLM-27)                                                                             | L    |
+| F. Later                |                                                 | OAuth logins (LLM-17..19), Vertex and Bedrock (LLM-06, 07), more providers (LLM-10), HTML export, tree views, image paste (TOOL-03, LLM-27)                                                                             | L    |
 
 ## Deliberately not copying
 
