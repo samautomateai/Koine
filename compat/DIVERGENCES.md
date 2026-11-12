@@ -105,3 +105,15 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - `koine auth check --json` prints `status`, `provider`, `source`, `reason` and `credentials`: Pi documents the three states and exit codes 0, 1 and 2 only, so this shape is Koine's. `print-bearer-token --min-expiry` is accepted and not enforced.
 - OpenAI stays on Chat Completions unless a provider or model sets `api: "openai-responses"`. The Responses, Azure and Gemini providers do not replay reasoning items or thought signatures, and none of the new wire formats has been checked against a live API. Built-in endpoints and the key variable names are the authors' knowledge of the vendors' public addresses and of Pi's names, not a comparison with Pi's registry.
 - Not implemented: OAuth logins (LLM-17 to LLM-20), Amazon Bedrock and Vertex AI (LLM-06, LLM-07), ambient cloud credentials and workload identity (LLM-21).
+
+## Packages
+
+- Koine never installs packages at startup. Pi installs missing configured packages when it starts; Koine warns ("not installed ... run `koine update`") and installs only on `koine install` or `koine update`. A package is third-party code, so the download and the hash check are an explicit step.
+- `npm install` runs with `--ignore-scripts` unless `--allow-scripts` is given or the user-level setting `allowInstallScripts` is true (a project's settings cannot turn it on). Packages that need a build script in `postinstall` need that opt-in.
+- Koine writes `packages.lock.json` (user and project scope) with a sha256 of each package's files and refuses to load a package whose files changed; Pi's lock behaviour was not compared. Local paths are not locked.
+- Packages live in `~/.koine/packages` and `.koine/packages` and are declared in `.koine/settings.json`; the `packages` array of `.pi/settings.json` is not read. `npmCommand`, `allowInstallScripts` and `collapseChangelog` are read from the user settings file only.
+- The changelog of an updated package is printed by `koine update`, not on the next launch.
+- `koine config` is a list with `enable`/`disable <source> <resource>` and, on a terminal, a numbered toggle loop; it is not Pi's full-screen selector. `-e npm:...` one-shot packages are not implemented, and themes from packages are listed but not applied.
+- Filter precedence (`!`, `+`, `-`), `autoload: false`, falling back to the conventional directories when `pi` has only `changelogPath`, and how an unpinned package updates are Koine's reading of Pi's guide; Pi's docs do not specify them.
+- `SourceInfo.source` values `auto`, `local`, `cli` and `resources_discover` are Koine's; Pi documents the shape and the built-in example only. Extension objects from the `extensions` setting report scope `user`.
+- `resources_discover` handlers run after `session_start` and on reload with `{cwd, reason}`; theme paths are reported, not applied.

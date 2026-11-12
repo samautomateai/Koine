@@ -7,6 +7,7 @@ Pi extensions, opencode plugins, Claude-style hooks and `SKILL.md` skills.
 - **Core** (`core/`): agent loop, tools, skills/prompts/sub-agents loader, event model, extension host. Standard library only.
 - **Frontends**: line-mode TUI (`cmd/koine`, no deps) · Bubble Tea TUI (`tui-bubbletea/`) · Wails v2 desktop (`desktop/`) · HTTP/SSE server (`koine -serve`) for Electron or the browser.
 - **Extensions**: JS/TS (Pi + opencode) via a Bun/Node sidecar, any other language via a JSON-RPC-over-stdio protocol, shell commands via Claude-compatible hooks.
+- **Pi packages**: `koine install npm:name@1.2.3`, `git:host/user/repo@v1` or a local path (`-l` for the project); `remove`, `update`, `list`, `config`. Hash-locked, `npm --ignore-scripts` by default, project packages only in a trusted folder ([SPEC §11](docs/SPEC.md)).
 
 Full details: **[docs/SPEC.md](docs/SPEC.md)**.
 

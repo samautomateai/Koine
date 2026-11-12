@@ -420,9 +420,7 @@ function collectResources(r, d) {
       ? v.filter((x) => typeof x === "string" && x.trim()).map((x) => (path.isAbsolute(x) || x.startsWith("~") ? x : path.resolve(dir, x)))
       : [];
   d.resources ??= { skillPaths: [], promptPaths: [], themePaths: [] };
-  d.resources.skillPaths.push(...paths(r.skillPaths));
-  d.resources.promptPaths.push(...paths(r.promptPaths));
-  d.resources.themePaths.push(...paths(r.themePaths));
+  for (const k of ["skillPaths", "promptPaths", "themePaths"]) d.resources[k].push(...paths(r[k]));
 }
 
 async function piEvent(name, p, d) {

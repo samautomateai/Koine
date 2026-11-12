@@ -150,6 +150,20 @@ _Verified by:_ `ext.TestProtocolRoundTrip`, `ext.TestExtensionCrashSurfacesAsErr
 `ext.TestContextCancelAbortsCall`, `ext.TestStartErrors`, `ext.TestSpecDirAndJSSpec`,
 `app.TestEverythingWorksTogether` (Python extension).
 
+### 3.4 `resources_discover` (extension contributes resources)
+
+After `session_start` (`reason: "startup"`) and after a reload (`reason: "reload"`) the host sends the `event` request `resources_discover` with
+payload `{cwd, reason}`. An extension may answer with a Decision carrying `resources`:
+
+```json
+{ "resources": { "skillPaths": ["./skills"], "promptPaths": ["./prompts/review.md"], "themePaths": ["./themes/dark.json"] } }
+```
+
+Skill paths are skill directories, `SKILL.md` files or directories of skills; prompt paths are `.md` files or directories. Relative paths resolve
+against the extension's folder (the JS sidecar does this for Pi handlers, which return `skillPaths`, `promptPaths` and `themePaths`) or, for a
+protocol extension, its working directory. Answers from several extensions are added together. Theme paths are reported but not applied. Trust
+applies as to any extension: project extensions answer only in a trusted folder.
+
 ## 4. Command hooks (Claude-compatible)
 
 For shell-based, any-language policy hooks with zero protocol work. Configured
@@ -511,3 +525,50 @@ Bedrock, Vertex, ambient cloud credentials. Wire formats of the Responses, Azure
   separate Go modules that need network access for `go mod tidy`; they are not
   built or tested by `task check`.
 - Pi/opencode surface not listed as ✅ in §5 is not supported.
+
+## 11. Pi packages (REQ-PKG-001..003)
+
+```text
+koine install [-l] [--allow-scripts] [-a] <source>   add a package (user scope, or project scope with -l)
+koine remove  [-l] <source>                          remove it and its files
+koine update  [-l] [--allow-scripts] [-a] [source]   update packages that are not pinned (all, or one)
+koine list    [-l]                                   show configured packages with their resources
+koine config  [-l] [enable|disable <source> <resource>]   list resources, or toggle one (a numbered toggle loop on a terminal)
+```
+
+Options: `-l`/`--local` selects the project scope, `-a`/`--trust` trusts the folder for this command, `-C`/`--cwd DIR` sets the project folder. The
+subcommand must come first. Exit status is 0, 1 for a failure and 2 for a usage error.
+
+**Sources.** `npm:name`, `npm:@scope/name@1.2.3`; `git:github.com/user/repo@v1`, `https://host/user/repo.git@<ref>`, `ssh://…`, `git@host:user/repo`,
+`file://…`; a local path starting with `./`, `../`, `~/` or `/`. A version, tag or commit makes the package pinned (`update` leaves it alone).
+`ext::` and other remote-helper URLs are refused.
+
+**Settings.** `packages` in `settings.json` (user: `~/.koine`, project: `.koine/`) is an array of source strings or objects
+`{"source": …, "extensions": […], "skills": […], "prompts": […], "themes": […], "autoload": false}`. A missing list loads everything of that kind and
+`[]` loads nothing. In a list, `glob` includes, `!glob` excludes, `+path` adds a path back and `-path` removes one (the last word wins); a list of
+only exclusions starts from everything. Relative local paths resolve from the directory of the settings file. A project entry replaces a user entry for
+the same package (same npm name, same repository, same path); `autoload: false` on it narrows the user's entry instead. Project packages load only
+in a trusted folder. `npmCommand` (user settings only) names the program used instead of `npm`; `allowInstallScripts` (user settings only, default
+false) lets `npm install` run package scripts; `collapseChangelog` prints one line per package on update. Koine-only: `allowInstallScripts`.
+The `.pi/settings.json` `packages` array is not read.
+
+**Files.** User: `~/.koine/packages/`, `~/.koine/packages.lock.json`. Project: `.koine/packages/` (ignored by git), `.koine/packages.lock.json`
+(commit it). `packages.lock.json` is `{"version":1,"packages":{<identity>:{source, kind, version, commit, resolved, registryIntegrity, integrity}}}`;
+`integrity` is `sha256-<hex>` over the package's file names, executable bits and contents without `.git` and `node_modules`.
+
+**Package contents.** The `pi` key of `package.json` lists `extensions`, `skills`, `prompts` and `themes` (paths and globs relative to the package,
+`!` excludes, nothing may leave the package); without such lists the directories `extensions/`, `skills/`, `prompts/` and `themes/` are used.
+`pi.changelogPath` names the changelog (default `CHANGELOG.md`; `""` turns it off). Host packages (`@earendil-works/pi-*`, `typebox`, and the older
+`@mariozechner/pi-*`) belong in `peerDependencies` with `"*"`; one in `dependencies` gives a warning on install and load.
+
+**Safety.** `npm install` runs with `--ignore-scripts` unless `--allow-scripts` or `allowInstallScripts` says otherwise. Git clones refuse remote
+helpers and prompts. Install, remove, update and config of project packages need trust (exit 1 with a message otherwise). An install or update that
+would put different bytes under a locked version or commit is refused; a package whose files no longer match the lock is not loaded. Koine does not
+install missing packages at startup: it warns and names `koine update`.
+
+**Provenance.** `/packages` lists the loaded packages (source, scope, resource counts); `/sources [filter]` lists tools, commands, skills and prompts
+with their `SourceInfo` (`path`, `source`, `scope`, `origin`, `baseDir`).
+
+_Verified by:_ `pkgs.TestInstallNPMPinsRecordsAndLocks`, `pkgs.TestIntegrityMismatchIsRefusedAndNotRecorded`, `pkgs.TestFilterSemantics`,
+`app.TestPackageResourcesFeedTheLoaders`, `app.TestProjectPackagesStayBehindTheTrustGate`, `app.TestSourceInfoIsAttachedToTheLoadedThings`,
+`koine.TestUpdateShowsTheChangelogOfUpdatedPackages`. Filter precedence, `autoload` and the manifest fallback are Koine's reading of Pi's guide.
