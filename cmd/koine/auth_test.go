@@ -77,22 +77,22 @@ func TestAuthLoginUsageErrors(t *testing.T) {
 		code  int
 		want  string
 	}{
-		"not a terminal":          {"k\n", false, []string{"login", "groq"}, 1, "interactive terminal"},
-		"no provider":             {"k\n", true, []string{"login"}, 2, "exactly one provider"},
-		"two providers":           {"k\n", true, []string{"login", "groq", "xai"}, 2, "exactly one provider"},
-		"unknown provider":        {"k\n", true, []string{"login", "nosuch"}, 2, `unknown provider "nosuch"`},
-		"no-browser and key":      {"k\n", true, []string{"login", "groq", "--api-key", "--no-browser"}, 2, "--no-browser cannot be used"},
-		"empty key":               {"\n", true, []string{"login", "groq", "--api-key"}, 1, "nothing was entered"},
-		"unknown option":          {"", false, []string{"check", "--nope"}, 2, "unknown option"},
-		"option without value":    {"", false, []string{"check", "--provider"}, 2, "needs a value"},
-		"boolean with a value":    {"", false, []string{"check", "--json=1"}, 2, "does not take a value"},
-		"unknown subcommand":      {"", false, []string{"frobnicate"}, 2, `unknown command "frobnicate"`},
-		"nothing to check":        {"", false, []string{"check"}, 2, "give --provider or --model"},
-		"bad model":               {"", false, []string{"print-api-key", "--model", "nosuch/x"}, 2, "unknown provider prefix"},
-		"bad logout provider":     {"", false, []string{"logout", "nosuch"}, 2, "unknown provider"},
-		"bad min-expiry":          {"", false, []string{"print-bearer-token", "--provider", "anthropic", "--min-expiry", "soon"}, 2, "not a duration"},
-		"no subcommand":           {"", false, nil, 2, "usage: koine auth"},
-		"login without --api-key": {"fake-key\n", true, []string{"login", "groq"}, 0, "OAuth) is not implemented"},
+		"not a terminal":       {"k\n", false, []string{"login", "groq"}, 1, "interactive terminal"},
+		"no provider":          {"k\n", true, []string{"login"}, 2, "exactly one provider"},
+		"two providers":        {"k\n", true, []string{"login", "groq", "xai"}, 2, "exactly one provider"},
+		"unknown provider":     {"k\n", true, []string{"login", "nosuch"}, 2, `unknown provider "nosuch"`},
+		"no-browser and key":   {"k\n", true, []string{"login", "groq", "--api-key", "--no-browser"}, 2, "--no-browser cannot be used"},
+		"empty key":            {"\n", true, []string{"login", "groq", "--api-key"}, 1, "nothing was entered"},
+		"unknown option":       {"", false, []string{"check", "--nope"}, 2, "unknown option"},
+		"option without value": {"", false, []string{"check", "--provider"}, 2, "needs a value"},
+		"boolean with a value": {"", false, []string{"check", "--json=1"}, 2, "does not take a value"},
+		"unknown subcommand":   {"", false, []string{"frobnicate"}, 2, `unknown command "frobnicate"`},
+		"nothing to check":     {"", false, []string{"check"}, 2, "give --provider or --model"},
+		"bad model":            {"", false, []string{"print-api-key", "--model", "nosuch/x"}, 2, "unknown provider prefix"},
+		"bad logout provider":  {"", false, []string{"logout", "nosuch"}, 2, "unknown provider"},
+		"bad min-expiry":       {"", false, []string{"print-bearer-token", "--provider", "anthropic", "--min-expiry", "soon"}, 2, "not a duration"},
+		"no subcommand":        {"", false, nil, 2, "usage: koine auth"},
+		"login of a provider without account sign-in": {"fake-key\n", true, []string{"login", "groq"}, 0, "API key for groq"},
 	} {
 		code, _, errs := authCLI(t, c.stdin, c.tty, c.args...)
 		if code != c.code || !strings.Contains(errs, c.want) {
@@ -128,7 +128,7 @@ func TestAuthCheckStatesExitCodesAndJSON(t *testing.T) {
 		r.Source != "env:ANTHROPIC_API_KEY" || r.Credentials == nil || r.Credentials.Key != "fake-env-key" || r.Credentials.Type != "api_key" {
 		t.Errorf("json: %d %s %v", code, out, err)
 	}
-	_, out, _ = check("--provider", "anthropic", "--json")
+	_, out, _ = check("--provider", "xai", "--json")
 	if strings.Contains(out, "fake-env-key") || strings.Contains(out, "credentials") {
 		t.Errorf("credentials must be opt-in: %s", out)
 	}
@@ -147,10 +147,10 @@ func TestAuthCheckStatesExitCodesAndJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	stored := `{"anthropic":{"type":"oauth","access":"a"},"groq":{"type":"api_key","key":"$NO_SUCH_VARIABLE_X"}}`
+	stored := `{"xai":{"type":"oauth","access":"a"},"groq":{"type":"api_key","key":"$NO_SUCH_VARIABLE_X"}}`
 	_ = os.WriteFile(filepath.Join(dir, "auth.json"), []byte(stored), 0o600)
-	code, out, errs = check("--provider", "anthropic", "--json")
-	if code != 2 || !strings.Contains(out, `"status":"invalid"`) || !strings.Contains(out, "OAuth logins are not implemented") {
+	code, out, errs = check("--provider", "xai", "--json")
+	if code != 2 || !strings.Contains(out, `"status":"invalid"`) || !strings.Contains(out, "Koine cannot use") {
 		t.Errorf("invalid oauth: %d %s %s", code, out, errs)
 	}
 	if code, out, errs := check("--provider", "groq"); code != 2 || out != "invalid\n" || !strings.Contains(errs, "NO_SUCH_VARIABLE_X is not set") {

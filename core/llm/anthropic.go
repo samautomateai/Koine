@@ -16,6 +16,7 @@ type Anthropic struct {
 	Name    string // for error messages; "anthropic" when empty
 	APIKey  string
 	Bearer  bool // send the key as "Authorization: Bearer" (ANTHROPIC_AUTH_TOKEN, authHeader) instead of x-api-key
+	OAuth   bool // the key is a Claude subscription token: it needs the OAuth beta header and Claude Code's identity as the first system block
 	BaseURL string
 	Headers map[string]string // extra request headers from models.json
 	HTTP    *http.Client
@@ -162,8 +163,14 @@ func (a *Anthropic) request(req Request, stream bool) (url string, headers map[s
 	if stream {
 		body["stream"] = true
 	}
-	payload, err = json.Marshal(body)
 	headers = map[string]string{"anthropic-version": "2023-06-01"}
+	if a.OAuth {
+		headers["anthropic-beta"] = "claude-code-20250219,oauth-2025-04-20"
+		headers["x-app"] = "cli"
+		sys, _ := body["system"].([]Block)
+		body["system"] = append([]Block{{Type: "text", Text: claudeCodeIdentity}}, sys...)
+	}
+	payload, err = json.Marshal(body)
 	for k, v := range a.Headers {
 		headers[k] = v
 	}

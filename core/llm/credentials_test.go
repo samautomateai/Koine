@@ -149,7 +149,7 @@ func TestBuiltinProvidersAreWellFormedAndLocalOnesNeedNoKey(t *testing.T) {
 		if p.BaseURL == "" && p.ID != "azure" && !p.Ambient {
 			t.Errorf("%s has no base URL", p.ID)
 		}
-		if !p.Ambient && p.Local == (len(p.Env) > 0) {
+		if !p.Ambient && !p.OAuthOnly && p.Local == (len(p.Env) > 0) {
 			t.Errorf("%s: a provider has either a key variable or is local: %+v", p.ID, p)
 		}
 	}

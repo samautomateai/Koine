@@ -187,7 +187,7 @@ func TestStoredCredentialsMayBeCommandsOrTemplatesAndOAuthEntriesAreNotUsed(t *t
 			t.Errorf("%s: %+v %v", provider, c, err)
 		}
 	}
-	if _, err := a.router.Credential("openai"); err == nil || !strings.Contains(err.Error(), "OAuth logins are not implemented") {
+	if _, err := a.router.Credential("openai"); err == nil || !strings.Contains(err.Error(), "Koine cannot use") {
 		t.Errorf("oauth entry: %v", err)
 	}
 	if _, err := a.router.Credential("xai"); err == nil || !strings.Contains(err.Error(), "the key in auth.json") {

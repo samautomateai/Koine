@@ -1,13 +1,16 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"koine/core/agentdir"
 	"koine/core/auth"
+	"koine/core/auth/oauth"
 	"koine/core/llm"
 	"koine/core/trust"
 )
@@ -21,6 +24,12 @@ type ProviderSetup struct {
 	Custom   map[string]llm.ProviderConfig
 	Warnings []string
 	Skipped  int // project provider entries left out because the folder is not trusted
+
+	// OAuth is the client the subscription logins use (tests point it at a fake server). Skew makes a login count as expired this long
+	// before it is (`koine auth print-bearer-token --min-expiry`); NoRefresh reports an expired login instead of renewing it.
+	OAuth     oauth.Client
+	Skew      time.Duration
+	NoRefresh bool
 }
 
 // newResolver makes the secret resolver of a process: commands from auth.json are cached for its life, those from models.json are reused
@@ -59,7 +68,10 @@ func NewProviderSetup(cwd, home string, trusted bool, cfg map[string]llm.Provide
 			ps.Skipped++
 		}
 	}
-	ps.Router = &llm.Router{Custom: ps.Custom, Stored: ps.stored, Secret: func(v string) (string, error) { return secrets.Resolve(v, false) }}
+	ps.Router = &llm.Router{Custom: ps.Custom, Stored: ps.stored, StoredOAuth: ps.storedOAuth, Secret: func(v string) (string,
+		error) {
+		return secrets.Resolve(v, false)
+	}}
 	return ps
 }
 
@@ -75,9 +87,12 @@ func (ps *ProviderSetup) stored(provider string) (string, map[string]string, boo
 	if err != nil || !ok {
 		return "", nil, false, err
 	}
+	if c.Type == auth.TypeOAuth {
+		return "", nil, false, nil // storedOAuth handles it
+	}
 	if c.Type != auth.TypeAPIKey {
-		return "", nil, true, fmt.Errorf("auth.json holds a %q login for %s; Koine can use API keys only (OAuth logins are not implemented), "+
-			"so run `koine auth login %s` to store a key", c.Type, provider, provider)
+		return "", nil, true, fmt.Errorf("auth.json holds an entry of type %q for %s, which Koine does not understand; "+
+			"run `koine auth login %s` to replace it", c.Type, provider, provider)
 	}
 	if c.Key == "" {
 		return "", c.Env, true, nil
@@ -87,6 +102,43 @@ func (ps *ProviderSetup) stored(provider string) (string, map[string]string, boo
 		return "", nil, true, fmt.Errorf("the key in auth.json: %w", err)
 	}
 	return key, c.Env, true, nil
+}
+
+// storedOAuth is the router's view of a subscription login in auth.json. An expired access token is renewed with the refresh token and the
+// entry rewritten; a login for a provider Koine has no flow for (Pi stores some Koine cannot use) is reported as unusable.
+func (ps *ProviderSetup) storedOAuth(provider string) (llm.OAuthCred, bool, error) {
+	tok, ok, err := ps.Store.GetOAuth(provider)
+	if err != nil || !ok {
+		return llm.OAuthCred{}, false, err
+	}
+	flow, has := oauth.Lookup(provider, ps.OAuth)
+	if !has {
+		return llm.OAuthCred{}, true, fmt.Errorf("auth.json holds an OAuth login for %s, which Koine cannot use (it can sign in to: %s); "+
+			"run `koine auth login %s --api-key` to store a key", provider, strings.Join(oauth.IDs(), ", "), provider)
+	}
+	now := ps.OAuth.Now
+	if now == nil {
+		now = time.Now
+	}
+	if tok.Access == "" {
+		return llm.OAuthCred{}, true, fmt.Errorf("the stored %s login has no access token; run `koine auth login %s`", provider, provider)
+	}
+	if tok.Expired(now(), ps.Skew) {
+		if ps.NoRefresh {
+			return llm.OAuthCred{}, true, fmt.Errorf("the %s login has expired and --no-refresh was given", provider)
+		}
+		tok, err = ps.Store.RefreshOAuth(provider, func(t auth.OAuthToken) bool { return t.Expired(now(), ps.Skew) },
+			func(t auth.OAuthToken) (auth.OAuthToken, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+				defer cancel()
+				return flow.Refresh(ctx, t)
+			})
+		if err != nil {
+			return llm.OAuthCred{}, true, fmt.Errorf("renewing the %s login failed (%w); run `koine auth login %s` to sign in again",
+				provider, err, provider)
+		}
+	}
+	return llm.OAuthCred{Access: tok.Access, Extra: tok.Extra}, true, nil
 }
 
 // buildCatalog is the built-in catalog, the models of models.json, then the user's model-catalog.json, which therefore has the last word

@@ -21,8 +21,10 @@ type OpenAICompat struct {
 	Extra   map[string]any // samplingParams of models.json: fields merged into every request body
 	// PromptCache sends prompt_cache_key (the session) and, for long retention, prompt_cache_retention: only OpenAI's own endpoint takes them.
 	PromptCache bool
-	HTTP        *http.Client
-	Retry       RetryPolicy
+	// Dynamic adds headers that depend on the request (GitHub Copilot's X-Initiator).
+	Dynamic func(Request) map[string]string
+	HTTP    *http.Client
+	Retry   RetryPolicy
 }
 
 type oaMessage struct {
@@ -174,6 +176,11 @@ func (o *OpenAICompat) request(req Request, stream bool) (url string, headers ma
 	headers = map[string]string{}
 	for k, v := range o.Headers {
 		headers[k] = v
+	}
+	if o.Dynamic != nil {
+		for k, v := range o.Dynamic(req) {
+			headers[k] = v
+		}
 	}
 	if o.APIKey != "" {
 		headers["authorization"] = "Bearer " + o.APIKey
