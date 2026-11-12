@@ -12,7 +12,7 @@ ADR 0004 keeps `core/` and `cmd/` on the standard library and puts Bubble Tea an
 
 Both frontends start `koine --mode rpc` as a child process and speak its protocol through `core/rpcclient`, a client written on the standard library that imports nothing else from Koine. The client, and `Transcript` (events folded into what a screen shows), live in the core module so they are linted, race-tested and held to the 85% coverage gate by the existing Go job. The frontend modules keep their own third-party dependencies (Bubble Tea, Bubbles, Lip Gloss; Wails and what it pulls in) and their own `go.mod`; they reach the core module only through `replace koine => ../` and import only `koine/core/rpcclient`. Their GUI-free logic is separated from the GUI glue (`tui-bubbletea/model.go`, `desktop/bridge/`) so it can be tested without a terminal or a display.
 
-Dependency policy for the two modules: third-party dependencies are allowed there, are kept current by Dependabot and `task deps:update`, and are scanned with govulncheck and Trivy like the core. A transitive advisory with no patched release in the dependency's line (Echo v4 under Wails, see CHANGELOG) is recorded rather than worked around by forking.
+Dependency policy for the two modules: third-party dependencies are allowed there, are kept current by Dependabot and `task deps:update`, and are scanned with govulncheck and Trivy like the core. A transitive advisory with no patched release in the dependency's line (Echo v4 under Wails v2) is recorded rather than worked around by forking; ADR 0015 later removed that dependency by moving to Wails v3, and supersedes the Wails v2 choice made here.
 
 ## Consequences
 

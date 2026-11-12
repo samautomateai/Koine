@@ -1,19 +1,19 @@
-// Wails v2 desktop app. It starts `koine --mode rpc` as a child process and talks to it through core/rpcclient (REQ-FE-002, REQ-FE-003,
-// ADR 0013), so it needs the koine binary (KOINE_BIN, next to this program, or on PATH). The page is plain HTML/JS (no npm build step) and
-// talks to Go through the bound Backend and the "koine:update" event.
+// Wails v3 desktop app (ADR 0015). It starts `koine --mode rpc` as a child process and talks to it through core/rpcclient (REQ-FE-002,
+// REQ-FE-003, ADR 0013), so it needs the koine binary (KOINE_BIN, next to this program, or on PATH). The page is plain HTML/JS (no npm build
+// step): it imports the runtime the application serves at /wails/runtime.js, calls Service by name and listens for "koine:update".
 //
-//	cd desktop && go mod tidy && wails dev     (or: wails build; on Linux add -tags webkit2_41 with WebKitGTK 4.1)
+//	cd desktop && go run .          (Linux: GTK 4 and WebKitGTK 6.0 development packages; add -tags gtk3 for the GTK 3 stack)
+//	cd desktop && go build -o koine-desktop .
 package main
 
 import (
 	"context"
 	"embed"
+	"io/fs"
+	"log"
 	"os"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"koine-desktop/bridge"
 	"koine/core/rpcclient"
@@ -22,46 +22,74 @@ import (
 //go:embed all:frontend
 var assets embed.FS
 
-// app holds what the Wails callbacks share.
-type app struct {
+// Service is what the page can call: Wails binds every exported method, so the process wiring stays in the lifecycle hooks and the rest of
+// bridge.Backend (Attach, Handle, SetEmit ...) is not reachable from the page.
+type Service struct {
 	b    *bridge.Backend
 	proc *rpcclient.Process
 }
 
-func (a *app) startup(ctx context.Context) {
-	a.b.SetEmit(func(name string, data ...any) { runtime.EventsEmit(ctx, name, data...) })
-	proc, err := rpcclient.Start(ctx, rpcclient.Options{Dir: a.b.Cwd})
+// ServiceStartup starts the agent process; its lifetime is the application's.
+func (s *Service) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	proc, err := rpcclient.Start(ctx, rpcclient.Options{Dir: s.b.Cwd})
 	if err != nil {
-		a.b.Fail(err)
-		return
+		s.b.Fail(err) // shown in the transcript; the window still opens
+		return nil
 	}
-	a.proc = proc
-	go a.b.Attach(proc, proc.Events())
+	s.proc = proc
+	go s.b.Attach(proc, proc.Events())
+	return nil
 }
 
-func (a *app) shutdown(context.Context) {
-	if a.proc != nil {
-		_ = a.proc.Close()
+// ServiceShutdown ends the agent process.
+func (s *Service) ServiceShutdown() error {
+	if s.proc != nil {
+		return s.proc.Close()
 	}
+	return nil
 }
+
+// Info returns the model, directory and slash commands for the sidebar.
+func (s *Service) Info() bridge.Info { return s.b.Info() }
+
+// Send sends a prompt, or steers the run in progress.
+func (s *Service) Send(text string) { s.b.Send(text) }
+
+// Cancel interrupts the run in progress.
+func (s *Service) Cancel() { s.b.Cancel() }
+
+// Answer replies to the dialog an extension opened.
+func (s *Service) Answer(value string, yes bool) { s.b.Answer(value, yes) }
+
+// Dismiss declines the dialog.
+func (s *Service) Dismiss() { s.b.Dismiss() }
 
 func main() {
 	cwd := os.Getenv("KOINE_CWD")
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	a := &app{b: bridge.NewBackend(func(string, ...any) {}, cwd)}
-	err := wails.Run(&options.App{
+	svc := &Service{b: bridge.NewBackend(func(string, ...any) {}, cwd)}
+	page, err := fs.Sub(assets, "frontend")
+	if err != nil {
+		log.Fatal(err)
+	}
+	app := application.New(application.Options{
+		Name:        "koine",
+		Description: "Koine coding agent",
+		Services:    []application.Service{application.NewService(svc)},
+		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(page)},
+		Mac:         application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+	})
+	svc.b.SetEmit(func(name string, data ...any) { app.Event.Emit(name, data...) })
+	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "koine",
 		Width:            1100,
 		Height:           760,
-		AssetServer:      &assetserver.Options{Assets: assets},
-		BackgroundColour: &options.RGBA{R: 18, G: 18, B: 20, A: 1},
-		OnStartup:        a.startup,
-		OnShutdown:       a.shutdown,
-		Bind:             []interface{}{a.b},
+		BackgroundColour: application.NewRGBA(18, 18, 20, 255),
+		URL:              "/",
 	})
-	if err != nil {
-		println("error:", err.Error())
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
 	}
 }
