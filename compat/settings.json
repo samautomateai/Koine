@@ -503,7 +503,7 @@
     {
       "key": "providers",
       "type": "object",
-      "note": "Extra OpenAI-compatible or Anthropic-type endpoints; project entries need trust."
+      "note": "Koine's older provider list (type, baseUrl, apiKeyEnv); models.json now defines providers in Pi's schema. Project entries need trust."
     },
     {
       "key": "compaction.contextWindow",

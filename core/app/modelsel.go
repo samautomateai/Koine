@@ -3,7 +3,6 @@ package app
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"sort"
 	"strings"
@@ -29,6 +28,8 @@ func inferProvider(id string) string {
 	case strings.HasPrefix(id, "gpt-"), strings.HasPrefix(id, "chatgpt-"),
 		strings.HasPrefix(id, "o1"), strings.HasPrefix(id, "o3"), strings.HasPrefix(id, "o4"):
 		return "openai"
+	case strings.HasPrefix(id, "gemini-"):
+		return "google"
 	}
 	return ""
 }
@@ -347,24 +348,4 @@ func tokens(n int) string {
 		return fmt.Sprintf("%dK", n/1000)
 	}
 	return fmt.Sprint(n)
-}
-
-// getenv is the router's view of the environment: the process's, except that --api-key stands in for the key of the provider it was given
-// for.
-func (a *App) getenv(k string) string {
-	if a.apiKey != "" && k == a.apiKeyEnv {
-		return a.apiKey
-	}
-	return os.Getenv(k)
-}
-
-// keyEnvOf finds the environment variable that holds the API key of model's provider. The router asks for the key last, so a probe that
-// records what is asked tells us without a second table of provider names.
-func (a *App) keyEnvOf(model string) string {
-	asked := ""
-	probe := &llm.Router{Custom: a.Cfg.Providers, Getenv: func(k string) string { asked = k; return "x" }}
-	if _, _, err := probe.Resolve(model); err != nil {
-		return ""
-	}
-	return asked
 }

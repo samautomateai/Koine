@@ -15,7 +15,7 @@ func (a *Anthropic) Stream(ctx context.Context, req Request, fn func(StreamEvent
 	if err != nil {
 		return nil, err
 	}
-	st, err := openStream(ctx, a.HTTP, "anthropic", url, headers, payload, a.Retry)
+	st, err := openStream(ctx, a.HTTP, a.label(), url, headers, payload, a.Retry)
 	if err != nil {
 		return nil, err
 	}

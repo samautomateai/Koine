@@ -145,21 +145,21 @@ func TestScopeComesFromFlagOrSettingAndIsWarnedAbout(t *testing.T) {
 	}
 }
 
-func TestAPIKeyStandsInForTheProvidersVariableOnly(t *testing.T) {
+func TestAPIKeyIsTheCredentialOfTheFirstModelsProviderOnly(t *testing.T) {
 	a := startApp(t, Options{RunOptions: RunOptions{Model: "haiku"}, Load: LoadOptions{APIKey: "secret"}}, nil)
 	t.Setenv("ANTHROPIC_API_KEY", "from-env")
 	t.Setenv("OPENAI_API_KEY", "other")
-	if a.apiKeyEnv != "ANTHROPIC_API_KEY" || a.getenv("ANTHROPIC_API_KEY") != "secret" || a.getenv("OPENAI_API_KEY") != "other" {
-		t.Errorf("env %q, anthropic %q, openai %q", a.apiKeyEnv, a.getenv("ANTHROPIC_API_KEY"), a.getenv("OPENAI_API_KEY"))
+	c, err := a.router.Credential("anthropic")
+	if err != nil || a.apiKeyProv != "anthropic" || c.Key != "secret" || c.Source != "--api-key" {
+		t.Errorf("anthropic: %q %+v %v", a.apiKeyProv, c, err)
 	}
-	for model, want := range map[string]string{"openai/gpt-5": "OPENAI_API_KEY", "ollama/x": "", "claude-sonnet-5-5": "ANTHROPIC_API_KEY", "nosuch/x": ""} {
-		if got := a.keyEnvOf(model); got != want {
-			t.Errorf("keyEnvOf(%q) = %q, want %q", model, got, want)
-		}
+	if c, _ := a.router.Credential("openai"); c.Key != "other" || c.Source != "env:OPENAI_API_KEY" {
+		t.Errorf("openai: %+v", c)
 	}
-	a.Cfg.Providers = map[string]llm.ProviderConfig{"mine": {BaseURL: "http://x", APIKeyEnv: "MY_KEY"}}
-	if got := a.keyEnvOf("mine/m"); got != "MY_KEY" {
-		t.Errorf("custom provider: %q", got)
+	// it survives /reload
+	a.Reload(context.Background())
+	if c, _ := a.router.Credential("anthropic"); c.Key != "secret" {
+		t.Errorf("after reload: %+v", c)
 	}
 	if a.hasCredentials("nosuch/x") || !a.hasCredentials("ollama/x") {
 		t.Error("hasCredentials")

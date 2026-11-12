@@ -12,10 +12,20 @@ import (
 
 // Anthropic talks to the Messages API.
 type Anthropic struct {
+	Name    string // for error messages; "anthropic" when empty
 	APIKey  string
+	Bearer  bool // send the key as "Authorization: Bearer" (ANTHROPIC_AUTH_TOKEN, authHeader) instead of x-api-key
 	BaseURL string
+	Headers map[string]string // extra request headers from models.json
 	HTTP    *http.Client
 	Retry   RetryPolicy
+}
+
+func (a *Anthropic) label() string {
+	if a.Name == "" {
+		return "anthropic"
+	}
+	return a.Name
 }
 
 func NewAnthropicFromEnv() (*Anthropic, error) {
@@ -140,7 +150,16 @@ func (a *Anthropic) request(req Request, stream bool) (url string, headers map[s
 		body["stream"] = true
 	}
 	payload, err = json.Marshal(body)
-	return a.BaseURL + "/v1/messages", map[string]string{"x-api-key": a.APIKey, "anthropic-version": "2023-06-01"}, payload, err
+	headers = map[string]string{"anthropic-version": "2023-06-01"}
+	for k, v := range a.Headers {
+		headers[k] = v
+	}
+	if a.Bearer {
+		headers["authorization"] = "Bearer " + a.APIKey
+	} else if a.APIKey != "" {
+		headers["x-api-key"] = a.APIKey
+	}
+	return a.BaseURL + "/v1/messages", headers, payload, err
 }
 
 func (a *Anthropic) Complete(ctx context.Context, req Request) (*Response, error) {
@@ -148,7 +167,7 @@ func (a *Anthropic) Complete(ctx context.Context, req Request) (*Response, error
 	if err != nil {
 		return nil, err
 	}
-	data, err := postJSON(ctx, a.HTTP, "anthropic", url, headers, payload, a.Retry)
+	data, err := postJSON(ctx, a.HTTP, a.label(), url, headers, payload, a.Retry)
 	if err != nil {
 		return nil, err
 	}

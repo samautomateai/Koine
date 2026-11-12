@@ -318,7 +318,7 @@ _Verified by:_ `core/mcp` tests (fake stdio and HTTP servers, a fake authorizati
 
 ## 7. Slash commands
 
-`/help /clear /exit /quit /tools /skills /agents /commands /mcp [reconnect <name>] /model [id[:level]] /thinking [level]`, and in the terminal UI `/hotkeys /settings
+`/help /clear /exit /quit /tools /skills /agents /commands /mcp [reconnect <name>] /model [id[:level]] /thinking [level] /login [provider] /logout [provider]`, and in the terminal UI `/hotkeys /settings
 /scoped-models /copy /tree`,
 `/skill:<name> [args]`, extension commands (§3.3), then prompt templates (§1).
 `!<command>` and `!!<command>` run a shell command (§6, user commands).
@@ -482,9 +482,28 @@ Config merge order (later wins for scalars, hooks/plugins/extensions append):
 `~/.koine/config.json` → project `.claude/settings.json` → `opencode.json` → `.koine/config.json`.
 `//` comment lines and trailing commas are tolerated.
 
+### 9.1 Provider credentials and `models.json`
+
+A provider's key is the first of: `--api-key` (provider of the first model, this run), its entry in `~/.koine/auth.json`
+(`{"<provider>":{"type":"api_key","key":"…","env":{…}}}`, mode 0600, `env` wins over the process environment), the provider's `apiKey` in
+`models.json`, then its environment variables, which are Pi's: `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN`, sent as a bearer token),
+`OPENAI_API_KEY`, `AZURE_OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `XAI_API_KEY`,
+`OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY`, `FIREWORKS_API_KEY`, `HF_TOKEN`, `NVIDIA_API_KEY`, `MOONSHOT_API_KEY`,
+`AI_GATEWAY_API_KEY`, `ZAI_API_KEY`. Azure also reads `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_RESOURCE_NAME`, `AZURE_OPENAI_API_VERSION`
+and `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`. Ollama, LM Studio, vLLM, SGLang and llama.cpp need no key. A value of a key, `apiKey` or header is
+a literal, `!command` (trimmed output, 10 s limit), or a template with `$NAME`/`${NAME}` (`$$` and `$!` are literals).
+
+`models.json` (agent directory; a trusted project's `.koine/models.json` is read after it) follows Pi's schema: `providers.<id>` with `name`,
+`baseUrl`, `api` (`anthropic-messages`, `openai-completions`, `openai-responses`, `azure-openai-responses`, `google-generative-ai`),
+`apiKey`, `headers`, `authHeader`, `compat`, `models[]` and `modelOverrides`. Keys Koine does not act on are reported at startup.
+
+`koine auth login|logout|check|print-api-key|print-bearer-token` (exit codes of `check`: 0 ready, 1 not ready, 2 invalid). `check --json`
+prints `{"status":"ready|not_ready|invalid","provider":…,"source":…,"reason":…,"credentials":…}`; this shape is Koine's. Not implemented: OAuth logins,
+Bedrock, Vertex, ambient cloud credentials. Wire formats of the Responses, Azure and Gemini providers are tested against fake servers only.
+
 ## 10. Known limits (v1)
 
-- Providers: Anthropic and OpenAI-compatible Chat Completions (plus custom routes); streamed, retried as configured (four attempts by default). No frontend renders streamed deltas yet.
+- Providers: Anthropic, OpenAI-compatible Chat Completions, OpenAI Responses, Azure OpenAI, Gemini, and the built-in and custom providers of §9.1; streamed, retried as configured (four attempts by default). No OAuth, Bedrock or Vertex. Wire formats are checked against fake servers only. No frontend renders streamed deltas yet.
 - Images: WebP and BMP are not resized; the HTTP server and the line-mode TUI take text only (no paste or inline display, TUI-12).
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
 - No permission prompts yet.

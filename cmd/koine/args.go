@@ -204,6 +204,7 @@ func (c *cliArgs) addPositional(vals []string) {
 }
 
 const usage = `usage: koine [options] [--] [@files] [message]
+       koine auth login|logout|check|print-api-key|print-bearer-token   manage provider credentials (koine auth --help)
 
 Runs one prompt and prints the answer when a message is given, stdin is piped, or stdout is redirected; otherwise starts the interactive session.
 Piped stdin is put before the message. @file arguments are included as <file> blocks; image files (by content: png, jpeg, gif, webp,
