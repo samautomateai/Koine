@@ -82,7 +82,7 @@ func (f awsFiles) isChainProfile(name string) bool {
 // top is the whole chain. dry skips the service calls (see Describe).
 func (s *AWSSource) top(ctx context.Context, dry bool) (AWSCredentials, string, error) {
 	f := s.files
-	if f.envID != "" && f.envSecret != "" && !(f.explicit && f.isChainProfile(f.profile)) {
+	if f.envID != "" && f.envSecret != "" && (!f.explicit || !f.isChainProfile(f.profile)) {
 		return AWSCredentials{AccessKeyID: f.envID, SecretAccessKey: f.envSecret, SessionToken: f.get("AWS_SESSION_TOKEN")}, "env:AWS_ACCESS_KEY_ID", nil
 	}
 	if file, arn := f.get("AWS_WEB_IDENTITY_TOKEN_FILE"), f.get("AWS_ROLE_ARN"); file != "" && arn != "" && !f.explicit {
@@ -126,7 +126,8 @@ func (s *AWSSource) profileCreds(ctx context.Context, name string, chain []strin
 			return AWSCredentials{}, label + " (web identity)", nil
 		}
 		c, err := s.cached(ctx, "profile:"+name, func() (AWSCredentials, time.Time, error) {
-			return s.webIdentity(ctx, "profile "+strconv.Quote(name), sec["web_identity_token_file"], sec["role_arn"], sec["role_session_name"], s.regionOf(sec))
+			return s.webIdentity(ctx, "profile "+strconv.Quote(name), sec["web_identity_token_file"], sec["role_arn"],
+				sec["role_session_name"], s.regionOf(sec))
 		})
 		return c, label + " (web identity)", err
 	case sec["role_arn"] != "":
@@ -177,11 +178,13 @@ func (s *AWSSource) assumeRole(ctx context.Context, name string, sec map[string]
 		src, srcLabel = c, strings.TrimPrefix(l, "aws:profile ")
 	case sec["credential_source"] == "Environment":
 		if f.envID == "" || f.envSecret == "" {
-			return AWSCredentials{}, "", fmt.Errorf("AWS profile %q has credential_source = Environment but AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not set", name)
+			return AWSCredentials{}, "", fmt.Errorf("AWS profile %q has credential_source = Environment but AWS_ACCESS_KEY_ID and "+
+				"AWS_SECRET_ACCESS_KEY are not set", name)
 		}
 		src, srcLabel = AWSCredentials{AccessKeyID: f.envID, SecretAccessKey: f.envSecret, SessionToken: f.get("AWS_SESSION_TOKEN")}, "environment"
 	case sec["credential_source"] != "":
-		return AWSCredentials{}, "", fmt.Errorf("AWS profile %q uses credential_source = %s, which Koine does not support (only Environment)", name, sec["credential_source"])
+		return AWSCredentials{}, "", fmt.Errorf("AWS profile %q uses credential_source = %s, which Koine does not support (only Environment)", name,
+			sec["credential_source"])
 	default:
 		return AWSCredentials{}, "", fmt.Errorf("AWS profile %q has role_arn but no source_profile or credential_source", name)
 	}

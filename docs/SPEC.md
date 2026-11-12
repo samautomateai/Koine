@@ -489,7 +489,7 @@ and `Describe()`. `emit` receives `agent.Event`:
   tested with fake servers only. `terminal.showImages`, `terminal.imageWidthCells` and `terminal.images` control the terminal's inline display (REQ-TUI-003).
 - **Compaction** (REQ-CMP-001): `/compact [focus]`, automatic before a turn would overflow, and once on a provider "prompt too long" error.
   Config (`settings.json`): `compaction.enabled`, `contextWindow`, `reserveTokens`, `keepRecentTokens`.
-- **Usage and cost** (REQ-LLM-004): the model catalog is built in; `~/.koine/model-catalog.json` (`{"models":[{"id","contextWindow","maxOutput","cost":{"input","output","cacheRead","cacheWrite"},"longContext":{"threshold","multiplier"}}]}`, USD per million tokens) adds or replaces entries by id. Each response emits an event `{"type":"usage","usage":{input,output,cacheRead,cacheWrite,cost?,contextTokens,contextWindow,contextPercent}}`; `cost` is absent when the model has no known price. Assistant messages in the session file carry Pi's `usage` object. `/session` prints totals, cost and context use. `compaction.contextWindow` overrides the catalog's window.
+- **Usage and cost** (REQ-LLM-004): the model catalog is built in; `~/.koine/model-catalog.json` (`{"models":[{"id","contextWindow","maxOutput","cost":{"input","output","cacheRead","cacheWrite"},"longContext":{"threshold","multiplier"}}]}`, USD per million tokens) adds or replaces entries by id (`koine update --models`, REQ-LLM-016, refreshes it from a server). Each response emits an event `{"type":"usage","usage":{input,output,cacheRead,cacheWrite,cost?,contextTokens,contextWindow,contextPercent}}`; `cost` is absent when the model has no known price. Assistant messages in the session file carry Pi's `usage` object. `/session` prints totals, cost and context use. `compaction.contextWindow` overrides the catalog's window.
 - **Thinking** (REQ-LLM-005): levels `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. The level for a request is, first match wins:
   `--thinking LEVEL`, a `:LEVEL` suffix on `--model` or `/model` (only a trailing level name counts, so `llama3:8b` is a model id), `/thinking LEVEL`,
   `modelThinkingLevels["provider/modelId"]`, `defaultThinkingLevel`, then `medium`. `--thinking` with a bad level exits 2. Only models the catalog
@@ -513,7 +513,10 @@ and `Describe()`. `emit` receives `agent.Event`:
 - **Amazon Bedrock** (REQ-LLM-014): provider `amazon-bedrock`, `api: "bedrock-converse-stream"`. Requests are signed with SigV4 or carry
   `AWS_BEARER_TOKEN_BEDROCK`; credentials come from `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` or a static-key profile in
   `~/.aws`; region from `AWS_REGION`, `AWS_DEFAULT_REGION` or the profile (else `us-east-1`); endpoint from `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` or
-  `baseUrl`. `AWS_BEDROCK_SKIP_AUTH=1` and `AWS_BEDROCK_FORCE_CACHE=1` are acted on. SSO, assumed roles and instance credentials are not.
+  `baseUrl`. `AWS_BEDROCK_SKIP_AUTH=1` and `AWS_BEDROCK_FORCE_CACHE=1` are acted on. REQ-LLM-017: a profile may be an SSO login (the token cached by
+  `aws sso login` is used, never refreshed), a role (`role_arn` + `source_profile` or `credential_source = Environment`, chains allowed) or a
+  web identity (`web_identity_token_file`, or `AWS_WEB_IDENTITY_TOKEN_FILE` + `AWS_ROLE_ARN`); `AWS_ENDPOINT_URL_STS` and `AWS_ENDPOINT_URL_SSO`
+  move the services. `credential_process`, MFA and instance credentials are not supported.
 - **Google Vertex AI** (REQ-LLM-015): provider `google-vertex`, `api: "google-vertex"`. `GOOGLE_CLOUD_API_KEY` uses express mode; otherwise
   Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS` or the gcloud login file, `service_account` or `authorized_user`) with
   `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`. The metadata server is not read.
@@ -590,7 +593,7 @@ a literal, `!command` (trimmed output, 10 s limit), or a template with `$NAME`/`
 
 `koine auth login|logout|check|print-api-key|print-bearer-token` (exit codes of `check`: 0 ready, 1 not ready, 2 invalid). `check --json`
 prints `{"status":"ready|not_ready|invalid","provider":…,"source":…,"reason":…,"credentials":…}`; this shape is Koine's. Not implemented: OAuth logins,
-SSO and role-based AWS credentials, metadata-server credentials. Wire formats of the Responses, Azure, Gemini, Bedrock and Vertex providers are
+AWS `credential_process`, MFA and instance credentials, metadata-server credentials. Wire formats of the Responses, Azure, Gemini, Bedrock and Vertex providers are
 tested against fake servers only; the live Bedrock and Vertex APIs were not exercised.
 
 ## 10. Known limits (v1)
@@ -610,6 +613,7 @@ tested against fake servers only; the live Bedrock and Vertex APIs were not exer
 koine install [-l] [--allow-scripts] [-a] <source>   add a package (user scope, or project scope with -l)
 koine remove  [-l] <source>                          remove it and its files
 koine update  [-l] [--allow-scripts] [-a] [source]   update packages that are not pinned (all, or one)
+koine update --models [--url URL] [--force]          refresh ~/.koine/model-catalog.json (REQ-LLM-016)
 koine list    [-l]                                   show configured packages with their resources
 koine config  [-l] [enable|disable <source> <resource>]   list resources, or toggle one (a numbered toggle loop on a terminal)
 ```

@@ -87,7 +87,8 @@ func TestGeminiReplaysThoughtSignaturesAndFillsInForGemini3(t *testing.T) {
 	}
 	parts := replayedParts(t, "gemini-2.5-pro", history)
 	if len(parts) != 5 || parts[0]["thought"] != true || parts[0]["thoughtSignature"] != sigA || parts[0]["text"] != "plan" ||
-		parts[1]["thoughtSignature"] != sigB || parts[2]["thoughtSignature"] != nil || parts[3]["thoughtSignature"] != nil || parts[4]["thoughtSignature"] != sigA {
+		parts[1]["thoughtSignature"] != sigB || parts[2]["thoughtSignature"] != nil || parts[3]["thoughtSignature"] != nil ||
+		parts[4]["thoughtSignature"] != sigA {
 		t.Fatalf("gemini 2.5: %v", parts)
 	}
 	parts = replayedParts(t, "gemini-3-pro-preview", history)

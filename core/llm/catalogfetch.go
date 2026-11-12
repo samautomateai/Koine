@@ -55,7 +55,7 @@ func checkCatalogURL(raw string) error {
 	if err != nil || u.Host == "" {
 		return fmt.Errorf("%q is not a catalog URL", raw)
 	}
-	if u.Scheme != "https" && !(u.Scheme == "http" && loopbackHost(u.Hostname())) {
+	if u.Scheme != "https" && (u.Scheme != "http" || !loopbackHost(u.Hostname())) {
 		return fmt.Errorf("the catalog URL must be https (http only for this machine), not %q", u.Scheme+"://"+u.Host)
 	}
 	return nil

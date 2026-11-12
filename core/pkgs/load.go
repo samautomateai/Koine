@@ -13,6 +13,8 @@ type Prefs struct {
 	NpmCommand   []string // npmCommand
 	AllowScripts bool     // allowInstallScripts (Koine only)
 	Collapse     bool     // collapseChangelog
+	// ModelCatalogURL is modelCatalogUrl, where `koine update --models` fetches the model catalog from (a Koine-only setting).
+	ModelCatalogURL string
 }
 
 // ReadPrefs reads Prefs from the user's settings file. A missing or unreadable file gives the defaults.
@@ -25,6 +27,7 @@ func ReadPrefs(home string) Prefs {
 	_ = json.Unmarshal(d.vals["npmCommand"], &p.NpmCommand)
 	_ = json.Unmarshal(d.vals["allowInstallScripts"], &p.AllowScripts)
 	_ = json.Unmarshal(d.vals["collapseChangelog"], &p.Collapse)
+	_ = json.Unmarshal(d.vals["modelCatalogUrl"], &p.ModelCatalogURL)
 	return p
 }
 

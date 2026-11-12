@@ -33,13 +33,15 @@ type fakeSTS struct {
 func (f *fakeSTS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	f.mu.Lock()
-	f.forms, f.auths, f.tokens = append(f.forms, r.PostForm), append(f.auths, r.Header.Get("authorization")), append(f.tokens, r.Header.Get("x-amz-security-token"))
+	f.forms, f.auths = append(f.forms, r.PostForm), append(f.auths, r.Header.Get("authorization"))
+	f.tokens = append(f.tokens, r.Header.Get("x-amz-security-token"))
 	f.mu.Unlock()
 	arn := r.PostForm.Get("RoleArn")
 	name := arn[strings.LastIndex(arn, "/")+1:]
 	if name == f.fail {
 		w.WriteHeader(http.StatusForbidden)
-		_, _ = fmt.Fprint(w, `<ErrorResponse><Error><Type>Sender</Type><Code>AccessDenied</Code><Message>not allowed to assume `+name+`</Message></Error></ErrorResponse>`)
+		_, _ = fmt.Fprint(w, `<ErrorResponse><Error><Type>Sender</Type><Code>AccessDenied</Code>`+
+			`<Message>not allowed to assume `+name+`</Message></Error></ErrorResponse>`)
 		return
 	}
 	_, _ = fmt.Fprintf(w, `<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/"><AssumeRoleResult><Credentials>`+
@@ -139,7 +141,8 @@ func TestAWSAssumeRoleFromEnvironmentKeysAndErrors(t *testing.T) {
 	}
 	delete(env, "AWS_ACCESS_KEY_ID")
 	_, err = newSource(t, baseKeys, "[profile p]\nrole_arn = arn:aws:iam::1:role/denied\nsource_profile = base\n", env).Credentials(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "AccessDenied") || !strings.Contains(err.Error(), "not allowed to assume denied") || strings.Contains(err.Error(), "base-secret") {
+	if err == nil || !strings.Contains(err.Error(), "AccessDenied") || !strings.Contains(err.Error(), "not allowed to assume denied") ||
+		strings.Contains(err.Error(), "base-secret") {
 		t.Errorf("STS error: %v", err)
 	}
 	for _, tc := range []struct{ conf, want string }{
@@ -149,7 +152,8 @@ func TestAWSAssumeRoleFromEnvironmentKeysAndErrors(t *testing.T) {
 		{"credential_process = /bin/secret-helper --token abc\n", "credential_process"},
 		{"role_arn = arn:aws:iam::1:role/x\nsource_profile = base\nregion = bad/../region\n", "region"},
 	} {
-		_, err = newSource(t, baseKeys, "[profile p]\n"+tc.conf, map[string]string{"AWS_PROFILE": "p", "AWS_ENDPOINT_URL_STS": srv.URL}).Credentials(context.Background())
+		s := newSource(t, baseKeys, "[profile p]\n"+tc.conf, map[string]string{"AWS_PROFILE": "p", "AWS_ENDPOINT_URL_STS": srv.URL})
+		_, err = s.Credentials(context.Background())
 		if err == nil || !strings.Contains(err.Error(), tc.want) || strings.Contains(err.Error(), "abc") {
 			t.Errorf("%q: %v", tc.want, err)
 		}
@@ -218,7 +222,8 @@ func writeSSOToken(t *testing.T, get func(string) string, key, token string, exp
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	body := fmt.Sprintf(`{"startUrl":"https://corp.awsapps.com/start","region":"us-east-1","accessToken":%q,"expiresAt":%q}`, token, expires.Format(time.RFC3339))
+	body := fmt.Sprintf(`{"startUrl":"https://corp.awsapps.com/start","region":"us-east-1","accessToken":%q,"expiresAt":%q}`,
+		token, expires.Format(time.RFC3339))
 	if err := os.WriteFile(filepath.Join(dir, hex.EncodeToString(sum[:])+".json"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +257,9 @@ func TestAWSSSOUsesTheCachedLoginTokenForASessionAndALegacyProfile(t *testing.T)
 		}
 		return get(k)
 	}
-	if c, err = NewAWSSource(legacy, nil).Credentials(context.Background()); err != nil || c.AccessKeyID != "AKIDSSO" || portal.bearers[1] != "token-for-url" {
+	ls := NewAWSSource(legacy, nil)
+	ls.Now = func() time.Time { return awsNow }
+	if c, err = ls.Credentials(context.Background()); err != nil || c.AccessKeyID != "AKIDSSO" || portal.bearers[1] != "token-for-url" {
 		t.Errorf("legacy sso: %+v %v %v", c, err, portal.bearers)
 	}
 }
@@ -286,7 +293,8 @@ func TestAWSSSOErrorsTellTheUserToLogInAgain(t *testing.T) {
 	}
 	writeSSOToken(t, get, "corp", "tok-live", awsNow.Add(time.Hour))
 	portal.status = http.StatusUnauthorized
-	if _, err := src("new").Credentials(context.Background()); err == nil || !strings.Contains(err.Error(), "401") || !strings.Contains(err.Error(), "aws sso login") ||
+	if _, err := src("new").Credentials(context.Background()); err == nil || !strings.Contains(err.Error(), "401") ||
+		!strings.Contains(err.Error(), "aws sso login") ||
 		strings.Contains(err.Error(), "tok-live") {
 		t.Errorf("portal refused: %v", err)
 	}

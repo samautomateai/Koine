@@ -14,7 +14,8 @@ import (
 )
 
 const remoteCatalog = `{"schema":1,"models":[
- {"id":"claude-x","provider":"anthropic","contextWindow":200000,"maxOutput":8000,"cost":{"input":3,"output":15,"cacheRead":0.3,"cacheWrite":3.75},"extra":"kept"},
+ {"id":"claude-x","provider":"anthropic","contextWindow":200000,"maxOutput":8000,
+  "cost":{"input":3,"output":15,"cacheRead":0.3,"cacheWrite":3.75},"extra":"kept"},
  {"id":"new-model","provider":"acme","contextWindow":64000,"input":["text","image"]}]}`
 
 func serveCatalog(t *testing.T, status int, body, etag string) (*httptest.Server, *[]http.Header) {

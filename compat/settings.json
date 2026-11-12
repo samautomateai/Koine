@@ -534,6 +534,11 @@
       "key": "$schema",
       "type": "string",
       "note": "Accepted for editor validation."
+    },
+    {
+      "key": "modelCatalogUrl",
+      "type": "string",
+      "note": "Address `koine update --models` fetches the model catalog from (REQ-LLM-016); user settings only. `--url` and KOINE_MODEL_CATALOG_URL override it."
     }
   ]
 }
