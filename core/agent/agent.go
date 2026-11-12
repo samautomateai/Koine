@@ -87,8 +87,17 @@ type Agent struct {
 	// PrepareNextTurn, when set, is called before every model request and may switch the model and the thinking level from then on.
 	PrepareNextTurn func(ctx context.Context, t TurnInfo) TurnPlan
 
-	depth int
-	queue queue
+	// InputSource is what the input event reports as the source of a prompt: SourceInteractive (default), SourceRPC or SourceExtension.
+	InputSource string
+	// OnInput is called once the input event of a prompt is settled, before any model request. handled says that no run follows because an
+	// extension or a hook took the prompt.
+	OnInput func(handled bool)
+	// OnCustom stores a custom message an extension added to the conversation (see AddCustom).
+	OnCustom func(events.CustomMessage)
+
+	depth       int
+	queue       queue
+	sysOverride *string // the system prompt an extension chose for the run in progress (before_agent_start)
 }
 
 const defaultBase = `You are koine, a coding agent working in the user's project through tools.
@@ -102,7 +111,8 @@ func (a *Agent) dispatch(ctx context.Context, name string, payload any) events.D
 	return a.Dispatch.Emit(ctx, name, payload)
 }
 
-func (a *Agent) systemPrompt(ctx context.Context) string {
+// baseSystem is the system prompt before extensions touch it: the base prompt and the sub-agents the task tool offers.
+func (a *Agent) baseSystem() string {
 	var b strings.Builder
 	b.WriteString(a.basePrompt())
 	if a.depth == 0 && len(a.Defs) > 0 {
@@ -111,7 +121,17 @@ func (a *Agent) systemPrompt(ctx context.Context) string {
 			fmt.Fprintf(&b, "- %s: %s\n", d.Name, d.Description)
 		}
 	}
-	d := a.dispatch(ctx, events.SystemPrompt, map[string]any{"system": b.String()})
+	return b.String()
+}
+
+func (a *Agent) systemPrompt(ctx context.Context) string {
+	base := a.baseSystem()
+	if a.sysOverride != nil {
+		base = *a.sysOverride
+	}
+	var b strings.Builder
+	b.WriteString(base)
+	d := a.dispatch(ctx, events.SystemPrompt, map[string]any{"system": base})
 	if d.SystemAppend != "" {
 		b.WriteString("\n" + d.SystemAppend + "\n")
 	}

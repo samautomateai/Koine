@@ -88,8 +88,11 @@ func (j *jsonStream) Start() {
 		id = j.app.Session.ID
 	}
 	j.put(rec("session", "version", 3, "id", id, "timestamp", time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), "cwd", j.app.Cwd))
-	j.put(rec("agent_start"))
+	j.StartRun()
 }
+
+// StartRun writes agent_start: a run begins. RPC mode writes one per prompt and no session header.
+func (j *jsonStream) StartRun() { j.put(rec("agent_start")) }
 
 func (j *jsonStream) openTurn() {
 	if !j.turnOpen {
@@ -277,8 +280,12 @@ func (j *jsonStream) Event(e agent.Event) {
 		}
 		j.put(rec("tool_execution_start", "toolCallId", e.CallID, "toolName", e.Tool, "args", args))
 	case "tool_end":
+		var details any = map[string]any{}
+		if d, ok := e.Data["details"]; ok { // an extension's tool_result handler replaced them
+			details = d
+		}
 		fields := []any{"toolCallId", e.CallID, "toolName", e.Tool,
-			"result", map[string]any{"content": []any{map[string]any{"type": "text", "text": e.Text}}, "details": map[string]any{}}, "isError", e.IsError}
+			"result", map[string]any{"content": []any{map[string]any{"type": "text", "text": e.Text}}, "details": details}, "isError", e.IsError}
 		if t, ok := j.started[e.CallID]; ok {
 			fields = append(fields, "durationMs", time.Since(t).Milliseconds())
 		}

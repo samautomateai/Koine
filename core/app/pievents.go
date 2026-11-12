@@ -11,8 +11,11 @@ import (
 // app starts. Extension callbacks reach it too: the host handles an extension's notification before it answers the call the agent is
 // waiting on, so the agent's goroutine is idle then and emit is never called from two goroutines at once.
 func (a *App) event(e agent.Event) {
-	if a.emit != nil {
+	switch {
+	case a.emit != nil:
 		a.emit(e)
+	case a.sink != nil:
+		a.sink(e)
 	}
 }
 
@@ -77,4 +80,5 @@ func (a *App) wireHost() {
 			a.Warnings = append(a.Warnings, "extension entry not saved to the session: "+err.Error())
 		}
 	}
+	a.wireUI()
 }

@@ -10,7 +10,7 @@ import (
 // cliArgs is the parsed command line: `koine [options] [--] [@files] [messages]`.
 type cliArgs struct {
 	Print        bool
-	Mode         string // text | json
+	Mode         string // text | json | rpc
 	Serve        string
 	Dir          string
 	Trust        bool
@@ -131,13 +131,27 @@ func parseArgsWith(args []string, ext map[string]string) (cliArgs, error) {
 		}
 		c.set(f.Long, val)
 	}
-	if c.Mode != "" && c.Mode != "text" && c.Mode != "json" {
-		return c, fmt.Errorf("--mode must be text or json (got %q)", c.Mode)
+	if c.Mode != "" && c.Mode != "text" && c.Mode != "json" && c.Mode != "rpc" {
+		return c, fmt.Errorf("--mode must be text, json or rpc (got %q)", c.Mode)
+	}
+	if c.Mode == "rpc" && len(c.Files) > 0 {
+		return c, fmt.Errorf("--mode rpc does not accept @file arguments; send prompts with the prompt command")
 	}
 	if c.Thinking != "" && !llm.ValidLevel(c.Thinking) {
 		return c, fmt.Errorf("--thinking must be one of %s (got %q)", strings.Join(llm.ThinkingLevels, ", "), c.Thinking)
 	}
 	return c, c.validateResources()
+}
+
+// runMode is what extensions are told as ctx.mode: "rpc" and "json" as asked, "tui" when the interactive UI runs, otherwise "print".
+func (c cliArgs) runMode(st streams) string {
+	switch {
+	case c.Mode == "rpc" || c.Mode == "json":
+		return c.Mode
+	case c.Print || c.Serve != "" || len(c.Message) > 0 || len(c.Files) > 0 || !st.InTTY:
+		return "print"
+	}
+	return "tui"
 }
 
 func (c *cliArgs) set(long, val string) {
@@ -211,7 +225,7 @@ Piped stdin is put before the message. @file arguments are included as <file> bl
 bmp) and piped image data are sent as images, resized to at most 2000 by 2000 pixels unless images.autoResize is off.
 
   -p, --print                  run non-interactively (default when stdin or stdout is not a terminal)
-      --mode text|json         text: final answer on stdout (default); json: one event per line on stdout
+      --mode text|json|rpc     text: final answer on stdout (default); json: one event per line on stdout; rpc: JSONL commands on stdin
       --model ID[:LEVEL]       model: an id, provider/id or part of an id or name; :LEVEL sets the thinking level
       --thinking LEVEL         thinking level: off, minimal, low, medium, high, xhigh or max (beats a :LEVEL suffix and the settings)
       --provider NAME          look --model up in this provider only (needs --model)

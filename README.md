@@ -20,6 +20,7 @@ bin/koine              # interactive
 bin/koine -p "summarise this repo"
 git diff | bin/koine "review this change" > review.txt   # piped stdin + message; answer on stdout, activity on stderr
 bin/koine --mode json @spec.md "list the TODOs" | jq .   # one JSON event per line
+bin/koine --mode rpc               # Pi's RPC protocol: JSON commands on stdin, events on stdout (docs/SPEC.md section 12)
 bin/koine --serve 127.0.0.1:7777   # HTTP/SSE API (Electron / browser)
 ```
 

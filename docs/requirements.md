@@ -354,9 +354,58 @@ tests, a named test that does not exist, a missing design reference, and duplica
 
 ### REQ-EXT-005 — Extensions can use the user interface
 
+- Status: implemented
+- Statement: Extension dialogs (`select`, `confirm`, `input`, `editor`) are answered by the active frontend (terminal prompts, or an `extension_ui_request` in RPC mode) and resolve at once as cancelled when there is none or when their `timeout` or `AbortSignal` ends. The text surfaces `setStatus`, `setWidget`, `setTitle`, `setWorkingMessage`, `setEditorText` and `notify` reach the frontend. `ctx.mode` (`tui`, `rpc`, `json`, `print`) and `ctx.hasUI` tell the truth, and `ctx.shutdown()` asks the host to quit. Components (`custom`, footers, headers, themes, renderers) stay inert (`compat/DIVERGENCES.md`). Gap rows EXT-24, 25, 28.
+- Design: DES-073
+- Tests: TestUIDialogsAreAnsweredByTheHost; TestDialogWithoutAFrontendIsCancelled; TestShutdownRequestReachesTheHost; TestExtensionSurfacesReachTheFrontend; TestDialogsUseTheFrontendsPrompts; js:ui: dialogs are requests; js:ui: without a frontend; js:ui: surfaces are notifications
+
+### REQ-EXT-006 — Event handlers behave as in Pi
+
+- Status: implemented
+- Statement: A `tool_call` handler that changes `event.input` in place changes the arguments, and later handlers see the change. `tool_result` handlers chain: each sees the content, details and `isError` the earlier ones produced, and may replace text and image content. `input` handlers chain (transform, `handled`, images, and the real `source`: `interactive`, `rpc` or `extension`). `before_agent_start` runs once per prompt; its `systemPrompt` replaces the prompt for that run (chained) and its `message` is added to the conversation. A handler that throws is reported (`extension_error`) and the extension carries on, except a throwing `tool_call` handler, which blocks the call (gates fail closed, observers fail open). Failures of the host side (a timeout, an exited process) stay fail-open. Gap rows EXT-12..16.
+- Design: DES-072
+- Tests: js:events: handlers chain; TestChainCarriesChangesToTheNextHandler; TestBeforeAgentStartPromptsChainBetweenExtensions; TestMergeCarriesTheExtensionAPIFields; TestInputHandledBlockedAndTransformed; TestBeforeAgentStartReplacesThePromptForOneRunAndAddsAMessage; TestToolResultContentAndDetailsReplaceTheResult; TestContinueAnswersAMessageAnExtensionAdded; TestImagesFromPiKeepsOnlyWellFormedBlocks
+
+### REQ-EXT-007 — Session lifecycle and tool execution events
+
+- Status: implemented
+- Statement: Extensions receive `session_shutdown` (reason `quit`, `reload`, `new`, `resume`, `fork`), `session_start` with the same reasons and `previousSessionFile`, the gates `session_before_switch`, `session_before_fork`, `session_before_compact` and `session_before_tree` (answering `{ cancel: true }` stops the operation), `session_compact`, `session_tree` and `tool_execution_start`, `_update` and `_end`. A custom summary returned from a gate is not applied. Gap row EXT-17; the events `message_*`, `context` and the provider hooks remain open.
+- Design: DES-072
+- Tests: TestSessionGatesCancelSwitchForkAndTree; TestSessionLifecycleEventsReachExtensions; TestCompactionGateAndEvent; TestToolExecutionEventsReachExtensions; TestMultiStopsAtCancel
+
+### REQ-EXT-008 — Tool arguments are coerced and validated
+
+- Status: implemented
+- Statement: Before `tool_call` and before a tool runs, the arguments are coerced as Pi documents (a numeric string becomes a number, `"true"` and `"false"` become booleans, a single value becomes a one-item array, a null in an optional property is dropped) and checked against the tool's JSON Schema. A failure is an error result, `Invalid arguments for tool "x":` and one `- path: problem` line per problem, and the tool is not run. Keywords that are not understood never reject a call. Gap row EXT-45.
+- Design: DES-072
+- Tests: TestValidateCoercesLooseValuesTheWayPiDoes; TestValidateReportsEachProblemOnItsOwnLine; TestValidateNeverRejectsWhatItDoesNotUnderstand; TestInvalidArgumentsAreAnswerWithoutToolCallOrRun
+
+### REQ-EXT-009 — Extension tools: abort, nested calls, overrides
+
+- Status: implemented
+- Statement: The `signal` of a tool's `execute` and `ctx.signal` of an event handler abort when the host gives up on the call (cancelled run, timeout). `ctx.executeTool(name, args)` and `ctx.tools` let a tool run the other tools of the session, with argument validation and the `tool_call` hook, and without entering the transcript. A tool an extension registers replaces a built-in of the same name, and `withFileMutationQueue` is exported by the `pi-coding-agent` shim. Gap rows EXT-19, 20.
+- Design: DES-072
+- Tests: TestToolAbortSignalFiresWhenTheCallIsCancelled; TestExtensionsCanRunToolsThroughTheHost; TestExecuteToolRunsToolsForExtensionsAndGuardsThem; TestAnExtensionToolReplacesABuiltInOfTheSameName; js:tools: a cancel notification; js:shim: withFileMutationQueue
+
+### REQ-EXT-010 — Commands, custom messages and the event bus
+
+- Status: implemented
+- Statement: When several extensions register the same command name Koine keeps all of them and numbers them `name:1`, `name:2` in load order. `pi.getCommands()` lists extension commands, prompt templates and skills with their `sourceInfo`. A command's `getArgumentCompletions` completes in the terminal editor. `pi.sendMessage` adds a custom message to the conversation and the session (`custom_message` entry) with `triggerTurn` and `deliverAs` (`steer`, `followUp`, `nextTurn`). `pi.events` is one bus shared by all extensions. Message renderers stay inert. Gap rows EXT-22, 23 (partly), 29.
+- Design: DES-072
+- Tests: TestCommandCollisionsAreNumberedAndCompleted; TestGetCommandsListsExtensionsTemplatesAndSkills; TestSendMessageAddsACustomMessage; TestHostMessagesReachTheApp; TestEventBusReachesOtherExtensions; js:messages: sendMessage; js:bus: emits reach
+
+### REQ-EXT-011 — Shim exports match upstream
+
 - Status: planned
-- Statement: Extension dialogs (`select`, `confirm`, `input`) and text status surfaces reach the active frontend; `ctx.mode` and `ctx.hasUI` are truthful; shim exports match upstream so extensions never fail to link. Gap rows EXT-07, 24..26, 28.
+- Statement: The virtual modules (`pi-coding-agent`, `pi-tui`, `pi-ai`) export every runtime name upstream exports, so no extension fails to link on a missing named import. Gap row EXT-07.
 - Design: none yet
+
+### REQ-RPC-001 — RPC mode
+
+- Status: implemented
+- Statement: `koine --mode rpc` reads JSON commands, one per line, from stdin and writes a response for each, the JSON event stream (REQ-CLI-003) and the extension UI requests to stdout, as Pi's RPC documentation describes (prompt with `streamingBehavior`, steer, follow_up, abort, session, model, thinking, queue, compaction, bash, state, message, command, fork and tree commands). Extension dialogs are sent as `extension_ui_request` and answered by `extension_ui_response`. A line that does not parse gets a failed `parse` response. `@file` arguments are refused. `set_auto_retry` and `abort_retry` answer `success: false`, because Koine always retries transient provider errors. Gap rows CLI-07, EXT-26.
+- Design: DES-073
+- Tests: TestRPCAnswersEveryCommandWithOneResponse; TestRPCPromptRunsTheAgentAndSessionCommandsReadTheResult; TestRPCQueuesMessagesWhileTheAgentRuns; TestRPCExtensionDialogsAndShutdown; TestRPCModeRefusesFileArguments; TestRunModeTellsExtensionsHowKoineRuns
 
 ### REQ-TOOL-001 — Built-in tool parity, what remains
 

@@ -84,7 +84,7 @@ func TestReport(t *testing.T) {
 	m, _ := Load()
 	r := m.Report()
 	wants := []string{
-		"pinned to @earendil-works/pi-coding-agent " + m.Upstream.Baseline, "verified", "todo (", "unsupported (", "observed:", "session_shutdown",
+		"pinned to @earendil-works/pi-coding-agent " + m.Upstream.Baseline, "verified", "todo (", "unsupported (", "observed:", "message_end",
 	}
 	for _, want := range wants {
 		if !strings.Contains(r, want) {

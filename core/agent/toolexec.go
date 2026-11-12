@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"koine/core/events"
@@ -88,10 +89,11 @@ func (a *Agent) execTools(ctx context.Context, uses []llm.Block, emit func(Event
 }
 
 // finish records the result of a call that never runs and announces it.
-func finish(c *call, emit func(Event), text string, stop bool) {
+func (a *Agent) finish(ctx context.Context, c *call, emit func(Event), text string, stop bool) {
 	c.res.Content, c.res.IsError, c.stop = text, true, stop
 	emit(Event{Type: "tool_start", Tool: c.use.Name, CallID: c.use.ID, Args: c.args})
 	emit(Event{Type: "tool_end", Tool: c.use.Name, CallID: c.use.ID, Text: text, IsError: true})
+	a.executionEnd(ctx, c.use, text, true, nil)
 }
 
 func (a *Agent) preflight(ctx context.Context, u llm.Block, emit func(Event)) *call {
@@ -100,12 +102,21 @@ func (a *Agent) preflight(ctx context.Context, u llm.Block, emit func(Event)) *c
 		c.args = json.RawMessage("{}")
 	}
 	if ctx.Err() != nil {
-		finish(c, emit, errAborted.Error(), false)
+		a.finish(ctx, c, emit, errAborted.Error(), false)
 		return c
+	}
+	a.dispatch(ctx, events.ToolExecutionStart, map[string]any{"toolCallId": u.ID, "toolName": u.Name, "args": c.args})
+	if t, ok := a.Tools.Get(u.Name); ok { // Pi skips tool_call for an unknown tool and for arguments that do not fit the schema
+		args, err := tools.Validate(t.Schema(), c.args)
+		if err != nil {
+			a.finish(ctx, c, emit, fmt.Sprintf("Invalid arguments for tool %q:\n%v", u.Name, err), false)
+			return c
+		}
+		c.args = args
 	}
 	d := a.dispatch(ctx, events.ToolCall, map[string]any{"toolName": u.Name, "callId": u.ID, "input": c.args})
 	if d.Block {
-		finish(c, emit, "Blocked: "+orDefault(d.Reason, "denied by extension"), d.Terminate)
+		a.finish(ctx, c, emit, "Blocked: "+orDefault(d.Reason, "denied by extension"), d.Terminate)
 		return c
 	}
 	if len(d.Args) > 0 {
@@ -129,6 +140,8 @@ func (a *Agent) runCall(ctx context.Context, c *call, emit func(Event)) {
 	default:
 		tctx := tools.WithUpdates(ctx, func(partial string) {
 			emit(Event{Type: EvToolUpdate, Tool: u.Name, CallID: u.ID, Args: c.args, Text: partial})
+			a.dispatch(ctx, events.ToolExecutionUpdate, map[string]any{"toolCallId": u.ID, "toolName": u.Name, "args": c.args,
+				"partialResult": resultJSON(partial, nil)})
 		})
 		out, err = runTool(tools.WithImages(tctx, a.imageSink(&c.res.Images)), t.Run, u.Name, c.args)
 	}
@@ -143,8 +156,50 @@ func (a *Agent) runCall(ctx context.Context, c *call, emit func(Event)) {
 	if d.IsError != nil {
 		isErr = *d.IsError
 	}
+	if len(d.Content) > 0 { // the extension replaced the whole result: its text and its images
+		if text, images, ok := contentFromPi(d.Content); ok {
+			out, c.res.Images = text, images
+		}
+	}
 	c.res.Content, c.res.IsError, c.stop = out, isErr, d.Terminate
-	emit(Event{Type: "tool_end", Tool: u.Name, CallID: u.ID, Text: out, IsError: isErr})
+	end := Event{Type: "tool_end", Tool: u.Name, CallID: u.ID, Text: out, IsError: isErr}
+	if len(d.Details) > 0 {
+		end.Data = Data("details", d.Details)
+	}
+	emit(end)
+	a.executionEnd(ctx, u, out, isErr, d.Details)
+}
+
+// executionEnd tells extensions that a tool call is over (Pi's tool_execution_end).
+func (a *Agent) executionEnd(ctx context.Context, u llm.Block, text string, isErr bool, details json.RawMessage) {
+	a.dispatch(ctx, events.ToolExecutionEnd, map[string]any{"toolCallId": u.ID, "toolName": u.Name, "result": resultJSON(text, details), "isError": isErr})
+}
+
+// resultJSON is a tool result as Pi events carry it: {content: [{type: "text", text}], details}.
+func resultJSON(text string, details json.RawMessage) map[string]any {
+	if len(details) == 0 {
+		details = json.RawMessage("{}")
+	}
+	return map[string]any{"content": []any{map[string]any{"type": "text", "text": text}}, "details": details}
+}
+
+// contentFromPi reads Pi content blocks an extension answered with: the text blocks joined by newlines, and the image blocks.
+func contentFromPi(raw json.RawMessage) (string, []llm.Block, bool) {
+	var blocks []struct{ Type, Text, Data, MimeType string }
+	if json.Unmarshal(raw, &blocks) != nil {
+		return "", nil, false
+	}
+	var texts []string
+	var images []llm.Block
+	for _, b := range blocks {
+		switch {
+		case b.Type == "text":
+			texts = append(texts, b.Text)
+		case b.Type == "image" && b.Data != "" && b.MimeType != "":
+			images = append(images, llm.ImageBlock(b.MimeType, b.Data))
+		}
+	}
+	return strings.Join(texts, "\n"), images, true
 }
 
 // runTool runs a tool, turning a panic into an error: a call running on its own goroutine must not take the process down.

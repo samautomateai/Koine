@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"koine/core/agent"
+	"koine/core/events"
 	"koine/core/llm"
 	"koine/core/session"
 )
@@ -101,7 +102,14 @@ func (a *App) sessionCommand(ctx context.Context, name, args string, emit func(a
 	fail := func(err error) { emit(agent.Event{Type: "error", Text: err.Error()}) }
 	switch name {
 	case "new", "clear":
+		if a.gate(ctx, events.SessionBeforeSwitch, map[string]any{"reason": "new"}) {
+			notice("cancelled by an extension")
+			break
+		}
+		prev := a.sessionFile()
+		a.leaving(ctx, "new", "")
 		a.NewSession()
+		a.arrived(ctx, "new", prev)
 		notice("started a new session")
 	case "session":
 		if a.Session == nil {
@@ -145,7 +153,14 @@ func (a *App) sessionCommand(ctx context.Context, name, args string, emit func(a
 			fail(err)
 			break
 		}
+		if a.gate(ctx, events.SessionBeforeSwitch, map[string]any{"reason": "resume", "targetSessionFile": s.Path}) {
+			notice("cancelled by an extension")
+			break
+		}
+		prev := a.sessionFile()
+		a.leaving(ctx, "resume", s.Path)
 		a.useSession(s)
+		a.arrived(ctx, "resume", prev)
 		notice(fmt.Sprintf("resumed %s (%d messages)", shortID(s.ID), len(a.Agent.History)))
 	case "fork":
 		if args != "" { // /fork <entry>: from an earlier user message (tree.go)
@@ -155,12 +170,19 @@ func (a *App) sessionCommand(ctx context.Context, name, args string, emit func(a
 			notice("sessions are off (--no-session)")
 			break
 		}
+		if a.gate(ctx, events.SessionBeforeFork, map[string]any{"entryId": a.Session.Leaf(), "position": "at"}) {
+			notice("cancelled by an extension")
+			break
+		}
 		f, err := a.Session.Fork(a.SessionDir(), a.Cwd)
 		if err != nil {
 			fail(err)
 			break
 		}
+		prev := a.sessionFile()
+		a.leaving(ctx, "fork", f.Path)
 		a.setSession(f)
+		a.arrived(ctx, "fork", prev)
 		notice("forked into " + shortID(f.ID))
 	default:
 		return a.treeCommand(ctx, name, args, emit)

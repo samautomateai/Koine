@@ -5,12 +5,16 @@
 //
 // Host -> extension requests:
 //
-//	initialize      {protocol, host, cwd, trusted}   -> {name?, events?: [string]}
+//	initialize      {protocol, host, cwd, trusted, mode, hasUI}   -> {name?, events?: [string]}
 //	event           {name, payload}                  -> events.Decision
 //	                  resources_discover {cwd, reason: "startup"|"reload"} answers {resources: {skillPaths, promptPaths, themePaths}};
 //	                  relative paths are taken from the extension's working directory
 //	tool.execute    {name, args, callId}             -> {content, isError?}
 //	command.execute {name, args}                     -> {output}
+//	command.complete {name, prefix}                  -> {items: [{value, label}]}
+//	cancel          (notification) {id}              the host gave up on request id; the extension aborts the work
+//	bus_event       (notification) {channel, data}   an event another extension emitted on pi.events
+//	host_state      (notification) {commands, tools} every slash command and tool, for pi.getCommands and ctx.tools
 //	flags           (notification) {values: {name: value}}  command-line values of the registered flags
 //	shutdown        (notification)
 //
@@ -23,6 +27,16 @@
 //	send_user_message {text, deliverAs?: "steer"|"followUp"}
 //	append_entry     {customType, data}     stored in the session as a custom entry (never sent to the model)
 //	tool_update      {callId: "<tool>/<id of the tool.execute call>", text}   partial output of a running tool
+//	ui               {method, ...}   fire-and-forget UI: notify, setStatus, setWidget, setTitle, setWorkingMessage, set_editor_text (UIRequest)
+//	bus_emit         {channel, data}   pi.events.emit, relayed to the other extensions
+//	send_message     {customType, content, display, details?, deliverAs?, triggerTurn?}   pi.sendMessage
+//	ext_error        {event, error}   a handler raised an error; the extension carries on
+//	shutdown_request {}              ctx.shutdown()
+//
+// Extension -> host requests (the host answers with a result or an error):
+//
+//	ui.dialog        UIRequest (select, confirm, input, editor)   -> UIResponse
+//	tools.execute    {name, args}   -> {content, isError}   runs a tool for ctx.executeTool
 package ext
 
 import (
@@ -55,12 +69,6 @@ type Spec struct {
 	Source srcinfo.Info `json:"-"`
 }
 
-type Command struct {
-	Name, Description string
-	Source            srcinfo.Info
-	proc              *Proc
-}
-
 type Host struct {
 	Cwd   string
 	Tools *tools.Registry
@@ -72,44 +80,27 @@ type Host struct {
 	OnAppendEntry func(customType string, data json.RawMessage)
 	// Trusted is told to extensions as ctx.isProjectTrusted().
 	Trusted bool
+	// Mode is what the host runs as, told to extensions as ctx.mode: "tui", "rpc", "json" or "print" (the default). HasUI says that a
+	// frontend answers dialogs (ctx.hasUI). Both must be set before the extensions start.
+	Mode  string
+	HasUI bool
+	// Dialog answers select, confirm, input and editor requests; ctx ends when the extension gave up or the dialog timed out. Surface is
+	// told of the fire-and-forget requests. Both may be nil: dialogs then come back cancelled.
+	Dialog  func(ctx context.Context, r UIRequest) UIResponse
+	Surface func(r UIRequest)
+	// RunTool runs a tool on behalf of an extension (ctx.executeTool) and returns its output and whether it failed.
+	RunTool func(ctx context.Context, name string, args json.RawMessage) (string, bool)
+	// OnSendMessage receives pi.sendMessage; OnError a handler error; OnShutdown ctx.shutdown().
+	OnSendMessage func(m events.CustomMessage, o SendOptions)
+	OnError       func(e ExtError)
+	OnShutdown    func()
 
 	mu       sync.Mutex
 	procs    []*Proc
-	commands map[string]Command
+	commands []Command
 	compat   []CompatNote
 	flags    []Flag
 	updates  sync.Map // call id of a running extension tool -> the function that takes its partial output
-}
-
-// Flag is a command-line option an extension registered (pi.registerFlag). Type is "boolean" or "string".
-type Flag struct {
-	Name, Description, Type, Extension string
-	Default                            any
-}
-
-// Flags returns the options the extensions registered, in the order they did.
-func (h *Host) Flags() []Flag {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return append([]Flag(nil), h.flags...)
-}
-
-// SetFlags tells every extension the command-line values of its options (a bool for a boolean flag, a string otherwise). It is sent
-// after the extensions have loaded, because the command line cannot be read until their flags are known.
-func (h *Host) SetFlags(values map[string]any) {
-	if len(values) == 0 {
-		return
-	}
-	params, err := json.Marshal(map[string]any{"values": values})
-	if err != nil {
-		return
-	}
-	h.mu.Lock()
-	procs := append([]*Proc(nil), h.procs...)
-	h.mu.Unlock()
-	for _, p := range procs {
-		p.write(msg{JSONRPC: "2.0", Method: "flags", Params: params})
-	}
 }
 
 // CompatNote records an API an extension used that koine does not (fully)
@@ -125,7 +116,7 @@ func (h *Host) Compat() []CompatNote {
 }
 
 func NewHost(cwd string, reg *tools.Registry) *Host {
-	return &Host{Cwd: cwd, Tools: reg, commands: map[string]Command{}}
+	return &Host{Cwd: cwd, Tools: reg}
 }
 
 func (h *Host) logf(f string, a ...any) {
@@ -205,7 +196,11 @@ func (h *Host) Start(ctx context.Context, s Spec) error {
 
 	ictx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	res, err := p.call(ictx, "initialize", map[string]any{"protocol": 1, "host": "koine", "cwd": h.Cwd, "trusted": h.Trusted})
+	mode := h.Mode
+	if mode == "" {
+		mode = "print"
+	}
+	res, err := p.call(ictx, "initialize", map[string]any{"protocol": 1, "host": "koine", "cwd": h.Cwd, "trusted": h.Trusted, "mode": mode, "hasUI": h.HasUI})
 	if err != nil {
 		p.kill()
 		return fmt.Errorf("initialize: %w", err)
@@ -262,10 +257,11 @@ func (p *Proc) dispatch(m msg) {
 			ch <- m
 		}
 	case m.Method != "":
-		p.notify(m)
-		if m.ID != nil { // we implement no ext->host requests yet
-			p.write(msg{JSONRPC: "2.0", ID: m.ID, Error: &rpcErr{Code: -32601, Message: "method not found: " + m.Method}})
+		if m.ID != nil {
+			go p.serve(m)
+			return
 		}
+		p.notify(m)
 	}
 }
 
@@ -290,11 +286,12 @@ func (p *Proc) notify(m msg) {
 			h.Tools.SetSource(t.Name, p.src)
 		}
 	case "register_command":
-		var c struct{ Name, Description string }
+		var c struct {
+			Name, Description string
+			HasCompletions    bool
+		}
 		if json.Unmarshal(m.Params, &c) == nil && c.Name != "" {
-			h.mu.Lock()
-			h.commands[c.Name] = Command{Name: c.Name, Description: c.Description, Source: p.src, proc: p}
-			h.mu.Unlock()
+			h.addCommand(Command{Name: c.Name, Description: c.Description, HasCompletions: c.HasCompletions, Source: p.src, proc: p})
 		}
 	case "register_flag":
 		var f struct {
@@ -332,6 +329,31 @@ func (p *Proc) notify(m msg) {
 		}
 		if json.Unmarshal(m.Params, &e) == nil && e.CustomType != "" && h.OnAppendEntry != nil {
 			h.OnAppendEntry(e.CustomType, e.Data)
+		}
+	case "ui":
+		h.surface(p, m.Params)
+	case "bus_emit":
+		h.relay("bus_event", p, m.Params)
+	case "send_message":
+		var s struct {
+			events.CustomMessage
+			DeliverAs   string
+			TriggerTurn bool
+		}
+		if json.Unmarshal(m.Params, &s) == nil && s.Content != "" && h.OnSendMessage != nil {
+			h.OnSendMessage(s.CustomMessage, SendOptions{DeliverAs: s.DeliverAs, TriggerTurn: s.TriggerTurn})
+		}
+	case "ext_error":
+		var e struct{ Event, Error string }
+		if json.Unmarshal(m.Params, &e) == nil {
+			h.logf("[%s] %s: %s", p.Name, e.Event, e.Error)
+			if h.OnError != nil {
+				h.OnError(ExtError{Extension: p.Name, Event: e.Event, Error: e.Error})
+			}
+		}
+	case "shutdown_request":
+		if h.OnShutdown != nil {
+			h.OnShutdown()
 		}
 	case "tool_update":
 		var u struct{ CallID, Text string }
@@ -374,8 +396,36 @@ func (p *Proc) call(ctx context.Context, method string, params any) (json.RawMes
 		p.pmu.Lock()
 		delete(p.pend, id)
 		p.pmu.Unlock()
+		p.notifyCancel(id)
 		return nil, ctx.Err()
 	}
+}
+
+// notifyCancel tells the extension that the host gave up on request id, so a tool or handler can stop its work (its AbortSignal fires).
+func (p *Proc) notifyCancel(id int64) {
+	raw, _ := json.Marshal(map[string]any{"id": id})
+	p.write(msg{Method: "cancel", Params: raw})
+}
+
+// relay passes a notification of one extension on to all the others.
+func (h *Host) relay(method string, from *Proc, params json.RawMessage) {
+	h.mu.Lock()
+	procs := append([]*Proc(nil), h.procs...)
+	h.mu.Unlock()
+	for _, p := range procs {
+		if p != from {
+			p.write(msg{Method: method, Params: params})
+		}
+	}
+}
+
+// Broadcast sends a notification to every extension.
+func (h *Host) Broadcast(method string, params any) {
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return
+	}
+	h.relay(method, nil, raw)
 }
 
 func (p *Proc) kill() {
@@ -407,8 +457,9 @@ func (h *Host) Emit(ctx context.Context, name string, payload any) events.Decisi
 				p.absolute(d.Resources)
 			}
 			out.Merge(d)
+			payload = chain(name, payload, d)
 		}
-		if out.Block {
+		if out.Block || out.Cancel {
 			break
 		}
 	}
@@ -439,33 +490,6 @@ func (p *Proc) absolute(r *events.Resources) {
 	r.SkillPaths, r.PromptPaths, r.ThemePaths = fix(r.SkillPaths), fix(r.PromptPaths), fix(r.ThemePaths)
 }
 
-func (h *Host) Commands() []Command {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]Command, 0, len(h.commands))
-	for _, c := range h.commands {
-		out = append(out, c)
-	}
-	return out
-}
-
-// RunCommand runs an extension-registered slash command.
-func (h *Host) RunCommand(ctx context.Context, name, args string) (string, bool, error) {
-	h.mu.Lock()
-	c, ok := h.commands[name]
-	h.mu.Unlock()
-	if !ok {
-		return "", false, nil
-	}
-	res, err := c.proc.call(ctx, "command.execute", map[string]any{"name": name, "args": args})
-	if err != nil {
-		return "", true, err
-	}
-	var r struct{ Output string }
-	_ = json.Unmarshal(res, &r)
-	return r.Output, true, nil
-}
-
 func (h *Host) Close() {
 	h.mu.Lock()
 	procs := h.procs
@@ -480,45 +504,4 @@ func (h *Host) Close() {
 			p.kill()
 		}
 	}
-}
-
-type procTool struct {
-	p          *Proc
-	name, desc string
-	schema     json.RawMessage
-	snippet    string   // promptSnippet: the one-line entry in the system prompt's tool list
-	guidelines []string // promptGuidelines: rule bullets while the tool is active
-	callSeq    atomic.Int64
-}
-
-func (t *procTool) PromptSnippet() string      { return t.snippet }
-func (t *procTool) PromptGuidelines() []string { return t.guidelines }
-
-func (t *procTool) Name() string            { return t.name }
-func (t *procTool) Description() string     { return t.desc }
-func (t *procTool) Schema() json.RawMessage { return t.schema }
-func (t *procTool) Run(ctx context.Context, args json.RawMessage) (string, error) {
-	if len(args) == 0 {
-		args = json.RawMessage("{}")
-	}
-	id := fmt.Sprintf("ext-%d", t.callSeq.Add(1))
-	if up := tools.Updates(ctx); up != nil { // partial results of this call go to whoever listens for the run
-		t.p.host.updates.Store(t.name+"/"+id, up)
-		defer t.p.host.updates.Delete(t.name + "/" + id)
-	}
-	res, err := t.p.call(ctx, "tool.execute", map[string]any{"name": t.name, "args": args, "callId": id})
-	if err != nil {
-		return "", err
-	}
-	var r struct {
-		Content string `json:"content"`
-		IsError bool   `json:"isError"`
-	}
-	if err := json.Unmarshal(res, &r); err != nil {
-		return "", err
-	}
-	if r.IsError {
-		return r.Content, errors.New(r.Content)
-	}
-	return r.Content, nil
 }

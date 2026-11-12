@@ -92,6 +92,16 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 - An aborted assistant message is stored with `stopReason: "aborted"` and is never sent to a provider again; Pi's own handling of it is not documented, so this follows Pi's field name only.
 - The extension `context` event carries Koine's message shape (`role`, `content` blocks with `tool_use` and `tool_result`), not Pi's. The JS sidecar does not subscribe to it, so Pi `context` handlers never run; Go and out-of-process extensions can use it.
 
+## Extension API and RPC mode
+
+- `ctx.ui.editor` is a single line in the terminal UI (the prefill is not shown), and a terminal dialog cannot be closed when its `timeout` ends: the dialog resolves as cancelled for the extension and a late answer is dropped. `setWidget` takes string lines only; component factories, `custom`, footers, headers, themes, `registerMessageRenderer` and entry renderers stay inert.
+- A custom message sent with `pi.sendMessage` reaches the model as an ordinary user message, because Koine's history has no custom role. Sent during a run, it is a steer or follow-up user message.
+- `session_before_*` gates honour only `cancel`; a custom compaction, summary or `skipConversationRestore` in the answer is ignored. `tool_execution_*` events have no `parentToolCallId`; tool calls made through `ctx.executeTool` raise no `tool_result` event and are not added to the transcript.
+- `systemPromptOptions` is a read-only description; returning a changed one does nothing. `ctx.sessionManager` is a stub, `ctx.abort` and `ctx.getSystemPrompt` are inert.
+- A throwing `tool_call` handler blocks the call (Pi lets the error propagate); every other handler error is reported and the extension carries on. Host-level failures (a timeout, a process that exited) stay fail-open.
+- RPC mode: `set_auto_retry` and `abort_retry` answer `success: false` because Koine always retries transient provider errors. The ids of `extension_ui_request` lines are `ui-N`. Shapes Pi does not document (stats, tree, state fields) follow Koine's session format.
+- `withFileMutationQueue` queues within the extension process only; it does not wait for Koine's built-in `edit` and `write`.
+
 ## MCP
 
 - Pi's default exposure for MCP tools is `codemode` (callable only from codemode scripts). Koine has no codemode sandbox (LLM-48), so the default is `direct`, and `codemode` / `codemode-deferred` in a config are read as `deferred` (found with `tool_search`). `tool_search` ranks by keyword hits in the name and description, not BM25, and a tool it loads is offered from the next model call; under a `-t` selection a deferred tool is not matched.

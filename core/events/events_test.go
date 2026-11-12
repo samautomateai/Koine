@@ -55,3 +55,39 @@ func TestMultiMergesAndNop(t *testing.T) {
 		t.Fatalf("%+v", d)
 	}
 }
+
+func TestMergeCarriesTheExtensionAPIFields(t *testing.T) {
+	var d Decision
+	sys, yes := "S", true
+	msg := &CustomMessage{CustomType: "t", Content: "c", Display: true}
+	d.Merge(Decision{Content: json.RawMessage(`[1]`), Details: json.RawMessage(`{"a":1}`), Images: json.RawMessage(`[2]`), IsError: &yes, Terminate: true})
+	d.Merge(Decision{SystemPrompt: &sys, Message: msg, Messages: json.RawMessage(`[3]`)})
+	if string(d.Content) != "[1]" || string(d.Details) != `{"a":1}` || string(d.Images) != "[2]" || !*d.IsError || !d.Terminate ||
+		*d.SystemPrompt != "S" || d.Message != msg || string(d.Messages) != "[3]" {
+		t.Fatalf("%+v", d)
+	}
+	d.Merge(Decision{Content: json.RawMessage(`[9]`)})
+	if string(d.Content) != "[9]" {
+		t.Error("a later handler's content replaces the earlier one")
+	}
+
+	var c Decision
+	c.Merge(Decision{Cancel: true, Reason: "why"})
+	c.Merge(Decision{Cancel: true}) // an empty reason must not clobber
+	if !c.Cancel || c.Block || c.Reason != "why" {
+		t.Fatalf("%+v", c)
+	}
+	var h Decision
+	h.Merge(Decision{Handled: true})
+	if !h.Handled || !h.Block {
+		t.Fatalf("handled input also stops the chain: %+v", h)
+	}
+}
+
+func TestMultiStopsAtCancel(t *testing.T) {
+	calls := 0
+	m := Multi{fn(func(string) Decision { calls++; return Decision{Cancel: true} }), fn(func(string) Decision { calls++; return Decision{} })}
+	if d := m.Emit(context.Background(), SessionBeforeSwitch, nil); !d.Cancel || calls != 1 {
+		t.Fatalf("%+v calls=%d", d, calls)
+	}
+}

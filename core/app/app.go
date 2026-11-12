@@ -32,6 +32,9 @@ const DefaultModel = "claude-sonnet-5-5"
 // until the folder is trusted.
 type Options struct {
 	Trust bool // trust this project for this run (the -trust flag)
+	// Mode is what the process runs as, told to extensions as ctx.mode: "tui", "rpc", "json" or "print" (the default). tui and rpc have a
+	// user interface that can answer extension dialogs (ctx.hasUI).
+	Mode string
 	RunOptions
 	Load LoadOptions // tools, resources and models chosen on the command line
 }
@@ -61,6 +64,13 @@ type App struct {
 	// PrefillEditor, when set by a frontend with an editor, receives the text of the user message a /tree move returned to, instead of a
 	// notice that prints it.
 	PrefillEditor func(text string)
+	// OnDialog, when set, answers extension dialogs (select, confirm, input, editor) instead of Choose and Prompt: the RPC frontend
+	// sends them to its client. OnSurface receives every fire-and-forget request (notify, setStatus, ...) as it comes. UIChanged is
+	// called after the state behind Surfaces changed, so a frontend can redraw. OnShutdown is called when an extension asks to quit.
+	OnDialog   func(ctx context.Context, r ext.UIRequest) ext.UIResponse
+	OnSurface  func(r ext.UIRequest)
+	UIChanged  func()
+	OnShutdown func()
 	// UntrustedCode counts the project extensions, hooks and providers that were not loaded because the folder is not trusted.
 	UntrustedCode int
 
@@ -77,6 +87,10 @@ type App struct {
 	apiKeyProv  string          // the provider it was given for (the first model's)
 	ephemeralID string          // session id reported to the shell when sessions are off
 	pkgRes      pkgs.LoadResult // the packages in use (packages.go)
+	extui       extUI           // what extensions set through ctx.ui (extui.go)
+	nextTurn    []events.CustomMessage
+	sink        func(agent.Event) // receives events raised outside HandleInput (SetEventSink)
+	trigger     bool              // an extension asked for a model turn (sendMessage with triggerTurn) that has not started yet
 }
 
 type Info struct {
@@ -101,6 +115,7 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 	a.Trusted = opts.Trust || trust.FromEnv() || trust.Open(home).IsTrusted(cwd)
 
 	a.Agent = &agent.Agent{Cwd: cwd, Provider: lazyProvider{a}, Catalog: loadCatalog(home)}
+	a.Agent.OnCustom = a.persistCustom
 	a.load(ctx)
 
 	model, err := a.startupModel()
@@ -120,6 +135,7 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 		return nil, err
 	}
 	a.Agent.Dispatch.Emit(ctx, events.SessionStart, map[string]any{"cwd": cwd, "reason": "startup"})
+	a.pushHostState()
 	a.discoverResources(ctx, "startup")
 	return a, nil
 }
@@ -241,6 +257,7 @@ func (a *App) load(ctx context.Context) {
 		a.markBuiltin("task")
 	}
 	a.applyRunOptions()
+	a.pushHostState()
 }
 
 func plural(n int) string {
@@ -252,6 +269,7 @@ func plural(n int) string {
 
 // Reload re-reads config, skills, prompts, agents, hooks and extensions.
 func (a *App) Reload(ctx context.Context) {
+	a.leaving(ctx, "reload", "")
 	a.load(ctx)
 	a.Agent.Dispatch.Emit(ctx, events.SessionStart, map[string]any{"cwd": a.Cwd, "reason": "reload"})
 	a.discoverResources(ctx, "reload")
@@ -268,6 +286,9 @@ func (a *App) TrustProject(ctx context.Context) error {
 }
 
 func (a *App) Close() {
+	sctx, cancel := shutdownContext()
+	a.leaving(sctx, "quit", "")
+	cancel()
 	if a.Agent.Warm != nil {
 		a.Agent.Warm.Stop()
 	}
@@ -311,6 +332,18 @@ func (a *App) HandleInput(ctx context.Context, line string, emit func(agent.Even
 
 // HandleInputImages is HandleInput for a prompt that comes with images (llm.ImageBlock). Images go with a prompt only, not a slash command.
 func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.Block, emit func(agent.Event)) (quit bool, err error) {
+	quit, err = a.handleInput(ctx, line, images, emit)
+	if err == nil && !quit && a.trigger && !a.Agent.Running() && ctx.Err() == nil { // an extension asked for a model turn (pi.sendMessage)
+		a.trigger = false
+		prev := a.emit
+		a.emit = emit
+		err = a.Agent.Continue(ctx, emit)
+		a.emit = prev
+	}
+	return quit, err
+}
+
+func (a *App) handleInput(ctx context.Context, line string, images []llm.Block, emit func(agent.Event)) (quit bool, err error) {
 	line = strings.TrimSpace(line)
 	if line == "" && len(images) == 0 {
 		return false, nil
@@ -323,6 +356,7 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 		return false, nil
 	}
 	if !strings.HasPrefix(line, "/") || strings.HasPrefix(line, "/skill:") {
+		a.flushNextTurn()
 		return false, a.Agent.RunWithImages(ctx, line, images, emit)
 	}
 	if len(images) > 0 {
@@ -412,6 +446,7 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 	}
 	for _, p := range a.Prompts {
 		if p.Name == name {
+			a.flushNextTurn()
 			return false, a.Agent.Run(ctx, p.Expand(args), emit)
 		}
 	}

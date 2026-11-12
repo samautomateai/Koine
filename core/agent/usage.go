@@ -100,3 +100,9 @@ func (a *Agent) UsageSummary() string {
 	return fmt.Sprintf("tokens: %d in, %d out, %d cache read, %d cache write · %s · context %d/%d (%.1f%%)",
 		t.Input, t.Output, t.CacheRead, t.CacheWrite, cost, ctx, w, float64(ctx)*100/float64(w))
 }
+
+// ContextWindowSize is the context window of the model in use, in tokens.
+func (a *Agent) ContextWindowSize() int { return a.window() }
+
+// ContextTokens is the number of tokens in the context now (measured at the last response, estimated since).
+func (a *Agent) ContextTokens() int { return a.contextTokens("") }

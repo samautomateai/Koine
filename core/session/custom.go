@@ -27,3 +27,18 @@ func (e Entry) JSON() json.RawMessage {
 	b, _ := json.Marshal(e)
 	return b
 }
+
+// AppendCustomMessage stores a message an extension added to the conversation (Pi's custom_message entry). Unlike a custom entry it
+// reaches the model, as a user message. display says whether frontends show it.
+func (s *Session) AppendCustomMessage(customType, content string, display bool, details json.RawMessage) error {
+	if customType == "" {
+		return errors.New("customType is required")
+	}
+	if len(details) > 0 && !json.Valid(details) {
+		return errors.New("details is not valid JSON")
+	}
+	text, _ := json.Marshal(content)
+	return s.appendEntry("custom_message", func(e *Entry) {
+		e.CustomType, e.Content, e.Display, e.Details = customType, text, &display, details
+	})
+}

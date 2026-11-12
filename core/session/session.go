@@ -45,6 +45,8 @@ type Entry struct {
 	FromID           string          `json:"fromId,omitempty"`   // branch_summary: the leaf the summary was written from
 	CustomType       string          `json:"customType,omitempty"`
 	Content          json.RawMessage `json:"content,omitempty"`       // custom_message
+	Display          *bool           `json:"display,omitempty"`       // custom_message: whether frontends show it
+	Details          json.RawMessage `json:"details,omitempty"`       // custom_message: the extension's own data
 	Data             json.RawMessage `json:"data,omitempty"`          // custom: the extension's own data
 	ThinkingLevel    string          `json:"thinkingLevel,omitempty"` // thinking_level_change
 

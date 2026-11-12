@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"koine/core/compact"
+	"koine/core/events"
 	"koine/core/llm"
 )
 
@@ -29,6 +30,9 @@ type CompactResult struct {
 // ErrNothingToCompact is returned when the conversation is too short to have a part worth summarising.
 var ErrNothingToCompact = errors.New("nothing to compact yet")
 
+// ErrCompactCancelled is returned when an extension cancelled the compaction (session_before_compact).
+var ErrCompactCancelled = errors.New("compaction cancelled by an extension")
+
 // Compact replaces the older part of the history with a model-written summary, keeping about KeepRecent tokens of recent messages.
 // instructions (optional) steers what the summary focuses on. OnCompact, if set, is told the old index of the first kept message.
 func (a *Agent) Compact(ctx context.Context, instructions string) (CompactResult, error) {
@@ -49,6 +53,10 @@ func (a *Agent) CompactFor(ctx context.Context, instructions, reason string, emi
 	cut := compact.CutPoint(a.History, keep)
 	if cut == 0 {
 		return CompactResult{}, ErrNothingToCompact
+	}
+	gate := map[string]any{"reason": reason, "customInstructions": instructions, "willRetry": reason == ReasonOverflow}
+	if a.dispatch(ctx, events.SessionBeforeCompact, gate).Cancel {
+		return CompactResult{}, ErrCompactCancelled
 	}
 	prev, start := "", 0
 	if t, ok := compact.SummaryText(a.History[0]); ok {
@@ -74,6 +82,8 @@ func (a *Agent) CompactFor(ctx context.Context, instructions, reason string, emi
 	a.History = append([]llm.Message{compact.SummaryMessage(summary)}, a.History[cut:]...)
 	a.lastCtx, a.ctxAt = 0, 0 // the provider's count no longer matches the history
 	res.TokensAfter = compact.EstimateTokens(a.History)
+	a.dispatch(ctx, events.SessionCompact, map[string]any{"reason": reason, "willRetry": reason == ReasonOverflow, "fromExtension": false,
+		"compactionEntry": map[string]any{"summary": summary, "firstKeptEntryId": res.FirstKeptEntryID, "tokensBefore": res.TokensBefore}})
 	emit(Event{Type: EvCompactionEnd, Data: Data("reason", reason, "aborted", false, "willRetry", reason == ReasonOverflow,
 		"result", Data("summary", summary, "firstKeptEntryId", res.FirstKeptEntryID, "tokensBefore", res.TokensBefore,
 			"estimatedTokensAfter", res.TokensAfter))})
