@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"strings"
 	"time"
@@ -85,7 +86,7 @@ func anthropicThinking(t *Thinking, limit int, explicitMax bool) (th map[string]
 // anthropicMessages converts the history to the wire form: empty text is dropped, thinking blocks are replayed with their signatures
 // (blocks without one cannot be replayed and are dropped, as are all of them when thinking is disabled), and the last block of the last
 // user message is marked as a cache breakpoint.
-func anthropicMessages(in []Message, dropThinking bool) []Message {
+func anthropicMessages(in []Message, dropThinking bool, cc *CacheControl) []Message {
 	msgs := make([]Message, 0, len(in))
 	for _, m := range in {
 		var bs []Block
@@ -113,7 +114,7 @@ func anthropicMessages(in []Message, dropThinking bool) []Message {
 	}
 	if n := len(msgs); n > 0 && msgs[n-1].Role == "user" {
 		last := msgs[n-1].Content
-		last[len(last)-1].CacheControl = ephemeral
+		last[len(last)-1].CacheControl = cc
 	}
 	return msgs
 }
@@ -126,7 +127,11 @@ func anthropicBody(req Request) map[string]any {
 		limit = defaultMaxTokens
 	}
 	th, effort, limit, drop := anthropicThinking(req.Thinking, limit, explicit)
-	body := map[string]any{"model": req.Model, "max_tokens": limit, "messages": anthropicMessages(req.Messages, drop)}
+	cc := ephemeral
+	if req.Cache.Long {
+		cc = &CacheControl{Type: "ephemeral", TTL: "1h"}
+	}
+	body := map[string]any{"model": req.Model, "max_tokens": limit, "messages": anthropicMessages(req.Messages, drop, cc)}
 	if th != nil {
 		body["thinking"] = th
 	}
@@ -134,17 +139,25 @@ func anthropicBody(req Request) map[string]any {
 		body["output_config"] = map[string]any{"effort": effort}
 	}
 	if req.System != "" {
-		body["system"] = []Block{{Type: "text", Text: req.System, CacheControl: ephemeral}}
+		body["system"] = []Block{{Type: "text", Text: req.System, CacheControl: cc}}
 	}
 	if len(req.Tools) > 0 {
 		tools := append([]ToolDef(nil), req.Tools...)
-		tools[len(tools)-1].CacheControl = ephemeral
+		tools[len(tools)-1].CacheControl = cc
 		body["tools"] = tools
 	}
 	return body
 }
 
+// longCache says whether the one-hour cache lifetime may be asked for: only Anthropic's own endpoint is known to accept it, and a proxy or
+// a compatible server could reject the field.
+func (a *Anthropic) longCache() bool {
+	u, err := neturl.Parse(a.BaseURL)
+	return err == nil && u.Hostname() == "api.anthropic.com"
+}
+
 func (a *Anthropic) request(req Request, stream bool) (url string, headers map[string]string, payload []byte, err error) {
+	req.Cache.Long = req.Cache.Long && a.longCache()
 	body := anthropicBody(req)
 	if stream {
 		body["stream"] = true

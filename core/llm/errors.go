@@ -81,7 +81,9 @@ func isNumeric(s string) bool {
 // Hint is advice for the user when the status says what is wrong with the credentials, or "" when there is none to give.
 func (e *HTTPError) Hint() string {
 	where := "check the API key for " + e.Provider
-	if p, ok := BuiltinProvider(e.Provider); ok && len(p.Env) > 0 {
+	if p, ok := BuiltinProvider(e.Provider); ok && p.Ambient {
+		where = p.Guide
+	} else if ok && len(p.Env) > 0 {
 		where = fmt.Sprintf("set %s, or run `koine auth login %s`", strings.Join(p.Env, " or "), p.ID)
 	} else if ok && p.Local {
 		where += " and the server's address"

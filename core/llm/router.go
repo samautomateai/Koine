@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"sort"
 	"strings"
@@ -147,7 +148,7 @@ func (r *Router) lookup(name, modelID string) (setup, error) {
 	if !builtin && !custom {
 		return setup{}, fmt.Errorf("unknown provider %q; known: %s", name, r.known())
 	}
-	s := setup{name: name, api: info.API, base: info.BaseURL, keyEnv: info.Env, keyOptional: info.Local}
+	s := setup{name: name, api: info.API, base: info.BaseURL, keyEnv: info.Env, keyOptional: info.Local || info.Ambient}
 	if builtin {
 		s.name = info.ID
 	}
@@ -230,6 +231,13 @@ func mergeRaw(a, b map[string]json.RawMessage) map[string]json.RawMessage {
 	return out
 }
 
+// isOpenAIHost reports whether a provider is OpenAI itself (the built-in "openai" at api.openai.com), the only Chat Completions or
+// Responses server known to accept prompt_cache_key and prompt_cache_retention.
+func isOpenAIHost(name, base string) bool {
+	u, err := neturl.Parse(base)
+	return name == "openai" && err == nil && u.Hostname() == "api.openai.com"
+}
+
 func loginHint(provider string) string {
 	return fmt.Sprintf("run `koine auth login %s` (or /login %s) to store a key", provider, provider)
 }
@@ -295,29 +303,54 @@ func (r *Router) Credential(provider string) (Credential, error) {
 	if err != nil {
 		return Credential{}, err
 	}
-	return r.credential(s)
+	c, err := r.credential(s)
+	if err == nil && c.Key == "" && (s.api == APIBedrock || s.api == APIVertex) {
+		return r.ambientCredential(s, c) // no key: the machine's cloud sign-in must work instead
+	}
+	return c, err
 }
 
 // Resolve returns the provider and the model id to send to it. A provider whose credential is missing or unusable is returned as a
 // Missing provider, so that frontends start and the reason appears when a request is made.
 func (r *Router) Resolve(model string) (Provider, string, error) {
+	p, id, _, err := r.resolve(model)
+	return p, id, err
+}
+
+// resolve is Resolve that also returns what the router knew about the provider.
+func (r *Router) resolve(model string) (Provider, string, setup, error) {
 	name, id, err := r.split(model)
 	if err != nil {
-		return nil, "", err
+		return nil, "", setup{}, err
 	}
 	s, err := r.lookup(name, id)
 	if err != nil {
-		return nil, "", err
+		return nil, "", setup{}, err
 	}
 	cred, err := r.credential(s)
 	if err != nil {
-		return Missing{Reason: err.Error()}, id, nil
+		return Missing{Reason: err.Error()}, id, s, nil
 	}
 	p, err := r.build(s, cred)
 	if err != nil {
-		return Missing{Reason: err.Error()}, id, nil
+		return Missing{Reason: err.Error()}, id, s, nil
 	}
-	return p, id, nil
+	return p, id, s, nil
+}
+
+// prepare resolves req.Model and returns the provider with the request as it should be sent there: the model id without its provider
+// prefix, and the conversation converted for that provider (TransformMessages). The caller's messages are not changed.
+func (r *Router) prepare(req Request) (Provider, Request, error) {
+	p, id, s, err := r.resolve(req.Model)
+	if err != nil {
+		return nil, req, err
+	}
+	req.Model = id
+	req.Messages = TransformMessages(req.Messages, Target{API: s.api, Provider: s.name, SameOrigin: func(origin string) bool {
+		op, oid, err := r.split(origin)
+		return err == nil && op == s.name && oid == id
+	}})
+	return p, req, nil
 }
 
 // build makes the provider for a setup and credential.
@@ -336,24 +369,28 @@ func (r *Router) build(s setup, c Credential) (Provider, error) {
 		return &Anthropic{Name: s.name, APIKey: c.Key, Bearer: c.Bearer || s.authHeader, BaseURL: base, Headers: headers, HTTP: r.HTTP, Retry: r.Retry}, nil
 	case APICompletions:
 		flags, _ := parseOpenAIFlags(s.compat)
-		return &OpenAICompat{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Flags: flags, Extra: s.sampling, HTTP: r.HTTP,
-			Retry: r.Retry}, nil
+		return &OpenAICompat{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Flags: flags, Extra: s.sampling,
+			PromptCache: isOpenAIHost(s.name, base), HTTP: r.HTTP, Retry: r.Retry}, nil
 	case APIResponses:
-		return &Responses{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Extra: s.sampling, HTTP: r.HTTP, Retry: r.Retry}, nil
+		return &Responses{Name: s.name, APIKey: c.Key, BaseURL: base, Headers: headers, Extra: s.sampling, PromptCache: isOpenAIHost(s.name, base),
+			HTTP: r.HTTP, Retry: r.Retry}, nil
 	case APIAzure:
 		return r.azure(s, c, headers)
 	case APIGemini:
 		return &Gemini{Name: s.name, APIKey: c.Key, Bearer: s.authHeader, BaseURL: base, Headers: headers, HTTP: r.HTTP, Retry: r.Retry}, nil
+	case APIBedrock:
+		return r.bedrock(s, c, headers)
+	case APIVertex:
+		return r.vertex(s, c, headers)
 	}
 	return nil, fmt.Errorf("%s: the api %q is not supported by Koine (supported: %s)", s.name, s.api, strings.Join(APIs, ", "))
 }
 
 // Complete implements Provider by resolving req.Model per call.
 func (r *Router) Complete(ctx context.Context, req Request) (*Response, error) {
-	p, model, err := r.Resolve(req.Model)
+	p, req, err := r.prepare(req)
 	if err != nil {
 		return nil, err
 	}
-	req.Model = model
 	return p.Complete(ctx, req)
 }

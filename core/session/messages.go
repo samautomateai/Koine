@@ -44,6 +44,15 @@ type piCost struct {
 	Total      float64 `json:"total"`
 }
 
+// originOf is the model that wrote an assistant message, in the form the router parses: Pi stores the provider and the model id
+// separately, Koine's own files hold the model as the user selected it.
+func originOf(pm piMessage) string {
+	if pm.Provider != "" && pm.Model != "" {
+		return pm.Provider + "/" + pm.Model
+	}
+	return pm.Model
+}
+
 func usageToPi(m llm.Message) *piUsage {
 	if m.Usage == nil {
 		return nil
@@ -258,7 +267,7 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 				}
 			}
 			if len(cb) > 0 {
-				am := llm.Message{Role: "assistant", Content: cb, ThinkingLevel: pm.ThinkingLevel}
+				am := llm.Message{Role: "assistant", Content: cb, ThinkingLevel: pm.ThinkingLevel, Origin: originOf(pm)}
 				if pm.StopReason == "aborted" {
 					am.StopReason = pm.StopReason
 				}

@@ -35,10 +35,31 @@ func (a *Agent) contextTokens(system string) int {
 	return compact.EstimateText(system) + compact.EstimateTokens(a.History)
 }
 
+// drainWarm adds the usage of cache refreshes (cacheWarming) to the session totals. It never touches the conversation. Refreshes happen on
+// timers, so their usage is taken up here, on the agent's own goroutine, at the start and end of a run and after each response.
+func (a *Agent) drainWarm() {
+	if a.Warm == nil {
+		return
+	}
+	for _, w := range a.Warm.Drain() {
+		a.Totals.Add(w.Usage)
+		if mod, ok := a.Catalog.Lookup(w.Model); ok {
+			if c, priced := mod.Of(w.Usage); priced {
+				a.CostTotal += c.Total
+				continue
+			}
+		}
+		a.Unpriced = true
+	}
+}
+
+// DrainWarm is drainWarm for frontends that want fresh totals between runs (a footer, /session).
+func (a *Agent) DrainWarm() { a.drainWarm() }
+
 // record turns a response into the assistant message for the history and accounts for its usage. The message is appended by the caller;
 // the context count it sets includes that message.
 func (a *Agent) record(resp *llm.Response, emit func(Event)) llm.Message {
-	m := llm.Message{Role: "assistant", Content: resp.Content}
+	m := llm.Message{Role: "assistant", Content: resp.Content, Origin: a.Model}
 	u := resp.Usage
 	if u.Total() == 0 {
 		return m

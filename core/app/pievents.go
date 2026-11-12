@@ -19,8 +19,10 @@ func (a *App) event(e agent.Event) {
 // setSession makes s the current session and reports each entry written to it as an entry_appended event.
 func (a *App) setSession(s *session.Session) {
 	a.Session = s
+	a.Agent.CacheKey = ""
 	if s != nil {
 		s.OnAppend = a.entryAppended
+		a.Agent.CacheKey = s.ID
 	}
 }
 

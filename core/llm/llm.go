@@ -37,6 +37,15 @@ type Block struct {
 // CacheControl marks a prompt-caching breakpoint.
 type CacheControl struct {
 	Type string `json:"type"`
+	TTL  string `json:"ttl,omitempty"` // "1h" for long retention; empty is the five-minute default
+}
+
+// CacheHints are the per-request inputs of provider-side prompt caching.
+type CacheHints struct {
+	// Key identifies the conversation to providers that route cache hits by it (OpenAI's prompt_cache_key); the session id.
+	Key string
+	// Long asks for the provider's extended cache lifetime (Anthropic's one-hour ttl, OpenAI's 24 hours). Providers that have none ignore it.
+	Long bool
 }
 
 type Message struct {
@@ -50,6 +59,9 @@ type Message struct {
 	// StopReason is "aborted" on an assistant message that was cut short by the user. Such a message is kept and saved but never sent
 	// to a provider.
 	StopReason string `json:"-"`
+	// Origin names the model that wrote an assistant message, as the user selected it ("provider/model" or a bare model id). It is empty
+	// when unknown. TransformMessages uses it to see which thinking blocks the next model cannot replay.
+	Origin string `json:"-"`
 }
 
 type ToolDef struct {
@@ -66,6 +78,7 @@ type Request struct {
 	Tools     []ToolDef
 	MaxTokens int
 	Thinking  *Thinking // nil = send no thinking parameters
+	Cache     CacheHints
 }
 
 type Response struct {

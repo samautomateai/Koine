@@ -22,6 +22,7 @@ type Responses struct {
 	Deployments map[string]string // model id -> deployment name (Azure)
 	Headers     map[string]string
 	Extra       map[string]any // samplingParams of models.json
+	PromptCache bool           // see OpenAICompat.PromptCache
 	HTTP        *http.Client
 	Retry       RetryPolicy
 }
@@ -102,6 +103,7 @@ func (p *Responses) request(req Request, stream bool) (string, map[string]string
 		body[k] = v
 	}
 	body["model"], body["input"], body["store"] = model, toResponsesInput(req.Messages), false
+	promptCacheFields(body, p.PromptCache, req.Cache)
 	if req.System != "" {
 		body["instructions"] = req.System
 	}
@@ -240,6 +242,19 @@ func parseResponses(label string, data []byte) (*Response, error) {
 	return resp, nil
 }
 
+// promptCacheFields adds OpenAI's cache routing key and extended retention to a request body when the provider takes them.
+func promptCacheFields(body map[string]any, enabled bool, c CacheHints) {
+	if !enabled {
+		return
+	}
+	if c.Key != "" {
+		body["prompt_cache_key"] = c.Key
+	}
+	if c.Long {
+		body["prompt_cache_retention"] = "24h"
+	}
+}
+
 func orEmptyObject(s string) string {
 	if s == "" {
 		return "{}"
@@ -274,5 +289,5 @@ func (r *Router) azure(s setup, c Credential, headers map[string]string) (Provid
 		}
 	}
 	return &Responses{Name: s.name, APIKey: c.Key, BaseURL: base, KeyHeader: "api-key", Query: "api-version=" + url.QueryEscape(version),
-		Deployments: deployments, Headers: headers, Extra: s.sampling, HTTP: r.HTTP, Retry: r.Retry}, nil
+		Deployments: deployments, Headers: headers, Extra: s.sampling, PromptCache: true, HTTP: r.HTTP, Retry: r.Retry}, nil
 }

@@ -439,7 +439,20 @@ and `Describe()`. `emit` receives `agent.Event`:
   saved in the session file as `{"type":"thinking","thinking":…,"thinkingSignature":…,"redacted":true}` with `thinkingLevel` on the assistant
   message, as Pi documents them. A catalog file may say `"reasoning": true` or `{"mode":"adaptive|budget|effort","max":"<level>","off":"<type>"}`.
 - **Prompt caching** (REQ-LLM-005): Anthropic requests mark `cache_control: {"type":"ephemeral"}` on the system prompt, the last tool and the last
-  block of the last user message. Cache reads and writes arrive in `Usage` (`cacheRead`, `cacheWrite`). No long retention and no cache warming.
+  block of the last user message. Cache reads and writes arrive in `Usage` (`cacheRead`, `cacheWrite`). `KOINE_CACHE_RETENTION=long` adds `ttl: "1h"` on `api.anthropic.com` and
+  `prompt_cache_retention: "24h"` on `api.openai.com`; OpenAI and Azure OpenAI also get `prompt_cache_key` (the session id). The global-only setting
+  `cacheWarming` (`off`, `streaming`, `idle`; default `idle`) replays the last request shortly before the cache of a model with `promptCache`
+  (`{"short":300,"long":3600}` seconds) lapses and cancels it at the first token, when that saves at least $0.05 (REQ-LLM-013).
+- **Changing model mid-session** (REQ-LLM-012): each request is converted from a copy of the history for the target provider: thinking of other models
+  becomes text (redacted thinking is dropped), tool call ids are rewritten to the target's rules, and unmatched tool calls and results are repaired.
+  The session file is not changed.
+- **Amazon Bedrock** (REQ-LLM-014): provider `amazon-bedrock`, `api: "bedrock-converse-stream"`. Requests are signed with SigV4 or carry
+  `AWS_BEARER_TOKEN_BEDROCK`; credentials come from `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` or a static-key profile in
+  `~/.aws`; region from `AWS_REGION`, `AWS_DEFAULT_REGION` or the profile (else `us-east-1`); endpoint from `AWS_ENDPOINT_URL_BEDROCK_RUNTIME` or
+  `baseUrl`. `AWS_BEDROCK_SKIP_AUTH=1` and `AWS_BEDROCK_FORCE_CACHE=1` are acted on. SSO, assumed roles and instance credentials are not.
+- **Google Vertex AI** (REQ-LLM-015): provider `google-vertex`, `api: "google-vertex"`. `GOOGLE_CLOUD_API_KEY` uses express mode; otherwise
+  Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS` or the gcloud login file, `service_account` or `authorized_user`) with
+  `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`. The metadata server is not read.
 - **Retry and timeouts** (REQ-LLM-002, REQ-LLM-005): network errors, timeouts, 429 and 5xx are retried. `retry.maxRetries` (default 3, so four attempts;
   0 or `retry.enabled: false` turns retries off), `retry.baseDelayMs` (2000, doubled each time) and `retry.maxAgentDelayMs` (60000, the longest backoff).
   A `Retry-After` header is waited for, but one longer than `retry.provider.maxRetryDelayMs` (60000; 0 = no limit) ends the retries with an error.
@@ -513,11 +526,12 @@ a literal, `!command` (trimmed output, 10 s limit), or a template with `$NAME`/`
 
 `koine auth login|logout|check|print-api-key|print-bearer-token` (exit codes of `check`: 0 ready, 1 not ready, 2 invalid). `check --json`
 prints `{"status":"ready|not_ready|invalid","provider":…,"source":…,"reason":…,"credentials":…}`; this shape is Koine's. Not implemented: OAuth logins,
-Bedrock, Vertex, ambient cloud credentials. Wire formats of the Responses, Azure and Gemini providers are tested against fake servers only.
+SSO and role-based AWS credentials, metadata-server credentials. Wire formats of the Responses, Azure, Gemini, Bedrock and Vertex providers are
+tested against fake servers only; the live Bedrock and Vertex APIs were not exercised.
 
 ## 10. Known limits (v1)
 
-- Providers: Anthropic, OpenAI-compatible Chat Completions, OpenAI Responses, Azure OpenAI, Gemini, and the built-in and custom providers of §9.1; streamed, retried as configured (four attempts by default). No OAuth, Bedrock or Vertex. Wire formats are checked against fake servers only. No frontend renders streamed deltas yet.
+- Providers: Anthropic, OpenAI-compatible Chat Completions, OpenAI Responses, Azure OpenAI, Gemini, Amazon Bedrock, Google Vertex AI, and the built-in and custom providers of §9.1; streamed, retried as configured (four attempts by default). No OAuth. Wire formats are checked against fake servers only. No frontend renders streamed deltas yet.
 - Images: WebP and BMP are not resized; the HTTP server and the line-mode TUI take text only (no paste or inline display, TUI-12).
 - Upstream tracking: see `docs/UPSTREAM.md`; unsupported Pi surface is listed by `koine -compat`.
 - No permission prompts yet.

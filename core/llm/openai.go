@@ -19,8 +19,10 @@ type OpenAICompat struct {
 	Headers map[string]string
 	Flags   OpenAIFlags    // the compat flags of models.json that change the request
 	Extra   map[string]any // samplingParams of models.json: fields merged into every request body
-	HTTP    *http.Client
-	Retry   RetryPolicy
+	// PromptCache sends prompt_cache_key (the session) and, for long retention, prompt_cache_retention: only OpenAI's own endpoint takes them.
+	PromptCache bool
+	HTTP        *http.Client
+	Retry       RetryPolicy
 }
 
 type oaMessage struct {
@@ -137,6 +139,7 @@ func (o *OpenAICompat) request(req Request, stream bool) (url string, headers ma
 		body[k] = v
 	}
 	body["model"], body["messages"] = req.Model, msgs
+	promptCacheFields(body, o.PromptCache, req.Cache)
 	effort := openAIEffort(req.Thinking)
 	if effort != "" && !o.Flags.NoReasoningEffort {
 		body["reasoning_effort"] = effort

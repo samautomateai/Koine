@@ -53,8 +53,9 @@ type Model struct {
 	MaxOutput     int          `json:"maxOutput,omitempty"`
 	Cost          *Price       `json:"cost,omitempty"`
 	LongContext   *LongContext `json:"longContext,omitempty"`
-	Reasoning     *Reasoning   `json:"reasoning,omitempty"` // present when the model thinks (see Reasoning)
-	Input         []string     `json:"input,omitempty"`     // what the model accepts, Pi's field: "text", "image"; absent = unknown, images allowed
+	Reasoning     *Reasoning   `json:"reasoning,omitempty"`   // present when the model thinks (see Reasoning)
+	Input         []string     `json:"input,omitempty"`       // what the model accepts, Pi's field: "text", "image"; absent = unknown, images allowed
+	PromptCache   *PromptCache `json:"promptCache,omitempty"` // how long the provider keeps a cached prefix (seconds); absent = none declared
 }
 
 // Cost is a price breakdown in dollars.

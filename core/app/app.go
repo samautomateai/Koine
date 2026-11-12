@@ -268,6 +268,9 @@ func (a *App) TrustProject(ctx context.Context) error {
 }
 
 func (a *App) Close() {
+	if a.Agent.Warm != nil {
+		a.Agent.Warm.Stop()
+	}
 	a.Host.Close()
 	a.closeMCP()
 }

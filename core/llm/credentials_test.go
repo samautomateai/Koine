@@ -146,10 +146,10 @@ func TestBuiltinProvidersAreWellFormedAndLocalOnesNeedNoKey(t *testing.T) {
 			t.Errorf("bad provider entry %+v", p)
 		}
 		seen[p.ID] = true
-		if p.BaseURL == "" && p.ID != "azure" {
+		if p.BaseURL == "" && p.ID != "azure" && !p.Ambient {
 			t.Errorf("%s has no base URL", p.ID)
 		}
-		if p.Local == (len(p.Env) > 0) {
+		if !p.Ambient && p.Local == (len(p.Env) > 0) {
 			t.Errorf("%s: a provider has either a key variable or is local: %+v", p.ID, p)
 		}
 	}
@@ -187,7 +187,7 @@ func TestModelsJSONProvidersChangeAndAddProviders(t *testing.T) {
 		"corp": {BaseURL: "http://corp/v1", API: APIResponses, APIKey: "$CORP_TOKEN", Headers: map[string]string{"x-org": "o1", "x-token": "$CORP_TOKEN"},
 			Models: []ModelConfig{{ID: "claude-like", API: APIAnthropic, BaseURL: "http://corp-anthropic", Headers: map[string]string{"x-org": "o2"}},
 				{ID: "local", API: APICompletions, Compat: raw(`{"maxTokensField":"max_completion_tokens"}`)}}},
-		"strange": {BaseURL: "http://s", API: "bedrock-converse-stream"},
+		"strange": {BaseURL: "http://s", API: "mistral-conversations"},
 		"goog":    {BaseURL: "http://g", API: APIGemini, AuthHeader: true, APIKey: "k"},
 		"ant":     {BaseURL: "http://a", API: APIAnthropic, AuthHeader: true, APIKey: "k2"},
 	}, Secret: func(v string) (string, error) {
@@ -215,7 +215,7 @@ func TestModelsJSONProvidersChangeAndAddProviders(t *testing.T) {
 	if oc, ok := p.(*OpenAICompat); !ok || oc.Flags.MaxTokensField != "max_completion_tokens" {
 		t.Errorf("model-level api and compat: %#v", p)
 	}
-	if p, _, _ = r.Resolve("strange/m"); !strings.Contains(p.(Missing).Reason, `"bedrock-converse-stream" is not supported`) {
+	if p, _, _ = r.Resolve("strange/m"); !strings.Contains(p.(Missing).Reason, `"mistral-conversations" is not supported`) {
 		t.Errorf("unsupported api: %v", p)
 	}
 	if g, ok := mustResolve(t, r, "goog/m").(*Gemini); !ok || !g.Bearer || g.APIKey != "k" {
@@ -313,7 +313,7 @@ func TestReadModelsFileAndCatalog(t *testing.T) {
       "compat": {"supportsReasoningEffort": false, "thinkingFormat": "qwen"},
       "models": [
         {"id": "qwen2.5-coder:7b", "name": "Qwen Coder", "reasoning": true, "input": ["text", "image"], "contextWindow": 32000,
-         "cost": {"input": 1, "output": 2, "cacheRead": 0.5, "cacheWrite": 0, "tiers": []}, "promptCache": {"short": 300}},
+         "cost": {"input": 1, "output": 2, "cacheRead": 0.5, "cacheWrite": 0, "tiers": []}, "futureField": {"short": 300}},
         {"id": "plain"}, {"name": "no id"}
       ]
     },
@@ -330,7 +330,7 @@ func TestReadModelsFileAndCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	all := strings.Join(warns, "\n")
-	for _, want := range []string{"providers.ollama.compat.thinkingFormat is not acted on", `models["qwen2.5-coder:7b"].promptCache is not acted on`,
+	for _, want := range []string{"providers.ollama.compat.thinkingFormat is not acted on", `models["qwen2.5-coder:7b"].futureField is not acted on`,
 		"models[2] has no id", "providers.mine.oauth is not acted on", `api "weird" is not supported`, `models["m"]: api "wire-protocol-x" is not supported`,
 		`providers.mine has no baseUrl, so model "m" cannot be reached`, "providers.empty has no baseUrl and no models"} {
 		if !strings.Contains(all, want) {

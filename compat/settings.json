@@ -67,9 +67,10 @@
     {
       "key": "cacheWarming",
       "type": "\"off\"|\"streaming\"|\"idle\"",
-      "status": "todo",
+      "status": "verified",
+      "test": "TestCacheWarmingSettingIsGlobalOnlyAndDefaultsToIdle",
       "scope": "global",
-      "note": "Global only."
+      "note": "Global only; a project file's value is dropped. Default idle. Acts only for models that declare promptCache (REQ-LLM-013)."
     },
     {
       "key": "steeringMode",

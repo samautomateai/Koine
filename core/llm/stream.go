@@ -47,11 +47,10 @@ func Stream(ctx context.Context, p Provider, req Request, fn func(StreamEvent)) 
 
 // Stream implements Streamer by resolving req.Model per call.
 func (r *Router) Stream(ctx context.Context, req Request, fn func(StreamEvent)) (*Response, error) {
-	p, model, err := r.Resolve(req.Model)
+	p, req, err := r.prepare(req)
 	if err != nil {
 		return nil, err
 	}
-	req.Model = model
 	return Stream(ctx, p, req, fn)
 }
 

@@ -46,6 +46,7 @@ func (t *timeoutMs) UnmarshalJSON(b []byte) error {
 
 // LLMSettings are the Pi settings about thinking, retries and timeouts. They are embedded in Config, so the JSON keys are Pi's.
 type LLMSettings struct {
+	CacheWarming         opt[string]            `json:"cacheWarming"` // "off" | "streaming" | "idle"; global only (see merge)
 	DefaultThinkingLevel opt[string]            `json:"defaultThinkingLevel"`
 	ModelThinkingLevels  opt[map[string]string] `json:"modelThinkingLevels"`
 	ThinkingBudgets      opt[map[string]int]    `json:"thinkingBudgets"`
@@ -68,6 +69,9 @@ type LLMSettings struct {
 
 // merge lets the values set in o win.
 func (s *LLMSettings) merge(o LLMSettings) {
+	if o.CacheWarming.Set {
+		s.CacheWarming = o.CacheWarming
+	}
 	if o.DefaultThinkingLevel.Set {
 		s.DefaultThinkingLevel = o.DefaultThinkingLevel
 	}
@@ -179,9 +183,28 @@ func (a *App) applyLLMSettings() {
 	a.router.Retry = a.Cfg.retryPolicy()
 	a.Agent.Thinking = a.Cfg.thinkingSettings(a.thinking)
 	a.Agent.HideThinking = a.Cfg.HideThinkingBlock.V
+	a.Agent.CacheLong = strings.EqualFold(strings.TrimSpace(a.getenv("KOINE_CACHE_RETENTION")), "long")
+	a.applyCacheWarming()
 	a.Agent.Images = a.Cfg.imageOptions()
 	a.Agent.SteeringMode = queueMode(a.Cfg.SteeringMode)
 	a.Agent.FollowUpMode = queueMode(a.Cfg.FollowUpMode)
+}
+
+// cacheWarmingMode is the cacheWarming setting: Pi's three values, "idle" when unset or invalid.
+func (s LLMSettings) cacheWarmingMode() string {
+	switch s.CacheWarming.V {
+	case llm.WarmOff, llm.WarmStreaming, llm.WarmIdle:
+		return s.CacheWarming.V
+	}
+	return llm.WarmIdle
+}
+
+// applyCacheWarming gives the agent its cache warmer (made once, configured on every reload).
+func (a *App) applyCacheWarming() {
+	if a.Agent.Warm == nil {
+		a.Agent.Warm = &llm.Warmer{Provider: func() llm.Provider { return a.Agent.Provider }}
+	}
+	a.Agent.Warm.Configure(a.Cfg.cacheWarmingMode(), a.Agent.CacheLong, a.Agent.Catalog)
 }
 
 // chooseThinking takes a ":level" suffix off model and settles the explicit thinking level: --thinking beats the suffix. It returns the

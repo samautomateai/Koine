@@ -44,6 +44,11 @@ func (a *Agent) Run(ctx context.Context, prompt string, emit func(Event)) error 
 		inner(e)
 	}
 	defer a.setActive(emit)()
+	if a.Warm != nil {
+		a.drainWarm() // refreshes sent while the agent was idle
+		a.Warm.Begin()
+		defer func() { a.drainWarm(); a.Warm.End() }()
+	}
 	if s, f := a.Queued(); len(s)+len(f) > 0 {
 		emit(queueEvent(s, f)) // queued before the run began: the stream has not seen them yet
 	}
@@ -105,7 +110,8 @@ func (a *Agent) turn(ctx context.Context, turn int, overflowed *bool, emit func(
 	if thinking != nil {
 		level = thinking.Level
 	}
-	req := llm.Request{Model: a.Model, System: sys, Messages: a.contextMessages(ctx, emit), MaxTokens: maxTokens, Thinking: thinking}
+	req := llm.Request{Model: a.Model, System: sys, Messages: a.contextMessages(ctx, emit), MaxTokens: maxTokens, Thinking: thinking,
+		Cache: llm.CacheHints{Key: a.CacheKey, Long: a.CacheLong}}
 	for _, n := range a.Tools.Names() {
 		t, _ := a.Tools.Get(n)
 		req.Tools = append(req.Tools, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
@@ -126,6 +132,10 @@ func (a *Agent) turn(ctx context.Context, turn int, overflowed *bool, emit func(
 	msg := a.record(resp, emit)
 	msg.ThinkingLevel = level
 	a.add(msg)
+	if a.Warm != nil {
+		a.Warm.Observe(req, resp.Usage)
+		a.drainWarm()
+	}
 	var uses []llm.Block
 	for _, b := range resp.Content {
 		switch b.Type {
