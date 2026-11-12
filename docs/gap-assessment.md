@@ -1,59 +1,44 @@
 # Parity gap assessment: Koine vs upstream Pi 1.5.2
 
-Status: first pass, 2026-11-10. Living document: when a gap closes, change its row in the detail files, update the counts here, and link the
-requirement that now covers it.
+Status: re-audited 2026-11-12 (first pass 2026-11-10). Living document: when a gap closes, change its row in the detail files, update the counts
+here, and link the requirement that now covers it.
 
 **Scope.** Only upstream Pi (TypeScript) is the yardstick. The 197 extension _API_ items are tracked separately in `compat/pi.json`
 (`koine -compat`). This assessment covers everything else: behaviour, CLI, tools, models, packages. It asks "what would a Pi user miss?", not
 "what exists in Pi", so Pi features we should not copy are listed too.
 
-**Method.** Four independent read-only reviews compared the upstream source and docs with Koine's code. Each row names its evidence. I spot-checked
-the claims that carry most weight (no positional prompt, tool named `glob` not `find`, no image/usage/cache/thinking support in `core/llm`, no parent
-walk for `AGENTS.md`, `hasUI` hard-coded to false, no parallel tool execution) against the code and all held. Treat the rest as accurate but unaudited;
-priorities and efforts are judgement calls.
+**Method.** Every row of the four detail files was re-checked against Koine's code and tests on `main` and against Pi's published documentation
+(pi.dev/docs/latest). Pi's TypeScript source was not reachable from the audit environment, so rows that only the source could settle say "not
+compared". A row is HAVE only where the evidence column names code and an existing test; the audit itself ran no Go tests. The priority column
+means how much the _remaining_ gap matters: HAVE and by-design rows carry none, and a PARTIAL row whose missing part is minor is P2 or P3.
+Priorities and efforts are judgement calls.
 
-## Scoreboard (222 behaviours assessed)
+## Scoreboard (262 behaviours assessed)
 
-| Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
-| ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
-| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 5      | 14      | 27      | 5         | 10      | 17      |
-| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 23      | 21      | 0         | 7       | 19      |
-| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 7      | 37      | 5       | 0         | 11      | 11      |
-| Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 12     | 22      | 9       | 2         | 7       | 17      |
-| **Total**                                |                          | **57** | **96**  | **62**  | **7**     | **35**  | **64**  |
+| Area                                     | Detail                   | Have    | Partial | Missing | By design | Open P0 | Open P1 |
+| ---------------------------------------- | ------------------------ | ------- | ------- | ------- | --------- | ------- | ------- |
+| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 31      | 19      | 8       | 7         | 0       | 2       |
+| Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 44      | 30      | 7       | 2         | 0       | 5       |
+| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 11      | 36      | 6       | 1         | 0       | 6       |
+| Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 25      | 21      | 11      | 3         | 1       | 7       |
+| **Total**                                |                          | **111** | **106** | **32**  | **13**    | **1**   | **20**  |
 
-Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
-coding agent it is far from Pi. About 26% of behaviours match, and the 35 open P0 items cluster in a few places.
+Read this honestly: at the first pass 57 of 222 behaviours matched. The foundations have since been built, and 111 of 262 now match, 13 more are
+deliberate differences, and the only open P0 is the extension export surface. About 42% match fully. The 106 partial rows are mostly small or rare
+corners; the open P1 rows below are what a daily user of Pi would hit first.
 
-## What the P0 gaps have in common
+## The open P0 and P1 gaps
 
-Most P0 rows trace back to six missing foundations. Fix these in order, because later ones depend on earlier ones.
+| Area       | Rows                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Extensions | EXT-07 (P0): named imports from the shim modules do not all resolve, so 26 of 78 upstream example extensions fail to load                |
+| Extensions | EXT-06, 17, 18, 19, 31, 48, 49: virtual modules, session events, tool registration, `registerProvider`, session control                  |
+| Providers  | LLM-03, 04, 11, 22, 31, 36: OpenAI Chat and Responses corners, a catalog of Anthropic models only, thinking, overflow                    |
+| Tools      | CTX-01 and CLI-44 (context files from parent directories), AGT-02 and AGT-03 (steering and follow-up in the terminal UI), SKL-03, TPL-03 |
 
-| #   | Foundation                                         | Unblocks                                                                                                               | Main rows                   |
-| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| 1   | **Streaming provider interface**                   | live output in every frontend, idle timeouts, tool-call deltas, interrupt latency                                      | LLM-02, AGT-01              |
-| 2   | **Model catalog + usage/cost accounting**          | context %, compaction triggers, image gating, thinking support, footer                                                 | LLM-11, LLM-28, CMP-07      |
-| 3   | **Session persistence** (JSONL, Pi v3 tree format) | resume/continue/fork, compaction, branch summaries, session events for extensions                                      | CLI-15..21, SESS-01, EXT-17 |
-| 4   | **Compaction + overflow recovery**                 | long tasks; today history grows until the provider rejects it                                                          | CMP-01..05, LLM-31          |
-| 5   | **Scriptable CLI**                                 | positional prompt, stdin, `@file`, auto print mode, clean stdout/stderr, `--mode json`, tool/resource flags, `--model` | CLI-01..06, 12, 29..31, 48  |
-| 6   | **Credentials + MCP**                              | OAuth login for Claude, ChatGPT, Copilot, OpenRouter (REQ-AUTH-003); `auth.json` (REQ-AUTH-001) and MCP are done       | LLM-17..19                  |
-
-Cheap and high-value on their own, independent of the foundations: parent-directory `AGENTS.md` (CTX-01), prompt-template argument fixes
-(TPL-02..04), `ctx.mode`/`hasUI` passed through to extensions (EXT-25, built), complete shim export lists so extensions do not fail at link time (EXT-07), prompt caching
-(LLM-25), thinking levels with block replay (LLM-22/23).
-
-## Proposed phases
-
-Sizes are rough (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks of focused work).
-
-| Phase                   | Goal                                            | Contents                                                                                                                                                                                                           | Size |
-| ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
-| A. Usable in scripts    | `koine -p` behaves like `pi -p`                 | CLI-01..04, 12, 29..31, 48; CTX-01; TPL-02..04; TOOL-12, 13, 17, 18, 20; EXT-25                                                                                                                                    | M    |
-| B. Usable for real work | long sessions survive                           | LLM-02 streaming; LLM-11/28 catalog + usage; LLM-25 caching; LLM-22/23 thinking; sessions CLI-15/16/17/19; compaction CMP-01..05, LLM-31                                                                           | L    |
-| C. Ecosystem            | Pi/Claude/opencode assets and servers just work | MCP LLM-42/45/46 (+HTTP 43); credentials LLM-14/15/16; extension shim exports EXT-07; extension UI channel EXT-24/26 (built, REQ-EXT-005, REQ-RPC-001); tool fidelity EXT-12..14, 20, 45 (built, REQ-EXT-006..009) | L    |
-| D. Packages             | install Pi packages                             | EXT-34..40 (hash-locked, `--ignore-scripts`, explicit install only); `-e/--skill` flags EXT-41                                                                                                                     | L    |
-| E. Frontends            | interactive quality                             | Bubble Tea and Wails v3 as RPC clients (REQ-FE-003, done) and built and tested in CI (REQ-FE-002, done)                  ; TUI-06 (per-tool renderers); steering/follow-up AGT-02/03; parallel tools AGT-04        | L    |
-| F. Later                |                                                 | Other OAuth (LLM-20), Vertex and Bedrock (LLM-06, 07), more providers (LLM-10), HTML export, tree views, images (TOOL-03, LLM-27)                                                                                  | L    |
+Cheap and high-value on their own: completing the shim export lists (EXT-07), the parent-directory walk for context files, steering and follow-up
+in the terminal UI, and the template quoting and argument fixes (TPL-02, TPL-03). The audits also found wrong behaviour in Koine that is not a gap
+against Pi; those bugs are listed in the audit pull requests (#35 to #38).
 
 ## Deliberately not copying
 
@@ -76,5 +61,5 @@ upstream-tracking pipeline. Keep these when closing gaps.
 
 ## Requirements this adds
 
-Planned requirements, one per foundation, are in [requirements.md](requirements.md): `REQ-CLI-001`, `REQ-LLM-004`, `REQ-SESS-002`, `REQ-CMP-001`,
-`REQ-MCP-001`, `REQ-PKG-001`, `REQ-EXT-011`, `REQ-TOOL-001`. They cite gap IDs, not test names, because nothing is implemented yet.
+Requirements for the foundations are in [requirements.md](requirements.md): `REQ-CLI-001`, `REQ-LLM-004`, `REQ-SESS-002`, `REQ-CMP-001`,
+`REQ-MCP-001`, `REQ-PKG-001`, `REQ-EXT-011`, `REQ-TOOL-001`. They now cite tests as well as gap IDs; see each requirement for its status.
