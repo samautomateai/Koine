@@ -8,12 +8,15 @@ import (
 	"strings"
 
 	"koine/core/ext"
+	"koine/core/pkgs"
+	"koine/core/srcinfo"
 )
 
 type extTarget struct {
 	name string
-	spec *ext.Spec // non-nil: any-language extension (manifest)
-	js   string    // JS target for the sidecar
+	spec *ext.Spec    // non-nil: any-language extension (manifest)
+	js   string       // JS target for the sidecar
+	src  srcinfo.Info // set for package and -e extensions; the others are classified by where they are (sourceOf)
 }
 
 var jsExt = map[string]bool{".js": true, ".mjs": true, ".cjs": true, ".ts": true, ".mts": true, ".cts": true}
@@ -44,9 +47,49 @@ func dirTarget(p, name string) (extTarget, bool) {
 	return extTarget{}, false
 }
 
+// dirTargets is dirTarget plus the package.json form (EXT-02): a directory whose package.json lists `pi.extensions` is an extension
+// package with those entry points, which is how multi-file extensions with their own dependencies are laid out. An extension.json wins
+// over it and an index file comes after it. Entries that are directories are read the same way, one level down.
+func dirTargets(p, name string) []extTarget { return dirTargetsDepth(p, name, 0) }
+
+func dirTargetsDepth(p, name string, depth int) []extTarget {
+	if _, err := os.Stat(filepath.Join(p, "extension.json")); err == nil {
+		if t, ok := dirTarget(p, name); ok {
+			return []extTarget{t}
+		}
+		return nil
+	}
+	if entries := pkgs.ExtensionEntries(p); entries != nil {
+		var out []extTarget
+		for _, e := range entries {
+			base := strings.TrimSuffix(filepath.Base(e), filepath.Ext(e))
+			if len(entries) > 1 {
+				base = name + "/" + base
+			} else {
+				base = name
+			}
+			if st, err := os.Stat(e); err != nil {
+				continue
+			} else if st.IsDir() {
+				if depth < 1 {
+					out = append(out, dirTargetsDepth(e, base, depth+1)...)
+				}
+			} else if jsExt[filepath.Ext(e)] && !strings.HasSuffix(e, ".d.ts") {
+				out = append(out, extTarget{name: base, js: e})
+			}
+		}
+		return out
+	}
+	if t, ok := dirTarget(p, name); ok {
+		return []extTarget{t}
+	}
+	return nil
+}
+
 // scanDir lists extension entry points in dir:
 //   - loose *.ts/*.js files
 //   - subdirs with extension.json (any-language: {"command":[...]})
+//   - subdirs with a package.json that lists `pi.extensions` entry points
 //   - subdirs with index.ts/js (Pi/opencode package style)
 func scanDir(dir string) []extTarget {
 	ents, err := os.ReadDir(dir)
@@ -62,9 +105,7 @@ func scanDir(dir string) []extTarget {
 			}
 			continue
 		}
-		if t, ok := dirTarget(p, e.Name()); ok {
-			out = append(out, t)
-		}
+		out = append(out, dirTargets(p, e.Name())...)
 	}
 	return out
 }

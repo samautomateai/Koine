@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"koine/core/frontmatter"
+	"koine/core/srcinfo"
 	"koine/core/tools"
 )
 
@@ -23,6 +24,7 @@ type Skill struct {
 	Location    string // absolute path of the SKILL.md
 	Dir         string
 	Body        string
+	Source      srcinfo.Info // where it came from; filled in by the app (the loaders here do not know packages)
 }
 
 type root struct {

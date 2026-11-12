@@ -410,8 +410,10 @@
     {
       "key": "npmCommand",
       "type": "string[]",
-      "status": "todo",
-      "note": "Needs package support (REQ-PKG-001)."
+      "scope": "global",
+      "status": "verified",
+      "test": "TestNPMCommandSettingIsUsed",
+      "note": "The command and leading arguments `koine install` and `koine update` run for npm. User settings only: a project file must not pick the program that installs packages."
     },
     {
       "key": "selfUpdateCommand",
@@ -423,8 +425,9 @@
     {
       "key": "packages",
       "type": "array",
-      "status": "todo",
-      "note": "REQ-PKG-001."
+      "status": "verified",
+      "test": "TestPackageResourcesFeedTheLoaders",
+      "note": "Strings and objects with extensions/skills/prompts/themes filters and autoload (REQ-PKG-001, REQ-PKG-002). Project entries need trust."
     },
     {
       "key": "extensions",
@@ -458,8 +461,10 @@
     {
       "key": "collapseChangelog",
       "type": "boolean",
-      "status": "by-design",
-      "note": "Koine shows no changelog after updates."
+      "scope": "global",
+      "status": "verified",
+      "test": "TestUpdateShowsTheChangelogOfUpdatedPackages",
+      "note": "`koine update` prints the changelog entries of updated extension packages; true prints one line per package instead."
     },
     {
       "key": "enableInstallTelemetry",
@@ -509,6 +514,11 @@
       "key": "compaction.contextWindow",
       "type": "number",
       "note": "Context window in tokens until Koine has a model catalog (default 200000)."
+    },
+    {
+      "key": "allowInstallScripts",
+      "type": "boolean",
+      "note": "Lets npm run install scripts of packages and their dependencies. Off by default; user settings only (same as `koine install --allow-scripts`)."
     },
     {
       "key": "$schema",

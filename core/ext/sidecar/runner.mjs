@@ -412,6 +412,19 @@ function subscribed() {
 // ---- event dispatch ---------------------------------------------------------
 const textOf = (content) => (Array.isArray(content) ? content.map((c) => c?.text ?? "").join("\n") : String(content ?? ""));
 
+// resources_discover: a handler returns { skillPaths, promptPaths, themePaths }. Relative paths are taken from the extension's own directory.
+function collectResources(r, d) {
+  const dir = path.dirname(state.target);
+  const paths = (v) =>
+    Array.isArray(v)
+      ? v.filter((x) => typeof x === "string" && x.trim()).map((x) => (path.isAbsolute(x) || x.startsWith("~") ? x : path.resolve(dir, x)))
+      : [];
+  d.resources ??= { skillPaths: [], promptPaths: [], themePaths: [] };
+  d.resources.skillPaths.push(...paths(r.skillPaths));
+  d.resources.promptPaths.push(...paths(r.promptPaths));
+  d.resources.themePaths.push(...paths(r.themePaths));
+}
+
 async function piEvent(name, p, d) {
   const alias = name === "system_prompt" ? "before_agent_start" : name;
   const hs = state.handlers.get(alias);
@@ -456,6 +469,7 @@ async function piEvent(name, p, d) {
       if (r.terminate) d.terminate = true;
       return;
     }
+    if (name === "resources_discover") collectResources(r, d);
     if (name === "tool_result") {
       if (r.content !== undefined) d.output = textOf(r.content);
       if (typeof r.isError === "boolean") d.isError = r.isError;

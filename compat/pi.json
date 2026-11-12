@@ -678,8 +678,9 @@
   {
    "kind": "path",
    "name": "package.json:pi manifest",
-   "status": "todo",
-   "note": "{extensions,skills,prompts,themes} dirs + 'pi-package' keyword discovery"
+   "status": "verified",
+   "test": "pkgs.TestPiManifestDeclaresResources",
+   "note": "pi.{extensions,skills,prompts,themes} with globs and !exclusions, or the conventional extensions/ skills/ prompts/ themes/ directories; themes are listed but not applied. The pi-package keyword only matters to Pi's gallery."
   },
   {
    "kind": "path",
@@ -911,8 +912,9 @@
   {
    "kind": "event",
    "name": "resources_discover",
-   "status": "unsupported",
-   "note": "new upstream surface since 0.73.1; triage me"
+   "status": "verified",
+   "test": "conformance: resources_discover returns skill, prompt and theme paths",
+   "note": "Sent after session_start and /reload with {cwd, reason}; skillPaths and promptPaths are loaded, themePaths are accepted but Koine has no themes. Relative paths are taken from the extension's directory."
   },
   {
    "kind": "event",

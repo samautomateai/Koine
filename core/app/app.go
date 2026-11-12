@@ -18,6 +18,7 @@ import (
 	"koine/core/ext"
 	"koine/core/hooks"
 	"koine/core/llm"
+	"koine/core/pkgs"
 	"koine/core/prompts"
 	"koine/core/session"
 	"koine/core/skills"
@@ -71,10 +72,11 @@ type App struct {
 	thinking    string // the explicit thinking level (--thinking, a model suffix or /thinking); "" = from settings
 	router      *llm.Router
 	providers   *ProviderSetup
-	secrets     *auth.Resolver // shared by every router, so a command cached for auth.json runs once per process
-	apiKey      string         // --api-key
-	apiKeyProv  string         // the provider it was given for (the first model's)
-	ephemeralID string         // session id reported to the shell when sessions are off
+	secrets     *auth.Resolver  // shared by every router, so a command cached for auth.json runs once per process
+	apiKey      string          // --api-key
+	apiKeyProv  string          // the provider it was given for (the first model's)
+	ephemeralID string          // session id reported to the shell when sessions are off
+	pkgRes      pkgs.LoadResult // the packages in use (packages.go)
 }
 
 type Info struct {
@@ -118,6 +120,7 @@ func NewWithOptions(ctx context.Context, cwd string, opts Options) (*App, error)
 		return nil, err
 	}
 	a.Agent.Dispatch.Emit(ctx, events.SessionStart, map[string]any{"cwd": cwd, "reason": "startup"})
+	a.discoverResources(ctx, "startup")
 	return a, nil
 }
 
@@ -166,10 +169,14 @@ func (a *App) load(ctx context.Context) {
 
 	a.Tools = tools.NewRegistry()
 	tools.RegisterWith(a.Tools, a.toolOptions())
+	a.markBuiltin()
+	a.loadPackages()
+	skippedCode += a.pkgRes.SkippedProject
 
 	sk := a.loadSkills()
 	if len(sk) > 0 {
 		a.Tools.Register(skills.Tool(sk))
+		a.markBuiltin("skill")
 	}
 	defs := agents.Discover(a.Cwd, a.Home)
 	a.Prompts = a.loadPrompts()
@@ -201,6 +208,7 @@ func (a *App) load(ctx context.Context) {
 		if spec.Name == "" {
 			spec.Name = t.name
 		}
+		spec.Source = a.targetSource(t)
 		if err := a.Host.Start(ctx, spec); err != nil {
 			a.Warnings = append(a.Warnings, fmt.Sprintf("extension %s: %v", t.name, err))
 		}
@@ -230,6 +238,7 @@ func (a *App) load(ctx context.Context) {
 	a.applyLLMSettings()
 	if len(defs) > 0 {
 		a.Tools.Register(a.Agent.TaskTool())
+		a.markBuiltin("task")
 	}
 	a.applyRunOptions()
 }
@@ -245,6 +254,7 @@ func plural(n int) string {
 func (a *App) Reload(ctx context.Context) {
 	a.load(ctx)
 	a.Agent.Dispatch.Emit(ctx, events.SessionStart, map[string]any{"cwd": a.Cwd, "reason": "reload"})
+	a.discoverResources(ctx, "reload")
 }
 
 // TrustProject records trust for the current folder and reloads.
@@ -318,7 +328,7 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)
 	if a.sessionCommand(ctx, name, args, emit) || a.thinkingCommand(name, args, emit) || a.mcpCommand(ctx, name, args, emit) ||
-		a.authCommand(name, args, emit) {
+		a.authCommand(name, args, emit) || a.packageCommand(name, args, emit) {
 		return false, nil
 	}
 	info := a.Describe()
@@ -327,7 +337,7 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 		return true, nil
 	case "help":
 		notice("/help /new /session /name /resume /fork [id] /clone /tree [id] /label /export [file] /exit /tools /skills /agents /commands " +
-			"/model [id[:level]] /thinking [level] /compact [focus] /login [provider] /logout [provider] /mcp /trust /reload /compat " +
+			"/model [id[:level]] /thinking [level] /compact [focus] /login [provider] /logout [provider] /mcp /trust /reload /compat /packages /sources [filter] " +
 			"/skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
