@@ -36,7 +36,7 @@ Most P0 rows trace back to six missing foundations. Fix these in order, because 
 | 3   | **Session persistence** (JSONL, Pi v3 tree format) | resume/continue/fork, compaction, branch summaries, session events for extensions                                      | CLI-15..21, SESS-01, EXT-17 |
 | 4   | **Compaction + overflow recovery**                 | long tasks; today history grows until the provider rejects it                                                          | CMP-01..05, LLM-31          |
 | 5   | **Scriptable CLI**                                 | positional prompt, stdin, `@file`, auto print mode, clean stdout/stderr, `--mode json`, tool/resource flags, `--model` | CLI-01..06, 12, 29..31, 48  |
-| 6   | **Credentials + MCP**                              | `auth.json`, `!command` secrets, OAuth login (MCP part done: REQ-MCP-001)                                           | LLM-14, 15, 42, 45          |
+| 6   | **Credentials + MCP**                              | `auth.json`, `!command` secrets, OAuth login (MCP part done: REQ-MCP-001)                                              | LLM-14, 15, 42, 45          |
 
 Cheap and high-value on their own, independent of the foundations: parent-directory `AGENTS.md` (CTX-01), prompt-template argument fixes
 (TPL-02..04), `ctx.mode`/`hasUI` passed through to extensions (EXT-25), complete shim export lists so extensions do not fail at link time (EXT-07), prompt caching
