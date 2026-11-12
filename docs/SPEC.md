@@ -260,9 +260,65 @@ replaces the preamble, `<tools>` and `<rules>`.
 `!cmd` shows the output and adds it to the conversation as a user message ("Ran `cmd`" and the output), `!!cmd` only shows it. Print, JSON and
 server runs do not do this (`App.NoUserBash`): the text is an ordinary prompt.
 
+### MCP servers
+
+Koine is an MCP client (REQ-MCP-001..003, `core/mcp`). Servers are third-party code: a stdio server is a spawned process, so the **project-level**
+files below are neither read nor started until the folder is trusted (ADR 0002); the user-level files run.
+
+**Configuration.** `{"mcpServers": {"<name>": {…}}}` in `<agent dir>/mcp.json` (user), `.koine/mcp.json` and `.pi/mcp.json` (project), Claude's
+`.mcp.json` (project) and the `mcp` block of opencode's `opencode.json` (`local` becomes stdio and `remote` HTTP, `{env:NAME}` becomes `${NAME}`,
+timeouts are milliseconds there). A later file replaces an entry of the same name; an entry with only `enabled`, `exposure` or `toolExposure`
+changes just those fields of the earlier one. Names use letters, digits, `_` and `-`; names that differ only in `-` and `_` are the same server.
+Invalid entries are reported and skipped.
+
+| Field                      | Meaning                                                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`                     | optional: `stdio`, `http` or `streamable-http`; `command` implies stdio, `url` implies HTTP; `sse` is rejected                          |
+| `command`, `args`          | a program and its arguments (no shell string)                                                                                           |
+| `env`, `cwd`               | environment added to the process; working directory (`~/` and relative paths resolve against the home and project)                      |
+| `url`, `headers`           | streamable HTTP endpoint and extra headers                                                                                              |
+| `oauth`                    | `clientId`, `clientSecret`, `callbackPort`, `callbackUrl`, `scope`, `clientName`, `clientRegistration`, `authServerMetadataUrl`         |
+| `timeout`                  | seconds without an answer or progress notification (default 60)                                                                         |
+| `enabled`                  | `false` keeps the entry without connecting                                                                                              |
+| `exposure`, `toolExposure` | `direct` (default), `deferred`, `hidden`; per-tool overrides by name or `*` pattern, exact names first, then the first matching pattern |
+| `description`              | one sentence for the system prompt (default: the first line of the server's instructions)                                               |
+
+Values in `command`, `args`, `env`, `cwd`, `url` and `headers` may use `${VAR}` and `${VAR:-default}`; an unset variable without a default fails the
+server. A value that starts with `!` is a command run with the platform shell whose output (trailing newlines removed) is the value, e.g.
+`"Authorization": "!echo Bearer $(gh auth token)"`. `${…}` is not expanded inside a `!command`; the shell does that.
+
+**Tools.** Each tool is registered as `mcp__<server>__<tool>`; characters other than letters, digits and `_` become `_`, and a collision or a name
+over 64 characters gets `_` and six hex digits of a hash. A tool carries a one-line prompt snippet and, when the server has a description, a prompt
+guideline. `direct` tools are offered to the model. `deferred` tools are not, until the `tool_search` tool (present while any tool is deferred) finds
+them by keyword (`{"query", "limit"}`) and offers them from the next model call. `hidden` tools are not registered. Pi's default exposure
+(`codemode`) is read as `deferred`, because Koine has no codemode; Koine's default is `direct`. `-t`, `-xt` and `defaultTools` patterns such as
+`mcp__github__*` apply (a deferred tool is not matched until found). Tool output: text, images (sent as images when the caller takes them), a
+result with only `structuredContent` shows that JSON, text over 20 KB (20480 characters) keeps its first and last 10240 characters around
+`…N chars truncated…` and the full text is saved to a temporary file named at the end. A result with `isError` is a failed tool call.
+
+**Resources.** While a connected server has resources, `list_mcp_resources` and `list_mcp_resource_templates` (`{"server"?}`) and
+`read_mcp_resource` (`{"server", "uri"}`) are offered. Text comes back as text, images as images, other binaries as a temporary file path.
+`ui://` resources are left out.
+
+**Connections.** Servers connect in the background when a session starts; startup waits up to 10 seconds. HTTP: one `POST` per message (JSON or SSE
+answer), `Mcp-Session-Id` and `MCP-Protocol-Version` headers, network errors and 408/429/5xx retried twice, `DELETE` on close. Stdio: closing
+stdin, then SIGTERM, then SIGKILL of the process group; server stderr goes to `<agent dir>/mcp.log` (rotated to `mcp.log.1` past 5 MB). A dropped
+connection stays visible and reconnects on the next call. Tool calls are never retried; listing and reading are retried once.
+
+**OAuth.** A 401 from an HTTP server without an `Authorization` header starts discovery on `koine mcp login NAME`: protected resource metadata
+(RFC 9728, from the challenge's `resource_metadata` or the well-known URL), authorization server metadata (RFC 8414, then OpenID configuration, or
+`oauth.authServerMetadataUrl`), a configured `oauth.clientId` or dynamic registration, then the authorization code flow with PKCE S256 and the
+`resource` parameter on `http://127.0.0.1:<port>/callback`. Tokens are stored in `<agent dir>/mcp-auth.json` (mode 0600) per server name and URL,
+refreshed before they expire and after a 401; if that fails the server is "needs login". Endpoints must be https (http on loopback only).
+
+**Commands.** `koine mcp add|remove|list|login|logout` (REQ-MCP-003; `koine mcp --help`) and, in a session, `/mcp` (state of each server) and
+`/mcp reconnect <name>`.
+
+_Verified by:_ `core/mcp` tests (fake stdio and HTTP servers, a fake authorization server), `core/app.TestMCP*`, `cmd/koine.TestMCP*`.
+
 ## 7. Slash commands
 
-`/help /clear /exit /quit /tools /skills /agents /commands /model [id[:level]] /thinking [level]`, and in the terminal UI `/hotkeys /settings
+`/help /clear /exit /quit /tools /skills /agents /commands /mcp [reconnect <name>] /model [id[:level]] /thinking [level]`, and in the terminal UI `/hotkeys /settings
 /scoped-models /copy /tree`,
 `/skill:<name> [args]`, extension commands (§3.3), then prompt templates (§1).
 `!<command>` and `!!<command>` run a shell command (§6, user commands).

@@ -32,6 +32,7 @@ Drop things where you already keep them and they are picked up — nothing to co
 | Claude hooks                  | `.claude/settings.json`                                                           |
 | Slash commands / sub-agents   | `.claude/commands`, `.opencode/command`, `.claude/agents`, `.opencode/agent`      |
 | Extension in **any language** | `.koine/extensions/<name>/extension.json` → `{"command": ["python3","./ext.py"]}` |
+| MCP server (stdio or HTTP)    | `~/.koine/mcp.json` or `.koine/mcp.json`, `.mcp.json`; `koine mcp add` writes it  |
 
 A complete Python extension is ~25 lines — see
 `core/app/testdata/proj/.koine/extensions/pyext/`.

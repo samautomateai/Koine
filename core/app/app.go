@@ -44,6 +44,7 @@ type App struct {
 	Hooks    *hooks.Runner
 	Prompts  []prompts.Prompt
 	Tools    *tools.Registry
+	mcpRT    mcpRuntime // MCP servers of this session (mcpwire.go)
 	Trusted  bool
 	Info     []string // startup info lines
 	Warnings []string
@@ -193,13 +194,17 @@ func (a *App) load(ctx context.Context) {
 		}
 	}
 	a.Host.SetFlags(a.opts.Load.ExtFlags)
-	a.UntrustedCode = skippedCode
+	mcpSkipped := a.startMCP(ctx)
+	a.UntrustedCode = skippedCode + mcpSkipped // project MCP servers are code too, so the startup prompt offers to trust the folder
 	if skippedCode > 0 {
 		a.Warnings = append(a.Warnings, fmt.Sprintf(
 			"untrusted folder: %d project extension/hook/provider entr%s NOT loaded — run /trust to enable them (or start with -trust)",
 			skippedCode, plural(skippedCode)))
 	}
 
+	if mcpSkipped > 0 {
+		a.Warnings = append(a.Warnings, fmt.Sprintf("untrusted folder: %d project MCP server(s) NOT started — run /trust to enable them", mcpSkipped))
+	}
 	a.Agent.Tools = a.Tools
 	a.Agent.Dispatch = events.Multi{a.Hooks, a.Host}
 	a.Agent.Skills = sk
@@ -240,7 +245,10 @@ func (a *App) TrustProject(ctx context.Context) error {
 	return nil
 }
 
-func (a *App) Close() { a.Host.Close() }
+func (a *App) Close() {
+	a.Host.Close()
+	a.closeMCP()
+}
 
 func (a *App) Describe() Info {
 	i := Info{Cwd: a.Cwd, Model: a.Agent.Model, Trusted: a.Trusted, Tools: a.Tools.Names(), Warnings: a.Warnings}
@@ -297,7 +305,7 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 	}
 	name, args, _ := strings.Cut(line[1:], " ")
 	args = strings.TrimSpace(args)
-	if a.sessionCommand(ctx, name, args, emit) || a.thinkingCommand(name, args, emit) {
+	if a.sessionCommand(ctx, name, args, emit) || a.thinkingCommand(name, args, emit) || a.mcpCommand(ctx, name, args, emit) {
 		return false, nil
 	}
 	info := a.Describe()
@@ -306,7 +314,7 @@ func (a *App) HandleInputImages(ctx context.Context, line string, images []llm.B
 		return true, nil
 	case "help":
 		notice("/help /new /session /name /resume /fork [id] /clone /tree [id] /label /export [file] /exit /tools /skills /agents /commands " +
-			"/model [id[:level]] /thinking [level] /compact [focus] /trust /reload /compat /skill:<name> /<command> <args>")
+			"/model [id[:level]] /thinking [level] /compact [focus] /mcp /trust /reload /compat /skill:<name> /<command> <args>")
 		return false, nil
 	case "tools":
 		notice(strings.Join(info.Tools, ", "))

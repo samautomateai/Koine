@@ -16,14 +16,14 @@ priorities and efforts are judgement calls.
 
 | Area                                     | Detail                   | Have   | Partial | Missing | By design | Open P0 | Open P1 |
 | ---------------------------------------- | ------------------------ | ------ | ------- | ------- | --------- | ------- | ------- |
-| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 4      | 13      | 29      | 5         | 10      | 17      |
+| CLI, modes, sessions, settings           | [cli.md](gap/cli.md)     | 5      | 13      | 28      | 5         | 10      | 17      |
 | Tools, agent loop, context, prompts, TUI | [tools.md](gap/tools.md) | 33     | 22      | 22      | 0         | 7       | 19      |
-| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 1      | 16      | 32      | 0         | 14      | 13      |
+| Providers, models, auth, MCP             | [llm.md](gap/llm.md)     | 4      | 19      | 26      | 0         | 12      | 12      |
 | Extension behaviour, Pi packages         | [ext.md](gap/ext.md)     | 4      | 19      | 20      | 2         | 10      | 19      |
-| **Total**                                |                          | **42** | **70**  | **103** | **7**     | **41**  | **68**  |
+| **Total**                                |                          | **46** | **73**  | **96**  | **7**     | **39**  | **67**  |
 
 Read this honestly: Koine is a working agent core with a broad _compatibility surface_ (extensions, skills, hooks, trust), but as a daily-driver
-coding agent it is far from Pi. About 14% of behaviours match, and the 41 open P0 items cluster in a few places.
+coding agent it is far from Pi. About 14% of behaviours match, and the 39 open P0 items cluster in a few places.
 
 ## What the P0 gaps have in common
 
@@ -36,7 +36,7 @@ Most P0 rows trace back to six missing foundations. Fix these in order, because 
 | 3   | **Session persistence** (JSONL, Pi v3 tree format) | resume/continue/fork, compaction, branch summaries, session events for extensions                                      | CLI-15..21, SESS-01, EXT-17 |
 | 4   | **Compaction + overflow recovery**                 | long tasks; today history grows until the provider rejects it                                                          | CMP-01..05, LLM-31          |
 | 5   | **Scriptable CLI**                                 | positional prompt, stdin, `@file`, auto print mode, clean stdout/stderr, `--mode json`, tool/resource flags, `--model` | CLI-01..06, 12, 29..31, 48  |
-| 6   | **Credentials + MCP**                              | `auth.json`, `!command` secrets, OAuth login; MCP stdio client and `mcp.json`                                          | LLM-14, 15, 42, 45          |
+| 6   | **Credentials + MCP**                              | `auth.json`, `!command` secrets, OAuth login (MCP part done: REQ-MCP-001)                                           | LLM-14, 15, 42, 45          |
 
 Cheap and high-value on their own, independent of the foundations: parent-directory `AGENTS.md` (CTX-01), prompt-template argument fixes
 (TPL-02..04), `ctx.mode`/`hasUI` passed through to extensions (EXT-25), complete shim export lists so extensions do not fail at link time (EXT-07), prompt caching
