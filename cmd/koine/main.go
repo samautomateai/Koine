@@ -28,6 +28,9 @@ func main() {
 
 // run is main without the process globals, so it can be tested end to end.
 func run(args []string, st streams) int {
+	if len(args) > 0 && args[0] == "mcp" { // koine mcp add|remove|list|login|logout (mcp_cmd.go)
+		return runMCP(args[1:], st)
+	}
 	c, err := parseArgs(args)
 	if err != nil {
 		fmt.Fprintln(st.Err, "koine:", err)

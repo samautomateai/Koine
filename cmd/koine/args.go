@@ -245,5 +245,7 @@ bmp) and piped image data are sent as images, resized to at most 2000 by 2000 pi
   -v, --version                print version
   -h, --help                   this text and the options extensions registered
 
+Subcommand: koine mcp add|remove|list|login|logout   manage MCP servers (koine mcp --help)
+
 Answers go to stdout; tool activity, notices and errors go to stderr. Exit codes: 0 ok, 1 failed, 2 usage.
 `
