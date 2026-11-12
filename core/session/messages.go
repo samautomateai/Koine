@@ -87,6 +87,9 @@ type piBlock struct {
 	Thinking          *string `json:"thinking,omitempty"`
 	ThinkingSignature string  `json:"thinkingSignature,omitempty"`
 	Redacted          bool    `json:"redacted,omitempty"`
+	// Gemini's replay tokens, in Pi's names: textSignature on a text block, thoughtSignature on a tool call.
+	TextSignature    string `json:"textSignature,omitempty"`
+	ThoughtSignature string `json:"thoughtSignature,omitempty"`
 	// Image blocks, in Pi's ImageContent shape: base64 data and a media type.
 	Data     string `json:"data,omitempty"`
 	MimeType string `json:"mimeType,omitempty"`
@@ -137,7 +140,7 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 		for _, b := range m.Content {
 			switch b.Type {
 			case "text":
-				blocks = append(blocks, piBlock{Type: "text", Text: b.Text})
+				blocks = append(blocks, piBlock{Type: "text", Text: b.Text, TextSignature: b.ThoughtSignature})
 			case "thinking":
 				t := b.Thinking
 				blocks = append(blocks, piBlock{Type: "thinking", Thinking: &t, ThinkingSignature: b.Signature, Redacted: b.Redacted})
@@ -147,7 +150,7 @@ func (s *Session) AppendMessage(m llm.Message, provider, model string) error {
 				if len(args) == 0 {
 					args = json.RawMessage("{}")
 				}
-				blocks = append(blocks, piBlock{Type: "toolCall", ID: b.ID, Name: b.Name, Arguments: args})
+				blocks = append(blocks, piBlock{Type: "toolCall", ID: b.ID, Name: b.Name, Arguments: args, ThoughtSignature: b.ThoughtSignature})
 			}
 		}
 		c, _ := json.Marshal(blocks)
@@ -256,14 +259,14 @@ func (s *Session) messagesWithIDs() ([]llm.Message, []string) {
 				switch b.Type {
 				case "text":
 					if b.Text != "" {
-						cb = append(cb, llm.Block{Type: "text", Text: b.Text})
+						cb = append(cb, llm.Block{Type: "text", Text: b.Text, ThoughtSignature: b.TextSignature})
 					}
 				case "thinking":
 					if b.Thinking != nil && (*b.Thinking != "" || b.ThinkingSignature != "") {
 						cb = append(cb, llm.Block{Type: "thinking", Thinking: *b.Thinking, Signature: b.ThinkingSignature, Redacted: b.Redacted})
 					}
 				case "toolCall":
-					cb = append(cb, llm.Block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: b.Arguments})
+					cb = append(cb, llm.Block{Type: "tool_use", ID: b.ID, Name: b.Name, Input: b.Arguments, ThoughtSignature: b.ThoughtSignature})
 				}
 			}
 			if len(cb) > 0 {

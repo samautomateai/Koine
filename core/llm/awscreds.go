@@ -15,70 +15,80 @@ var ErrNoCredentials = errors.New("no credentials found")
 // DefaultAWSRegion is used when neither the environment nor the profile names a region (Pi: "defaults to us-east-1").
 const DefaultAWSRegion = "us-east-1"
 
-// unsupportedProfileKeys are settings of a shared-config profile that need AWS services or helper programs to turn into keys. Koine's
-// credential chain stops at static keys, so such a profile is refused with a message instead of being half-read.
-var unsupportedProfileKeys = []string{"role_arn", "sso_session", "sso_start_url", "sso_account_id", "credential_process", "web_identity_token_file",
-	"source_profile", "credential_source"}
+// awsFiles is what the environment and the shared files say about which profile is in use.
+type awsFiles struct {
+	get              func(string) string
+	profile          string
+	explicit         bool // the profile was named with AWS_PROFILE, as opposed to "default"
+	region           string
+	home             string
+	credFile         string
+	confFile         string
+	creds, conf      map[string]map[string]string
+	envID, envSecret string
+}
 
-// LoadAWSCredentials finds AWS keys the way the SDKs begin their default chain, and no further: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-// (and AWS_SESSION_TOKEN) from get; then the profile named by AWS_PROFILE (default "default") in the shared credentials file
-// (AWS_SHARED_CREDENTIALS_FILE, else ~/.aws/credentials) and the shared config file (AWS_CONFIG_FILE, else ~/.aws/config). It also returns
-// the region: AWS_REGION, AWS_DEFAULT_REGION, the profile's region, else DefaultAWSRegion. SSO, assumed roles, credential_process, web
-// identity, ECS and EC2 instance credentials are not supported. The errors name files and variables, never values.
-func LoadAWSCredentials(get func(string) string) (AWSCredentials, string, error) {
-	profile := get("AWS_PROFILE")
-	if profile == "" {
-		profile = get("AWS_DEFAULT_PROFILE")
+func readAWSFiles(get func(string) string) awsFiles {
+	f := awsFiles{get: get, profile: get("AWS_PROFILE")}
+	if f.profile == "" {
+		f.profile = get("AWS_DEFAULT_PROFILE")
 	}
-	explicit := profile != ""
-	if profile == "" {
-		profile = "default"
+	f.explicit = f.profile != ""
+	if !f.explicit {
+		f.profile = "default"
 	}
-	region := get("AWS_REGION")
-	if region == "" {
-		region = get("AWS_DEFAULT_REGION")
+	f.region = get("AWS_REGION")
+	if f.region == "" {
+		f.region = get("AWS_DEFAULT_REGION")
 	}
-	home := get("HOME")
-	if home == "" {
-		home, _ = os.UserHomeDir()
+	f.home = get("HOME")
+	if f.home == "" {
+		f.home, _ = os.UserHomeDir()
 	}
 	path := func(env, rel string) string {
 		if p := get(env); p != "" {
 			return p
 		}
-		return filepath.Join(home, ".aws", rel)
+		return filepath.Join(f.home, ".aws", rel)
 	}
-	credFile, confFile := path("AWS_SHARED_CREDENTIALS_FILE", "credentials"), path("AWS_CONFIG_FILE", "config")
-	creds, conf := readINI(credFile), readINI(confFile)
-	section := conf["profile "+profile]
-	if section == nil && profile == "default" {
-		section = conf["default"]
+	f.credFile, f.confFile = path("AWS_SHARED_CREDENTIALS_FILE", "credentials"), path("AWS_CONFIG_FILE", "config")
+	f.creds, f.conf = readINI(f.credFile), readINI(f.confFile)
+	f.envID, f.envSecret = get("AWS_ACCESS_KEY_ID"), get("AWS_SECRET_ACCESS_KEY")
+	if f.region == "" {
+		f.region = f.section(f.profile)["region"]
 	}
-	if region == "" {
-		region = section["region"]
+	if f.region == "" {
+		f.region = DefaultAWSRegion
 	}
-	if region == "" {
-		region = DefaultAWSRegion
+	return f
+}
+
+// section is the settings of a profile in the config file ("[profile x]", or "[default]" for the default profile).
+func (f awsFiles) section(name string) map[string]string {
+	sec := f.conf["profile "+name]
+	if sec == nil && name == "default" {
+		sec = f.conf["default"]
 	}
-	if id, secret := get("AWS_ACCESS_KEY_ID"), get("AWS_SECRET_ACCESS_KEY"); id != "" && secret != "" {
-		return AWSCredentials{AccessKeyID: id, SecretAccessKey: secret, SessionToken: get("AWS_SESSION_TOKEN")}, region, nil
-	}
-	for _, key := range unsupportedProfileKeys {
-		if section[key] != "" {
-			return AWSCredentials{}, region, fmt.Errorf("AWS profile %q uses %s, which Koine does not support: put static keys in the profile, "+
-				"set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or set AWS_BEARER_TOKEN_BEDROCK", profile, key)
-		}
-	}
-	for _, src := range []map[string]string{creds[profile], section} { // the credentials file wins over the config file
+	return sec
+}
+
+// staticKeys are the access keys written in a profile; the credentials file wins over the config file.
+func (f awsFiles) staticKeys(name string) (AWSCredentials, bool) {
+	for _, src := range []map[string]string{f.creds[name], f.section(name)} {
 		if id, secret := src["aws_access_key_id"], src["aws_secret_access_key"]; id != "" && secret != "" {
-			return AWSCredentials{AccessKeyID: id, SecretAccessKey: secret, SessionToken: src["aws_session_token"]}, region, nil
+			return AWSCredentials{AccessKeyID: id, SecretAccessKey: secret, SessionToken: src["aws_session_token"]}, true
 		}
 	}
-	if explicit {
-		return AWSCredentials{}, region, fmt.Errorf("AWS profile %q has no access keys in %s or %s", profile, credFile, confFile)
+	return AWSCredentials{}, false
+}
+
+// noKeys is the error for a profile that yields nothing: a named one is a mistake, the default one means nothing is configured.
+func (f awsFiles) noKeys(name string) error {
+	if f.explicit || name != f.profile {
+		return fmt.Errorf("AWS profile %q has no access keys, role or SSO settings in %s or %s", name, f.credFile, f.confFile)
 	}
-	return AWSCredentials{}, region, fmt.Errorf("%w for AWS: set AWS_BEARER_TOKEN_BEDROCK, or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, "+
-		"or AWS_PROFILE for a profile with keys in ~/.aws/credentials", ErrNoCredentials)
+	return fmt.Errorf("%w for AWS: set AWS_BEARER_TOKEN_BEDROCK, or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, "+
+		"or AWS_PROFILE for a profile with keys, a role or SSO in ~/.aws/config", ErrNoCredentials)
 }
 
 // readINI reads an AWS shared file into section -> key -> value. A missing or unreadable file is empty. Indented lines (the nested

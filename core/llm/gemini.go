@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,9 +16,9 @@ import (
 // Gemini speaks Google's Gemini API (generativelanguage.googleapis.com, `google-generative-ai` in models.json) with an API key. Vertex AI
 // (`google-vertex`) is the same protocol at another address, with an API key or a Google access token: set ModelPath and Token (vertex.go).
 //
-// Limits: thought signatures, which newer Gemini models want echoed back on function calls, are not kept, so a long tool-using
-// conversation with such a model may be refused; the wire format was written from Google's documentation and is tested against fake
-// servers only.
+// Thought signatures, which newer Gemini models want echoed back, are kept on the blocks they arrive with (thinking, text and function
+// calls) and sent back unchanged by the same model; Gemini 3 models get Google's documented placeholder on a call that has none. The wire
+// format was written from Google's documentation and is tested against fake servers only.
 type Gemini struct {
 	Name    string // for error messages; "google" when empty
 	APIKey  string
@@ -58,8 +59,9 @@ func geminiBudget(t *Thinking) int {
 }
 
 // toGeminiContents converts messages to Gemini's contents. A function response must name its function, which the history only says in
-// the call, so names are collected from the tool_use blocks. Thinking blocks are not sent back.
-func toGeminiContents(msgs []Message) []map[string]any {
+// the call, so names are collected from the tool_use blocks. Thinking is sent back only when it carries a signature. model decides the
+// placeholder signature for Gemini 3 (see geminiSkipSignature).
+func toGeminiContents(msgs []Message, model string) []map[string]any {
 	var out []map[string]any
 	names := map[string]string{}
 	for _, m := range msgs {
@@ -69,18 +71,35 @@ func toGeminiContents(msgs []Message) []map[string]any {
 		}
 		var parts []map[string]any
 		var fromTools []Block
+		firstCall := true
 		for _, b := range m.Content {
 			switch b.Type {
+			case "thinking":
+				if b.Thinking != "" && validThoughtSignature(b.Signature) {
+					parts = append(parts, map[string]any{"text": b.Thinking, "thought": true, "thoughtSignature": b.Signature})
+				}
 			case "text":
 				if b.Text != "" {
-					parts = append(parts, map[string]any{"text": b.Text})
+					part := map[string]any{"text": b.Text}
+					if validThoughtSignature(b.ThoughtSignature) {
+						part["thoughtSignature"] = b.ThoughtSignature
+					}
+					parts = append(parts, part)
 				}
 			case "image":
 				parts = append(parts, map[string]any{"inlineData": map[string]any{"mimeType": b.MimeType(), "data": b.Base64()}})
 			case "tool_use":
 				names[b.ID] = b.Name
 				args := json.RawMessage(orEmptyObject(string(b.Input)))
-				parts = append(parts, map[string]any{"functionCall": map[string]any{"name": b.Name, "args": args}})
+				part := map[string]any{"functionCall": map[string]any{"name": b.Name, "args": args}}
+				switch {
+				case validThoughtSignature(b.ThoughtSignature):
+					part["thoughtSignature"] = b.ThoughtSignature
+				case firstCall && isGemini3(model):
+					part["thoughtSignature"] = geminiSkipSignature
+				}
+				firstCall = false
+				parts = append(parts, part)
 			case "tool_result":
 				resp := map[string]any{"output": b.Content}
 				if b.IsError {
@@ -108,8 +127,24 @@ func toGeminiContents(msgs []Message) []map[string]any {
 	return out
 }
 
+// geminiSkipSignature is the placeholder Google documents for a function call whose real signature is not available (history from another
+// model or an older session); Gemini 3 refuses a step's first call without a signature, and this makes it skip the check.
+const geminiSkipSignature = "skip_thought_signature_validator"
+
+func isGemini3(model string) bool { return strings.Contains(strings.ToLower(model), "gemini-3") }
+
+// validThoughtSignature accepts what Gemini signatures look like (base64). Another provider's token, which can sit in the same field of a
+// session file, is refused rather than sent.
+func validThoughtSignature(s string) bool {
+	if s == "" {
+		return false
+	}
+	_, err := base64.StdEncoding.DecodeString(s)
+	return err == nil
+}
+
 func (g *Gemini) request(ctx context.Context, req Request, stream bool) (string, map[string]string, []byte, error) {
-	body := map[string]any{"contents": toGeminiContents(req.Messages)}
+	body := map[string]any{"contents": toGeminiContents(req.Messages, req.Model)}
 	if req.System != "" {
 		body["systemInstruction"] = map[string]any{"parts": []map[string]any{{"text": req.System}}}
 	}
@@ -203,9 +238,10 @@ type gemChunk struct {
 	Candidates []struct {
 		Content struct {
 			Parts []struct {
-				Text         string `json:"text"`
-				Thought      bool   `json:"thought"`
-				FunctionCall *struct {
+				Text             string `json:"text"`
+				Thought          bool   `json:"thought"`
+				ThoughtSignature string `json:"thoughtSignature"`
+				FunctionCall     *struct {
 					ID   string          `json:"id"`
 					Name string          `json:"name"`
 					Args json.RawMessage `json:"args"`
@@ -266,30 +302,56 @@ func (c *geminiAcc) add(k gemChunk) error {
 				id = newCallID()
 			}
 			args := orEmptyObject(string(fc.Args))
-			c.blocks = append(c.blocks, Block{Type: "tool_use", ID: id, Name: fc.Name, Input: oaToolInput(args)})
+			c.blocks = append(c.blocks, Block{Type: "tool_use", ID: id, Name: fc.Name, Input: oaToolInput(args), ThoughtSignature: p.ThoughtSignature})
 			c.calls = true
 			c.fn(StreamEvent{Type: EvToolStart, ID: id, Name: fc.Name})
 			c.fn(StreamEvent{Type: EvToolDelta, ID: id, Name: fc.Name, Delta: args})
+		case p.Text == "" && p.ThoughtSignature != "":
+			c.signLast(p.ThoughtSignature) // a signature that arrives alone closes the part before it
 		case p.Text != "":
-			typ, ev := "text", EvTextDelta
-			if p.Thought {
-				typ, ev = "thinking", EvThinkingDelta
-			}
-			if n := len(c.blocks); n > 0 && c.blocks[n-1].Type == typ {
-				if typ == "text" {
-					c.blocks[n-1].Text += p.Text
-				} else {
-					c.blocks[n-1].Thinking += p.Text
-				}
-			} else if typ == "text" {
-				c.blocks = append(c.blocks, Block{Type: "text", Text: p.Text})
-			} else {
-				c.blocks = append(c.blocks, Block{Type: "thinking", Thinking: p.Text})
-			}
-			c.fn(StreamEvent{Type: ev, Delta: p.Text})
+			c.addText(p.Text, p.Thought, p.ThoughtSignature)
 		}
 	}
 	return nil
+}
+
+// addText appends a text or thought part. Parts are merged into the block before them unless that block is signed, because a signature
+// belongs to the exact text it came with.
+func (c *geminiAcc) addText(text string, thought bool, sig string) {
+	typ, ev := "text", EvTextDelta
+	if thought {
+		typ, ev = "thinking", EvThinkingDelta
+	}
+	n := len(c.blocks)
+	if n > 0 && c.blocks[n-1].Type == typ && c.blocks[n-1].Signature == "" && c.blocks[n-1].ThoughtSignature == "" {
+		if thought {
+			c.blocks[n-1].Thinking += text
+		} else {
+			c.blocks[n-1].Text += text
+		}
+	} else if thought {
+		c.blocks = append(c.blocks, Block{Type: "thinking", Thinking: text})
+	} else {
+		c.blocks = append(c.blocks, Block{Type: "text", Text: text})
+	}
+	if sig != "" {
+		c.signLast(sig)
+	}
+	c.fn(StreamEvent{Type: ev, Delta: text})
+}
+
+// signLast attaches a signature to the last text or thinking block that has none; a call or nothing at all drops it.
+func (c *geminiAcc) signLast(sig string) {
+	n := len(c.blocks)
+	if n == 0 {
+		return
+	}
+	switch b := &c.blocks[n-1]; {
+	case b.Type == "thinking" && b.Signature == "":
+		b.Signature = sig
+	case b.Type == "text" && b.ThoughtSignature == "":
+		b.ThoughtSignature = sig
+	}
 }
 
 func (c *geminiAcc) response() (*Response, error) {
