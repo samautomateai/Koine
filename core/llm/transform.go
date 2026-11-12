@@ -86,7 +86,7 @@ func (r idRule) fix(old string, salt int) string {
 // changed in the middle of a session. The input is not modified: the session on disk keeps what the original model said.
 //
 //   - Thinking blocks of a different model cannot be replayed (the signature belongs to the model that wrote it). Readable ones become
-//     plain text; redacted ones are dropped.
+//     plain text; redacted ones are dropped. Gemini thought signatures of another model are dropped too.
 //   - Tool call ids are rewritten to what the target accepts, consistently in the calls and their results.
 //   - A tool result with no matching call is dropped; a call with no result gets an error result, because providers reject both.
 //   - Messages left empty by these steps are removed.
@@ -113,6 +113,7 @@ func TransformMessages(in []Message, t Target) []Message {
 func foreignThinking(bs []Block) []Block {
 	out := bs[:0]
 	for _, b := range bs {
+		b.ThoughtSignature = "" // Gemini's token belongs to the model that wrote it, like a thinking signature
 		if b.Type == "thinking" {
 			if b.Redacted || strings.TrimSpace(b.Thinking) == "" {
 				continue

@@ -64,6 +64,30 @@ func TestThinkingBlocksArePersistedInPiShapeAndRestored(t *testing.T) {
 	}
 }
 
+func TestGeminiThoughtSignaturesArePersistedInPiShapeAndRestored(t *testing.T) {
+	s := Create(t.TempDir(), "/proj")
+	asst := llm.Message{Role: "assistant", Content: []llm.Block{
+		{Type: "text", Text: "Looking", ThoughtSignature: "c2ln"},
+		{Type: "tool_use", ID: "t1", Name: "ls", Input: json.RawMessage(`{}`), ThoughtSignature: "c2lnMg=="}}}
+	for _, m := range []llm.Message{text("user", "q"), asst} {
+		if err := s.AppendMessage(m, "google", "gemini-3-pro"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, _ := os.ReadFile(s.Path)
+	if !strings.Contains(string(raw), `"textSignature":"c2ln"`) || !strings.Contains(string(raw), `"thoughtSignature":"c2lnMg=="`) {
+		t.Errorf("Pi's field names are textSignature and thoughtSignature: %s", raw)
+	}
+	r, err := Open(s.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := r.Messages()[1].Content
+	if got[0].ThoughtSignature != "c2ln" || got[1].ThoughtSignature != "c2lnMg==" {
+		t.Errorf("restored: %+v", got)
+	}
+}
+
 func TestEmptyThinkingBlocksAreNotRestored(t *testing.T) {
 	f := `{"type":"session","version":3,"id":"t","cwd":"/p"}` + "\n" +
 		`{"type":"message","id":"m1","parentId":null,"message":{"role":"user","content":"q"}}` + "\n" +

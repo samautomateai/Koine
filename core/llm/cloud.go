@@ -1,22 +1,25 @@
 package llm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // truthy reads the on/off environment variables of Bedrock ("1" or "true").
 func truthy(v string) bool { return v == "1" || strings.EqualFold(v, "true") }
 
 // bedrock builds the Amazon Bedrock provider. The credential is, in order: a bearer token (AWS_BEARER_TOKEN_BEDROCK, --api-key, auth.json
-// or models.json), then AWS keys from the environment or a shared-file profile (LoadAWSCredentials). The endpoint is the provider's
+// or models.json), then AWS keys from the environment or a shared-file profile, SSO login or role (AWSSource). The endpoint is the provider's
 // baseUrl in models.json, else AWS_ENDPOINT_URL_BEDROCK_RUNTIME, else the regional bedrock-runtime address. Settings may also come from
 // the `env` object of the provider's auth.json entry. AWS_BEDROCK_SKIP_AUTH and AWS_BEDROCK_FORCE_CACHE are Pi's switches for proxies
 // and application inference profiles; AWS_BEDROCK_FORCE_HTTP1 is not acted on.
 func (r *Router) bedrock(s setup, c Credential, headers map[string]string) (Provider, error) {
 	get := func(k string) string { return r.envFor(c.Env, k) }
-	creds, region, err := LoadAWSCredentials(get)
+	src := NewAWSSource(get, r.HTTP)
+	region := src.Region()
 	if !validRegion(region) {
 		return nil, fmt.Errorf("%s: %q is not an AWS region name", s.name, region)
 	}
@@ -28,7 +31,11 @@ func (r *Router) bedrock(s setup, c Credential, headers map[string]string) (Prov
 		base = "https://bedrock-runtime." + region + ".amazonaws.com"
 	}
 	return &Bedrock{Name: s.name, BaseURL: strings.TrimRight(base, "/"), Region: region, Bearer: c.Key, SkipAuth: truthy(get("AWS_BEDROCK_SKIP_AUTH")),
-		ForceCache: truthy(get("AWS_BEDROCK_FORCE_CACHE")), Creds: func() (AWSCredentials, error) { return creds, err }, Headers: headers,
+		ForceCache: truthy(get("AWS_BEDROCK_FORCE_CACHE")), Creds: func() (AWSCredentials, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // Creds takes no context; STS and the SSO portal need a bound
+			defer cancel()
+			return src.Credentials(ctx)
+		}, Headers: headers,
 		HTTP: r.HTTP, Retry: r.Retry}, nil
 }
 
@@ -101,13 +108,11 @@ func (r *Router) ambientCredential(s setup, c Credential) (Credential, error) {
 			c.Source = "env:AWS_BEDROCK_SKIP_AUTH"
 			return c, nil
 		}
-		if _, _, err := LoadAWSCredentials(get); err != nil {
+		label, err := NewAWSSource(get, r.HTTP).Describe()
+		if err != nil {
 			return fail(err)
 		}
-		c.Source = "aws:profile " + orDefault(get("AWS_PROFILE"), "default")
-		if get("AWS_ACCESS_KEY_ID") != "" {
-			c.Source = "env:AWS_ACCESS_KEY_ID"
-		}
+		c.Source = label
 	case APIVertex:
 		if _, err := LoadGoogleCredentials(get, nil); err != nil {
 			return fail(err)
@@ -115,11 +120,4 @@ func (r *Router) ambientCredential(s setup, c Credential) (Credential, error) {
 		c.Source = "adc:" + googleCredentialsPath(get)
 	}
 	return c, nil
-}
-
-func orDefault(s, d string) string {
-	if s == "" {
-		return d
-	}
-	return s
 }

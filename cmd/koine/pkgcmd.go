@@ -16,6 +16,7 @@ import (
 const pkgUsage = `usage: koine install [-l] [--allow-scripts] <source>...   add packages (npm:name[@version], git:host/path[@ref], a git URL or a directory)
        koine remove  [-l] <source>...                      remove packages and the files Koine installed for them
        koine update  [-l] [--allow-scripts] [<source>]     install what is missing, move what is not pinned, show changelogs
+       koine update --models [--url URL] [--force]         refresh the model catalog (~/.koine/model-catalog.json) from a server
        koine list    [-l]                                  list the configured packages
        koine config  [-l] [enable|disable <source> <resource>]   show, or switch, the resources of the packages
 
@@ -31,6 +32,9 @@ type pkgArgs struct {
 	Trust        bool
 	AllowScripts bool
 	Help         bool
+	Models       bool   // update --models: refresh the model catalog instead of the packages
+	Force        bool   // update --models --force: download even if the stored copy is current
+	URL          string // update --models --url
 	Dir          string
 	Rest         []string
 }
@@ -47,6 +51,16 @@ func parsePkgArgs(args []string) (pkgArgs, error) {
 			a.Trust = true
 		case "--allow-scripts":
 			a.AllowScripts = true
+		case "--models":
+			a.Models = true
+		case "--force":
+			a.Force = true
+		case "--url":
+			if i+1 >= len(args) {
+				return a, fmt.Errorf("%s needs a value", s)
+			}
+			i++
+			a.URL = args[i]
 		case "-h", "--help":
 			a.Help = true
 		case "-C", "--cwd":
@@ -79,6 +93,17 @@ func packageCommand(args []string, st streams) (code int, ok bool) {
 	if a.Help {
 		fmt.Fprint(st.Out, pkgUsage)
 		return 0, true
+	}
+	if a.Cmd != "update" && (a.Models || a.Force || a.URL != "") {
+		fmt.Fprintf(st.Err, "koine: --models, --url and --force belong to `koine update --models`\n")
+		return 2, true
+	}
+	if a.Cmd == "update" && !a.Models && (a.Force || a.URL != "") {
+		fmt.Fprintf(st.Err, "koine: --url and --force need --models\n")
+		return 2, true
+	}
+	if a.Models {
+		return updateModels(a, st), true
 	}
 	home, _ := os.UserHomeDir()
 	cwd := a.Dir

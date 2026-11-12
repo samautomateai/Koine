@@ -19,6 +19,10 @@ type Block struct {
 	Redacted  bool   `json:"-"`
 	Data      string `json:"data,omitempty"` // the wire name of a redacted block's payload; never set on blocks in the history
 
+	// ThoughtSignature is Gemini's replay token on a text or tool_use block (Pi: textSignature on text, thoughtSignature on a tool call). It
+	// is never sent to other APIs, so it has no JSON name here.
+	ThoughtSignature string `json:"-"`
+
 	ID    string          `json:"id,omitempty"`
 	Name  string          `json:"name,omitempty"`
 	Input json.RawMessage `json:"input,omitempty"`
