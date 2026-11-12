@@ -8,6 +8,8 @@ import (
 // Key handles one keypress.
 func (ui *UI) Key(k Key) {
 	switch {
+	case ui.prompt != nil:
+		ui.promptKey(k)
 	case ui.sel != nil:
 		ui.selectorKey(k)
 	case ui.label != nil:

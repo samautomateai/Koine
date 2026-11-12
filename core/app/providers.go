@@ -118,3 +118,6 @@ func LoadProviderSetup(cwd, home string) *ProviderSetup {
 	}
 	return NewProviderSetup(cwd, home, trusted, cfg.Providers, nil)
 }
+
+// getenv is the environment the MCP configuration expands against. --api-key no longer pretends to be a variable (see Router.RuntimeKeys).
+func (a *App) getenv(k string) string { return os.Getenv(k) }

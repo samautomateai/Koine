@@ -37,6 +37,7 @@ type UI struct {
 	full    bool
 	scr     Screen
 
+	prompt  *promptEdit
 	sel     *Selector
 	selPick func(idx int)
 	selKey  func(k Key) bool // extra keys of the open selector; true when handled
@@ -187,7 +188,7 @@ func (ui *UI) flush() {
 func (ui *UI) Frame() string {
 	ui.flush()
 	live, row, col := ui.live()
-	show := ui.set.HardwareCursor && ui.sel == nil && ui.tree == nil
+	show := ui.set.HardwareCursor && ui.sel == nil && ui.tree == nil && ui.prompt == nil
 	s := ui.scr.Draw(ui.pending, live, row, col, show, ui.full, ui.height)
 	ui.pending, ui.full = nil, false
 	return s
@@ -223,6 +224,9 @@ func (ui *UI) live() (lines []string, row, col int) {
 	}
 	lines = append(lines, ui.status())
 	switch {
+	case ui.prompt != nil:
+		lines = append(lines, ui.promptView()...)
+		row = len(lines) - 1
 	case ui.sel != nil:
 		lines = append(lines, ui.sel.View(ui.width, ui.th)...)
 		row = len(lines) - 1

@@ -16,7 +16,11 @@ import (
 // user to ask, so they refuse; a key typed into a networked session must not be possible.
 func (a *App) readSecret(question string) (string, error) {
 	if a.Prompt != nil {
-		return a.Prompt(question, true)
+		line, err := a.Prompt(question, true)
+		if err == nil && strings.TrimSpace(line) == "" {
+			err = errors.New("nothing was entered")
+		}
+		return strings.TrimSpace(line), err
 	}
 	if a.NoUserBash {
 		return "", errors.New("there is no terminal to ask on; run `koine auth login <provider>` instead")

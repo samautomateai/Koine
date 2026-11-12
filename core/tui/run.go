@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -54,6 +55,11 @@ type (
 		quit        bool
 		err         error
 		interrupted bool
+	}
+	promptMsg struct {
+		question string
+		secret   bool
+		reply    chan promptReply
 	}
 	askMsg struct {
 		title string
@@ -142,8 +148,21 @@ func Loop(ctx context.Context, a *app.App, term Terminal, o Options) error {
 			return -1
 		}
 	}
+	a.Prompt = func(question string, secret bool) (string, error) {
+		reply := make(chan promptReply, 1)
+		send(promptMsg{question, secret, reply})
+		select {
+		case r := <-reply:
+			if !r.ok {
+				return "", errors.New("cancelled")
+			}
+			return r.text, nil
+		case <-lctx.Done():
+			return "", errors.New("cancelled")
+		}
+	}
 	a.PrefillEditor = func(t string) { send(prefillMsg(t)) }
-	defer func() { a.Choose, a.PrefillEditor = nil, nil }()
+	defer func() { a.Choose, a.PrefillEditor, a.Prompt = nil, nil, nil }()
 
 	l := &loop{ctx: lctx, a: a, ui: ui, term: term, out: out, env: env, send: send, set: set}
 	ui.StartupPrompts()
@@ -202,6 +221,8 @@ func (l *loop) handle(m msg) {
 		ui.RunDone(m.quit, m.err, m.interrupted)
 	case askMsg:
 		ui.Ask(m.title, m.opts, func(i int) { m.reply <- i })
+	case promptMsg:
+		ui.Prompt(m.question, m.secret, func(t string, ok bool) { m.reply <- promptReply{t, ok} })
 	case prefillMsg:
 		ui.Prefill(string(m))
 	case resizeMsg:
