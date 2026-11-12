@@ -13,6 +13,10 @@
 - Pi's agent directory `~/.pi/agent` is Koine's `~/.koine`; `PI_CODING_AGENT_DIR` is `KOINE_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` is `KOINE_SESSION_DIR`. Koine also reads `~/.pi/agent` and a project's `.pi/` for skills, prompts, extensions, agents, `SYSTEM.md` and `APPEND_SYSTEM.md`, so a Pi setup keeps working.
 - `sessionDir` from a project that is not trusted is not applied (Pi reads it before trust).
 
+## Context files
+
+- `AGENTS.override.md` (Pi: replaces `AGENTS.md` or `CLAUDE.md` in the same directory) is ignored. It silently changes which instructions apply and no other ecosystem reads it. Koine loads `AGENTS.md` and `CLAUDE.md` when both exist in a directory; Pi's docs do not say which wins.
+
 ## Sessions
 
 - `/tree` summarises the branch it leaves only when asked (`--summary`) or when a frontend answers its question (`App.Choose`); in line mode without a flag it prints a hint instead of showing Pi's three-way prompt. `branchSummary.skipPrompt` removes the question and the hint.
