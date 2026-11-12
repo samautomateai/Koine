@@ -1,5 +1,5 @@
 // Wails v2 desktop app. It starts `koine --mode rpc` as a child process and talks to it through core/rpcclient (REQ-FE-002, REQ-FE-003,
-// ADR 0009), so it needs the koine binary (KOINE_BIN, next to this program, or on PATH). The page is plain HTML/JS (no npm build step) and
+// ADR 0013), so it needs the koine binary (KOINE_BIN, next to this program, or on PATH). The page is plain HTML/JS (no npm build step) and
 // talks to Go through the bound Backend and the "koine:update" event.
 //
 //	cd desktop && go mod tidy && wails dev     (or: wails build; on Linux add -tags webkit2_41 with WebKitGTK 4.1)

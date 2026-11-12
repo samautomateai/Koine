@@ -1,4 +1,4 @@
-# ADR 0009 — Separate-module frontends drive the core over RPC mode
+# ADR 0013 — Separate-module frontends drive the core over RPC mode
 
 - Status: accepted
 - Date: 2026-11-12

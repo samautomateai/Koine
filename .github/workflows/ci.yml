@@ -117,7 +117,7 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 
-  # The two frontend modules (REQ-FE-002): separate go.mod files with third-party dependencies (ADR 0009), built here with the Wails system
+  # The two frontend modules (REQ-FE-002): separate go.mod files with third-party dependencies (ADR 0013), built here with the Wails system
   # libraries. Their go.sum files are committed; `go mod tidy -diff` fails on drift. The RPC client they share is gated by the `go` job.
   frontends:
     name: Frontends · ${{ matrix.module }} build, vet, test

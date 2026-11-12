@@ -1,4 +1,4 @@
-# ADR 0010 — Sessions stay Pi-compatible JSONL (version 3), not SQLite
+# ADR 0014 — Sessions stay Pi-compatible JSONL (version 3), not SQLite
 
 - Status: accepted
 - Date: 2026-11-12

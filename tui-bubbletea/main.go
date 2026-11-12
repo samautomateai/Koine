@@ -1,5 +1,5 @@
 // Bubble Tea frontend for koine. It starts `koine --mode rpc` as a child process and talks to it through core/rpcclient (REQ-FE-002,
-// REQ-FE-003, ADR 0009), so it needs the koine binary (KOINE_BIN, next to this program, or on PATH) and shares no code with the core
+// REQ-FE-003, ADR 0013), so it needs the koine binary (KOINE_BIN, next to this program, or on PATH) and shares no code with the core
 // except the standard-library client. Arguments are passed to koine, for example `koine-tui -C ~/project --model sonnet`.
 //
 //	cd tui-bubbletea && go mod tidy && go run .

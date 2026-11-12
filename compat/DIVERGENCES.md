@@ -141,6 +141,6 @@ The page https://pi.dev/docs/latest/environment-variables was read on 2026-11-11
 
 ## Frontends
 
-- Pi's interactive mode is one program. Koine's Bubble Tea and Wails frontends are separate processes that drive `koine --mode rpc` (ADR 0009), so they offer what Pi's RPC protocol offers: extension commands, prompt templates and skills as slash commands, and no built-in `/model`, `/tree` or `/settings` selectors. Notices that Koine prints to stderr arrive as `stderr` events.
-- Sessions are Pi's JSONL version 3 only; there is no SQLite store (ADR 0010).
+- Pi's interactive mode is one program. Koine's Bubble Tea and Wails frontends are separate processes that drive `koine --mode rpc` (ADR 0013), so they offer what Pi's RPC protocol offers: extension commands, prompt templates and skills as slash commands, and no built-in `/model`, `/tree` or `/settings` selectors. Notices that Koine prints to stderr arrive as `stderr` events.
+- Sessions are Pi's JSONL version 3 only; there is no SQLite store (ADR 0014).
 - Echo v4 advisories under Wails v2 (X-Real-IP in the proxy middleware, X-Forwarded-For in the rate limiter) have no patched v4 release; see the Security entry in `CHANGELOG.md`. Koine's own code uses neither middleware.

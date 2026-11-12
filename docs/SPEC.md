@@ -430,7 +430,7 @@ and `Describe()`. `emit` receives `agent.Event`:
     `doubleEscapeAction`, `terminal.{showTerminalProgress,hyperlinks,trueColor}`, `markdown.codeBlockIndent`. `/settings` edits them and writes the
     user `settings.json` (only when it is plain JSON). A project `externalEditor` is ignored in an untrusted folder.
   - Rendering, layout and key decoding are pure functions covered by unit tests; only `term_unix.go` touches a terminal (one pty test).
-- **Bubble Tea and desktop frontends** (REQ-FE-002, REQ-FE-003, ADR 0009): `tui-bubbletea/` and `desktop/` (Wails v2) are separate modules that start
+- **Bubble Tea and desktop frontends** (REQ-FE-002, REQ-FE-003, ADR 0013): `tui-bubbletea/` and `desktop/` (Wails v2) are separate modules that start
   `koine --mode rpc` (binary from `$KOINE_BIN`, next to the program, or on `PATH`) and show its events through `core/rpcclient`. Arguments given to
   the Bubble Tea program are passed to koine (`-C DIR`, `--model`, ...); the desktop app uses `$KOINE_CWD` as the directory. Enter sends a prompt, and
   while the agent runs it steers (`streamingBehavior: steer`); Esc aborts; extension dialogs (`select`, `confirm`, `input`, `editor`) are answered in
