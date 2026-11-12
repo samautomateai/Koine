@@ -19,7 +19,7 @@ func TestEmbeddedCatalogIsValid(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, m := range c.Models {
-		if m.ID == "" || m.ContextWindow <= 0 || m.MaxOutput <= 0 || m.Cost.Input <= 0 || m.Cost.Output <= 0 || seen[m.ID] {
+		if m.ID == "" || m.ContextWindow <= 0 || m.Cost == nil || m.Cost.Input <= 0 || m.Cost.Output <= 0 || seen[m.ID] {
 			t.Errorf("bad or duplicate entry: %+v", m)
 		}
 		seen[m.ID] = true
@@ -124,5 +124,32 @@ func TestProvidersReportUsage(t *testing.T) {
 		Request{Model: "m", Messages: []Message{{Role: "user", Content: []Block{{Type: "text", Text: "q"}}}}})
 	if err != nil || resp.Usage != (Usage{Input: 40, Output: 7, CacheRead: 60}) {
 		t.Fatalf("openai: cached tokens are counted apart from input: %+v %v", resp, err)
+	}
+}
+
+// The prices and windows below are the ones Pi's catalog (https://pi.dev/models) lists, so a change here is a deliberate departure from Pi.
+func TestClaudeEntriesMatchPisCatalog(t *testing.T) {
+	c := DefaultCatalog()
+	for id, want := range map[string]struct {
+		window int
+		price  Price
+	}{
+		"claude-opus-5-5":   {1_000_000, Price{Input: 4, Output: 20, CacheRead: 0.2, CacheWrite: 5}},
+		"claude-sonnet-5-5": {1_000_000, Price{Input: 2, Output: 10, CacheRead: 0.1, CacheWrite: 2.5}},
+		"claude-haiku-5-5":  {1_000_000, Price{Input: 0.1, Output: 0.5, CacheRead: 0.01, CacheWrite: 0.125}},
+		"claude-fable-5-2":  {1_000_000, Price{Input: 8, Output: 40, CacheRead: 0.2, CacheWrite: 10}},
+		"claude-haiku-4-5":  {200_000, Price{Input: 1, Output: 5, CacheRead: 0.1, CacheWrite: 1.25}},
+		"claude-sonnet-4-5": {200_000, Price{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}},
+	} {
+		m, ok := c.Lookup(id)
+		if !ok || m.ContextWindow != want.window || m.Cost == nil || *m.Cost != want.price {
+			t.Errorf("%s: %+v", id, m)
+		}
+	}
+	if m, ok := c.Lookup("claude-haiku-4-5-20251001"); !ok || m.ID != "claude-haiku-4-5" {
+		t.Errorf("a dated id resolves to its alias entry: %+v %v", m, ok)
+	}
+	if m, _ := c.Lookup("claude-haiku-5-5"); m.LongContext != nil {
+		t.Error("Pi's catalog lists a flat price for Haiku 5.5: no long-context multiplier")
 	}
 }
