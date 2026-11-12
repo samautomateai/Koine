@@ -60,13 +60,13 @@ Without Task installed, `scripts/covergate.sh`, `go test ./...` and
 
 ### Status
 
-| Area                                                     | State                                                                                               |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean  |
+| Area                                                     | State                                                                                              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Core, line TUI, HTTP server, JS sidecar, hooks, protocol | built and tested — Go packages gated by `task cover:gate`, 29 JS tests on Node and Bun, race-clean |
 | `tui-bubbletea/`, `desktop/` (Wails v2)                  | RPC clients of `koine --mode rpc`; built and tested in CI (job `frontends`, `task frontends:test`) |
-| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing, streamed (`core/llm`)         |
-| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                 |
-| Not yet                                                  | frontends that render streamed text, permission prompts, Pi/opencode UI APIs (inert shims)          |
+| Providers                                                | Anthropic, OpenAI-compatible and custom providers via prefix routing, streamed (`core/llm`)        |
+| Pi tracking                                              | pinned to Pi 1.5.2; `koine -compat`, `task upstream:check` — see `docs/UPSTREAM.md`                |
+| Not yet                                                  | frontends that render streamed text, permission prompts, Pi/opencode UI APIs (inert shims)         |
 
 ## Layout
 
