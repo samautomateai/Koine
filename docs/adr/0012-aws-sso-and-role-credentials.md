@@ -1,4 +1,4 @@
-# ADR 0009 — AWS SSO, assumed roles and web identity on the standard library
+# ADR 0012 — AWS SSO, assumed roles and web identity on the standard library
 
 - Status: accepted
 - Date: 2026-11-12
