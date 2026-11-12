@@ -24,16 +24,14 @@
   textarea { flex:1; resize:none; height:56px; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
   textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; }
   button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:0 18px; font:inherit; cursor:pointer; }
-  button.stop { background:var(--bad); } button:disabled { opacity:.5; }
+  button.stop { background:var(--bad); } .dialog button { margin:4px 6px 0 0; padding:4px 12px; } .dialog input { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; } button:disabled { opacity:.5; }
 </style>
 </head>
 <body>
 <aside>
   <h1>koine</h1><small id="cwd"></small>
-  <h2>Tools</h2><ul id="tools"></ul>
-  <h2>Skills</h2><ul id="skills"></ul>
-  <h2>Agents</h2><ul id="agents"></ul>
   <h2>Commands</h2><ul id="commands"></ul>
+  <h2>Status</h2><ul id="status"></ul>
 </aside>
 <main>
   <div id="log" aria-live="polite"></div>
@@ -43,52 +41,80 @@
   </form>
 </main>
 <script>
+// The Go side (desktop/bridge) keeps the transcript; this page draws the entries it is sent, by index.
 const $ = (id) => document.getElementById(id);
 const log = $("log"), t = $("t"), go = $("go");
-let busy = false, pending = {};
+const api = () => window.go.bridge.Backend;
+let busy = false, dialog = null;
+const nodes = [];
 
-function add(cls, text) {
-  const d = document.createElement("div"); d.className = cls; d.textContent = text;
-  log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
-}
 function setBusy(b) { busy = b; go.textContent = b ? "Stop" : "Send"; go.className = b ? "stop" : ""; }
 
-function fill(id, items, click) {
-  const ul = $(id); ul.replaceChildren();
-  (items || []).forEach((x) => {
-    const li = document.createElement("li"); li.textContent = click ? "/" + x : x;
-    if (click) { li.className = "cmd"; li.onclick = () => { t.value = "/" + x + " "; t.focus(); }; }
+function draw(i, e) {
+  let d = nodes[i];
+  if (!d) { d = nodes[i] = document.createElement("div"); log.appendChild(d); }
+  const kinds = { user: "msg user", assistant: "msg", thinking: "msg notice", tool: "tool", notice: "msg notice", error: "msg err" };
+  d.className = kinds[e.kind] || "msg";
+  if (e.kind === "tool") {
+    d.textContent = "⏺ " + e.tool + " " + (e.args || "");
+    if (e.text) {
+      const r = document.createElement("div"); r.className = "res" + (e.isError ? " err" : ""); r.textContent = e.text; d.appendChild(r);
+    }
+  } else if (e.kind === "user") d.textContent = "› " + e.text;
+  else if (e.kind === "error") d.textContent = "error: " + e.text;
+  else d.textContent = e.text;
+  log.scrollTop = log.scrollHeight;
+}
+
+function showDialog(d) {
+  dialog = d;
+  document.querySelectorAll(".dialog").forEach((n) => n.remove());
+  if (!d) return;
+  const box = document.createElement("div"); box.className = "msg dialog";
+  const h = document.createElement("div"); h.className = "user"; h.textContent = d.title + (d.message ? " — " + d.message : "");
+  box.appendChild(h);
+  const done = (value, yes) => { api().Answer(value, yes); };
+  if (d.method === "select") {
+    d.options.forEach((o) => { const b = document.createElement("button"); b.textContent = o; b.onclick = () => done(o, false); box.appendChild(b); });
+  } else if (d.method === "confirm") {
+    [["Yes", true], ["No", false]].forEach(([l, y]) => { const b = document.createElement("button"); b.textContent = l; b.onclick = () => done("", y); box.appendChild(b); });
+  } else {
+    const i = document.createElement("input"); i.value = d.prefill || ""; i.placeholder = d.placeholder || ""; box.appendChild(i);
+    const b = document.createElement("button"); b.textContent = "OK"; b.onclick = () => done(i.value, false); box.appendChild(b);
+  }
+  const c = document.createElement("button"); c.className = "stop"; c.textContent = "Cancel"; c.onclick = () => api().Dismiss(); box.appendChild(c);
+  log.appendChild(box); log.scrollTop = log.scrollHeight;
+}
+
+function onUpdate(u) {
+  (u.changes || []).forEach((c) => draw(c.index, c.entry));
+  setBusy(u.busy);
+  if (u.title) document.title = u.title;
+  if (u.editor) { t.value = u.editor; t.focus(); }
+  const st = $("status"); st.replaceChildren();
+  if (u.status) { const li = document.createElement("li"); li.textContent = u.status; st.appendChild(li); }
+  Object.values(u.widgets || {}).forEach((lines) => lines.forEach((l) => { const li = document.createElement("li"); li.textContent = l; st.appendChild(li); }));
+  if ((u.dialog && u.dialog.id) !== (dialog && dialog.id)) showDialog(u.dialog);
+}
+
+async function refresh() {
+  const i = await api().Info();
+  $("cwd").textContent = (i.model ? i.model + " · " : "") + i.cwd;
+  const ul = $("commands"); ul.replaceChildren();
+  (i.commands || []).forEach((c) => {
+    const li = document.createElement("li"); li.textContent = "/" + c.name; li.className = "cmd"; li.title = c.description || "";
+    li.onclick = () => { t.value = "/" + c.name + " "; t.focus(); };
     ul.appendChild(li);
   });
 }
-async function refresh() {
-  const i = await window.go.main.Backend.Info();
-  $("cwd").textContent = i.model ? i.model + " · " + i.cwd : "";
-  fill("tools", i.tools); fill("skills", i.skills); fill("agents", i.agents); fill("commands", i.commands, true);
-  (i.warnings || []).forEach((w) => add("msg err", "warning: " + w));
-}
 
-function onEvent(e) {
-  switch (e.type) {
-    case "text": add("msg", e.text); break;
-    case "tool_start": pending[e.callId] = add("tool", "⏺ " + e.tool + " " + JSON.stringify(e.args ?? {})); break;
-    case "tool_end": add("res" + (e.isError ? " err" : ""), e.text); break;
-    case "notice": add("msg notice", e.text); break;
-    case "error": add("msg err", "error: " + e.text); break;
-  }
-}
-
-function send() {
-  const v = t.value.trim(); if (!v) return;
-  t.value = ""; add("msg user", "› " + v); setBusy(true); window.go.main.Backend.Send(v);
-}
-$("f").addEventListener("submit", (ev) => { ev.preventDefault(); busy ? window.go.main.Backend.Cancel() : send(); });
-t.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); if (!busy) send(); } });
+function send() { const v = t.value.trim(); if (!v) return; t.value = ""; api().Send(v); }
+$("f").addEventListener("submit", (ev) => { ev.preventDefault(); busy ? api().Cancel() : send(); });
+t.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); send(); } });
 
 window.addEventListener("load", () => {
-  window.runtime.EventsOn("koine:event", onEvent);
-  window.runtime.EventsOn("koine:done", () => { setBusy(false); refresh(); });
-  setTimeout(refresh, 300); // Go side finishes startup (extension handshake) asynchronously
+  window.runtime.EventsOn("koine:update", onUpdate);
+  setTimeout(refresh, 500); // the agent process finishes starting asynchronously
 });
 </script>
 </body>

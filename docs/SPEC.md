@@ -430,6 +430,12 @@ and `Describe()`. `emit` receives `agent.Event`:
     `doubleEscapeAction`, `terminal.{showTerminalProgress,hyperlinks,trueColor}`, `markdown.codeBlockIndent`. `/settings` edits them and writes the
     user `settings.json` (only when it is plain JSON). A project `externalEditor` is ignored in an untrusted folder.
   - Rendering, layout and key decoding are pure functions covered by unit tests; only `term_unix.go` touches a terminal (one pty test).
+- **Bubble Tea and desktop frontends** (REQ-FE-002, REQ-FE-003, ADR 0013): `tui-bubbletea/` and `desktop/` (Wails v2) are separate modules that start
+  `koine --mode rpc` (binary from `$KOINE_BIN`, next to the program, or on `PATH`) and show its events through `core/rpcclient`. Arguments given to
+  the Bubble Tea program are passed to koine (`-C DIR`, `--model`, ...); the desktop app uses `$KOINE_CWD` as the directory. Enter sends a prompt, and
+  while the agent runs it steers (`streamingBehavior: steer`); Esc aborts; extension dialogs (`select`, `confirm`, `input`, `editor`) are answered in
+  the UI. Commands are those of RPC mode (extension commands, prompt templates, skills), not the built-in slash commands of the terminal UI. Status:
+  the shared client is tested against the real server and both modules are built and tested in CI; the Wails window itself is not exercised.
 - **Command line** (`koine [options] [--] [@files] [message]`, REQ-CLI-001): with a message, piped stdin, `-p` or `--mode json` it runs one
   prompt. The prompt is piped stdin, then `@file` contents as `<file name="…">` blocks, then the message, separated by blank lines. An `@file` that is an image by its content, and image data
   piped on stdin, are sent as images instead (REQ-CLI-005, REQ-LLM-006); an unreadable image is a usage error like a missing file.

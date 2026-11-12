@@ -38,7 +38,7 @@ tasks:
       - go run ./cmd/koine -serve {{.ADDR}}
 
   tui:
-    desc: Run the Bubble Tea TUI (needs network once for `go mod tidy`)
+    desc: Run the Bubble Tea TUI (needs network once for `go mod tidy`, and the koine binary from `task build` via KOINE_BIN)
     dir: tui-bubbletea
     cmds:
       - go mod tidy
@@ -63,6 +63,11 @@ tasks:
     cmds:
       - go mod tidy
       - wails build
+
+  frontends:test:
+    desc: Build, vet and test the Bubble Tea and Wails modules (needs network; Wails needs GTK 3 and WebKitGTK 4.1 on Linux)
+    cmds:
+      - for d in tui-bubbletea desktop; do (cd $d && go mod tidy && go build -tags webkit2_41 ./... && go vet -tags webkit2_41 ./... && go test -tags webkit2_41 -race -count=1 -cover ./...); done
 
   # ---- quality -----------------------------------------------------------
   fmt:
