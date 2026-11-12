@@ -59,7 +59,7 @@ func TestFullscreenFollowsTheTailAndScrolls(t *testing.T) {
 	}
 	f.Top()
 	layout(f, numbered(10), nil, 20, 8, "auto")
-	if f.Off() != 2 || f.Following() {
+	if f.Off() != 3 || f.Following() {
 		t.Errorf("top again: off=%d following=%v", f.Off(), f.Following())
 	}
 	f.Scroll(-50)

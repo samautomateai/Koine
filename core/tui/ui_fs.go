@@ -98,6 +98,24 @@ func (ui *UI) ExitOutput() string {
 	return strings.Join(lines, "\x1b[0m\r\n") + "\x1b[0m\r\n"
 }
 
+// park returns what hands the terminal back to the shell or another program: key modes undone, and either the live area erased (regular
+// mode) or the alternate screen left (fullscreen).
+func (ui *UI) park() string {
+	if ui.fs != nil {
+		return RestoreKeys + FullscreenLeave
+	}
+	return ui.scr.Clear() + RestoreKeys
+}
+
+// unpark undoes park: key modes on, and the alternate screen entered in fullscreen mode (the next frame is then drawn in full).
+func (ui *UI) unpark() string {
+	if ui.fs != nil {
+		ui.full = true
+		return EnableKeys + FullscreenEnter
+	}
+	return EnableKeys
+}
+
 func (ui *UI) finalBlocks() []Block {
 	n := 0
 	for n < len(ui.blocks) && ui.blocks[n].Final {

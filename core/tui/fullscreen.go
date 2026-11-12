@@ -75,7 +75,7 @@ func (f *Fullscreen) Layout(content, live []string, o FSOptions) []string {
 	switch {
 	case f.top:
 		f.off = f.maxOff
-	case f.off > 0 && total > f.lastTotal:
+	case f.off > 0 && f.lastTotal > 0 && total > f.lastTotal:
 		f.off += total - f.lastTotal // keep what the reader is looking at where it is
 	}
 	f.off = min(f.off, f.maxOff)
